@@ -1,4 +1,4 @@
-const { withProjectBuildGradle, withAppBuildGradle } = require('@expo/config-plugins');
+const { withProjectBuildGradle, withAppBuildGradle, withGradleProperties } = require('@expo/config-plugins');
 
 const PRISM_MAVEN = `    maven {
       url = uri("https://maven.pkg.github.com/prismlabs-tech/prismsdk-android")
@@ -30,4 +30,14 @@ function withPrismDependency(config) {
   });
 }
 
-module.exports = (config) => withPrismDependency(withPrismMaven(config));
+function withPrismMinSdk(config) {
+  return withGradleProperties(config, (mod) => {
+    mod.modResults = mod.modResults.filter(
+      (item) => !(item.type === 'property' && item.key === 'android.minSdkVersion')
+    );
+    mod.modResults.push({ type: 'property', key: 'android.minSdkVersion', value: '28' });
+    return mod;
+  });
+}
+
+module.exports = (config) => withPrismMinSdk(withPrismDependency(withPrismMaven(config)));
