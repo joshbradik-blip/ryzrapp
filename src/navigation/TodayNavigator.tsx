@@ -1,0 +1,52 @@
+import React from 'react';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { TodayStackParamList } from '../types';
+import { TodayScreen } from '../screens/today/TodayScreen';
+import { WorkoutSessionScreen } from '../screens/today/WorkoutSessionScreen';
+import { ExerciseDetailScreen } from '../screens/today/ExerciseDetailScreen';
+import { SubstituteExerciseScreen } from '../screens/today/SubstituteExerciseScreen';
+import { FormCoachScreen } from '../screens/today/FormCoachScreen';
+import { WorkoutCompleteScreen } from '../screens/today/WorkoutCompleteScreen';
+import { Colors } from '../constants/theme';
+
+const Stack = createNativeStackNavigator<TodayStackParamList>();
+
+export function TodayNavigator() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: Colors.background },
+        headerTintColor: Colors.text,
+        headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        headerShadowVisible: false,
+      }}
+    >
+      <Stack.Screen name="TodayHome" component={TodayScreen} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="WorkoutSession"
+        component={WorkoutSessionScreen}
+        options={{ title: 'Workout', headerBackTitle: '' }}
+      />
+      <Stack.Screen
+        name="ExerciseDetail"
+        component={ExerciseDetailScreen}
+        options={{ title: 'Exercise', headerBackTitle: '' }}
+      />
+      <Stack.Screen
+        name="SubstituteExercise"
+        component={SubstituteExerciseScreen}
+        options={{ title: 'Swap Exercise', headerBackTitle: '' }}
+      />
+      <Stack.Screen
+        name="FormCoach"
+        component={FormCoachScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="WorkoutComplete"
+        component={WorkoutCompleteScreen}
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
+    </Stack.Navigator>
+  );
+}
