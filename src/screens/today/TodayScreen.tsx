@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  StyleSheet,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,12 +18,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/ui/Button';
 import { ExerciseCard } from '../../components/workout/ExerciseCard';
 import { Colors } from '../../constants/theme';
+import { CoachChatSheet } from './CoachChatSheet';
+import { scheduleAffirmationIfNeeded } from '../../lib/notifications';
 
 export function TodayScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<TodayStackParamList>>();
   const { profile } = useProfileStore();
   const { todayWorkout, workouts } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
+  const [chatOpen, setChatOpen] = useState(false);
+
+  useEffect(() => {
+    if (profile?.name) {
+      scheduleAffirmationIfNeeded(profile.name, todayWorkout?.name);
+    }
+  }, [profile?.name, todayWorkout?.name]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -32,7 +42,8 @@ export function TodayScreen() {
   const weekPlanned = workouts.length;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+    <SafeAreaView style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" />
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
@@ -215,5 +226,32 @@ export function TodayScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+
+    {/* Floating coach button */}
+    <TouchableOpacity style={styles.coachFab} onPress={() => setChatOpen(true)} activeOpacity={0.85}>
+      <Ionicons name="chatbubble-ellipses" size={22} color="#000" />
+    </TouchableOpacity>
+
+    <CoachChatSheet visible={chatOpen} onClose={() => setChatOpen(false)} />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  coachFab: {
+    position: 'absolute',
+    bottom: 28,
+    right: 24,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+});

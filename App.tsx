@@ -1,4 +1,5 @@
 import './global.css';
+import './src/lib/notifications'; // registers notification handler at startup
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';

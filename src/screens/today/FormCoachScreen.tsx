@@ -19,6 +19,29 @@ import { analyzeFormFromImage, FormAnalysis } from '../../lib/anthropic';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'FormCoach'>;
 
+const MID_SET_PHRASES = [
+  'Nice set! Keep that form tight.',
+  'You have one more rep in you — push it.',
+  'Looking strong, stay controlled.',
+  'That's it — own every rep.',
+  'Breathe and grind.',
+  'Strong work, keep the tension.',
+  'You're not done yet — finish it.',
+  'This is where champions are made.',
+];
+
+const SET_COMPLETE_PHRASES = [
+  'Great set — rest up and come back stronger.',
+  'That\'s a wrap. Solid work.',
+  'Set complete. You earned that rest.',
+  'Good grind. Recovery starts now.',
+  'Done. Log it and lock it in.',
+];
+
+function randomPhrase(arr: string[]): string {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
 const ANALYSIS_INTERVAL_MS = 6000; // analyze every 6 seconds — balances feedback vs API cost
 
 function scoreColor(score: number): string {
@@ -117,6 +140,9 @@ export function FormCoachScreen({ navigation, route }: Props) {
     Speech.stop();
     setIsActive(false);
     setShowSummary(true);
+    if (voiceEnabled) {
+      setTimeout(() => Speech.speak(randomPhrase(SET_COMPLETE_PHRASES), { rate: 0.88 }), 300);
+    }
   };
 
   const avgScore = sessionFeedback.length > 0
@@ -310,7 +336,14 @@ export function FormCoachScreen({ navigation, route }: Props) {
                 <TouchableOpacity
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setRepCount((r) => r + 1);
+                    setRepCount((r) => {
+                      const next = r + 1;
+                      if (voiceEnabled && next > 0 && next % 5 === 0) {
+                        Speech.stop();
+                        Speech.speak(randomPhrase(MID_SET_PHRASES), { rate: 0.88 });
+                      }
+                      return next;
+                    });
                   }}
                   style={[styles.repBtn, { backgroundColor: Colors.primary + '33', borderColor: Colors.primary }]}
                 >

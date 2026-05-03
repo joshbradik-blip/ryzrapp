@@ -154,6 +154,61 @@ export interface FormAnalysis {
   cue: string;            // actionable coaching cue, ≤12 words
 }
 
+export async function generateAffirmation(
+  name: string,
+  workoutName?: string
+): Promise<string> {
+  const context = workoutName ? `Today's workout: ${workoutName}.` : 'Today is a rest day.';
+  const response = await fetch(ANTHROPIC_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': getApiKey(),
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 80,
+      messages: [{
+        role: 'user',
+        content: `Write one short motivational affirmation for ${name}. ${context} 1-2 sentences, personal, direct, energizing. Address them by name. No hashtags or emojis.`,
+      }],
+    }),
+  });
+  if (!response.ok) throw new Error('Affirmation failed');
+  const data = await response.json();
+  return data.content[0]?.text ?? `${name}, today is your chance to be better than yesterday. Make it count.`;
+}
+
+export interface CoachMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export async function askCoach(
+  messages: CoachMessage[],
+  context: { name: string; workoutName?: string }
+): Promise<string> {
+  const system = `You are RYZR Coach, a knowledgeable and motivating personal trainer helping ${context.name} with their fitness journey.${context.workoutName ? ` Today they're doing: ${context.workoutName}.` : ''} Keep responses concise (2-4 sentences), direct, and practical. Be encouraging but honest.`;
+  const response = await fetch(ANTHROPIC_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': getApiKey(),
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 300,
+      system,
+      messages,
+    }),
+  });
+  if (!response.ok) throw new Error('Coach unavailable');
+  const data = await response.json();
+  return data.content[0]?.text ?? "Let's focus — what do you need help with?";
+}
+
 export async function analyzeFormFromImage(
   exerciseName: string,
   imageBase64: string,
