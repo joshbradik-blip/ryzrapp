@@ -23,10 +23,10 @@ const MID_SET_PHRASES = [
   'Nice set! Keep that form tight.',
   'You have one more rep in you — push it.',
   'Looking strong, stay controlled.',
-  'That's it — own every rep.',
+  "That's it — own every rep.",
   'Breathe and grind.',
   'Strong work, keep the tension.',
-  'You're not done yet — finish it.',
+  "You're not done yet — finish it.",
   'This is where champions are made.',
 ];
 

@@ -11,8 +11,8 @@ import {
   ActivityIndicator,
   StyleSheet,
   Animated,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { askCoach, CoachMessage } from '../../lib/anthropic';
@@ -76,7 +76,7 @@ export function CoachChatSheet({ visible, onClose }: Props) {
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
       <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
-        <SafeAreaView style={{ flex: 1 }} edges={['bottom'] as any}>
+        <SafeAreaView style={{ flex: 1 }} edges={['bottom']}>
           {/* Handle + header */}
           <View style={styles.handle} />
           <View style={styles.header}>
