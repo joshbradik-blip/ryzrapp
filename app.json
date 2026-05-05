@@ -18,7 +18,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "RYZR uses your camera to analyze your workout form in real-time.",
         "NSMicrophoneUsageDescription": "RYZR uses audio for voice coaching feedback.",
-        "NSPhotoLibraryUsageDescription": "RYZR can save workout clips to your photo library."
+        "NSPhotoLibraryUsageDescription": "RYZR can save workout clips to your photo library.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -43,6 +44,7 @@
     },
     "plugins": [
       "./plugins/withPrismSDK",
+      "./plugins/withAdiRegistration",
       "expo-font",
       "expo-secure-store",
       [
