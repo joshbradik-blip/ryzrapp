@@ -11,11 +11,15 @@ import {
   ActivityIndicator,
   StyleSheet,
   Animated,
+  Image,
+  ActionSheetIOS,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
-import { askCoach, CoachMessage } from '../../lib/anthropic';
+import { askCoach, askCoachWithImage, CoachMessage } from '../../lib/anthropic';
 import { useProfileStore } from '../../store/profileStore';
 import { useWorkoutStore } from '../../store/workoutStore';
 
@@ -35,6 +39,7 @@ export function CoachChatSheet({ visible, onClose }: Props) {
   const [messages, setMessages] = useState<CoachMessage[]>([WELCOME]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pendingImage, setPendingImage] = useState<{ uri: string; base64: string } | null>(null);
   const slideAnim = useRef(new Animated.Value(600)).current;
   const listRef = useRef<FlatList<CoachMessage>>(null);
 
@@ -48,29 +53,80 @@ export function CoachChatSheet({ visible, onClose }: Props) {
 
   const send = useCallback(async () => {
     const trimmed = input.trim();
-    if (!trimmed || loading) return;
-    const userMsg: CoachMessage = { role: 'user', content: trimmed };
-    const updated = [...messages, userMsg];
-    setMessages(updated);
-    setInput('');
-    setLoading(true);
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
-    try {
-      const reply = await askCoach(updated, {
-        name: profile?.name ?? 'Athlete',
-        workoutName: todayWorkout?.name,
-      });
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: "I'm having trouble connecting right now. Try again in a moment." },
-      ]);
-    } finally {
-      setLoading(false);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    if ((!trimmed && !pendingImage) || loading) return;
+
+    const ctx = { name: profile?.name ?? 'Athlete', workoutName: todayWorkout?.name };
+
+    if (pendingImage) {
+      const caption = trimmed || 'What is this gym equipment and how do I use it?';
+      const userMsg: CoachMessage = { role: 'user', content: caption, imageUri: pendingImage.uri };
+      const updated = [...messages, userMsg];
+      setMessages(updated);
+      setInput('');
+      setPendingImage(null);
+      setLoading(true);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
+      try {
+        const reply = await askCoachWithImage(messages, pendingImage.base64, caption, ctx);
+        setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      } catch {
+        setMessages((prev) => [...prev, { role: 'assistant', content: "I couldn't analyze that image. Try again." }]);
+      } finally {
+        setLoading(false);
+        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+      }
+    } else {
+      const userMsg: CoachMessage = { role: 'user', content: trimmed };
+      const updated = [...messages, userMsg];
+      setMessages(updated);
+      setInput('');
+      setLoading(true);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
+      try {
+        const reply = await askCoach(updated, ctx);
+        setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      } catch {
+        setMessages((prev) => [...prev, { role: 'assistant', content: "I'm having trouble connecting right now. Try again in a moment." }]);
+      } finally {
+        setLoading(false);
+        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+      }
     }
-  }, [input, loading, messages, profile, todayWorkout]);
+  }, [input, pendingImage, loading, messages, profile, todayWorkout]);
+
+  const pickImage = useCallback(async (fromCamera: boolean) => {
+    const permission = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert('Permission needed', fromCamera ? 'Camera access is required.' : 'Photo library access is required.');
+      return;
+    }
+
+    const result = fromCamera
+      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.6, mediaTypes: 'images' })
+      : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.6, mediaTypes: 'images' });
+
+    if (!result.canceled && result.assets[0].base64) {
+      setPendingImage({ uri: result.assets[0].uri, base64: result.assets[0].base64 });
+    }
+  }, []);
+
+  const showImagePicker = useCallback(() => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ['Cancel', 'Take Photo', 'Choose from Library'], cancelButtonIndex: 0 },
+        (i) => { if (i === 1) pickImage(true); if (i === 2) pickImage(false); }
+      );
+    } else {
+      Alert.alert('Add Photo', '', [
+        { text: 'Take Photo', onPress: () => pickImage(true) },
+        { text: 'Choose from Library', onPress: () => pickImage(false) },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    }
+  }, [pickImage]);
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
@@ -101,6 +157,9 @@ export function CoachChatSheet({ visible, onClose }: Props) {
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
               <View style={[styles.bubble, item.role === 'user' ? styles.bubbleUser : styles.bubbleCoach]}>
+                {item.imageUri && (
+                  <Image source={{ uri: item.imageUri }} style={styles.bubbleImage} resizeMode="cover" />
+                )}
                 <Text style={[styles.bubbleText, item.role === 'user' ? styles.bubbleTextUser : styles.bubbleTextCoach]}>
                   {item.content}
                 </Text>
@@ -117,12 +176,23 @@ export function CoachChatSheet({ visible, onClose }: Props) {
 
           {/* Input row */}
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            {pendingImage && (
+              <View style={styles.imagePreviewRow}>
+                <Image source={{ uri: pendingImage.uri }} style={styles.imagePreview} resizeMode="cover" />
+                <TouchableOpacity onPress={() => setPendingImage(null)} style={styles.imagePreviewClear}>
+                  <Ionicons name="close-circle" size={20} color={Colors.text} />
+                </TouchableOpacity>
+              </View>
+            )}
             <View style={styles.inputRow}>
+              <TouchableOpacity onPress={showImagePicker} style={styles.cameraBtn}>
+                <Ionicons name="camera-outline" size={22} color={pendingImage ? Colors.primary : Colors.textSecondary} />
+              </TouchableOpacity>
               <TextInput
                 style={styles.input}
                 value={input}
                 onChangeText={setInput}
-                placeholder="Ask your coach anything…"
+                placeholder={pendingImage ? 'Add a caption or send…' : 'Ask your coach anything…'}
                 placeholderTextColor={Colors.muted}
                 multiline
                 maxLength={400}
@@ -132,8 +202,8 @@ export function CoachChatSheet({ visible, onClose }: Props) {
               />
               <TouchableOpacity
                 onPress={send}
-                disabled={!input.trim() || loading}
-                style={[styles.sendBtn, (!input.trim() || loading) && { opacity: 0.35 }]}
+                disabled={(!input.trim() && !pendingImage) || loading}
+                style={[styles.sendBtn, ((!input.trim() && !pendingImage) || loading) && { opacity: 0.35 }]}
               >
                 <Ionicons name="send" size={18} color="#000" />
               </TouchableOpacity>
@@ -240,5 +310,33 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  cameraBtn: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePreviewRow: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+  },
+  imagePreview: {
+    width: 80,
+    height: 60,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  imagePreviewClear: {
+    position: 'absolute',
+    top: 4,
+    left: 68,
+  },
+  bubbleImage: {
+    width: 200,
+    height: 150,
+    borderRadius: 8,
+    marginBottom: 6,
   },
 });

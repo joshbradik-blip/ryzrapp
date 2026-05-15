@@ -12,93 +12,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
+import { useProfileStore } from '../../store/profileStore';
 import { startBodyScan } from '../../modules/PrismModule';
 
 const { width } = Dimensions.get('window');
 
-const HEATMAP_DATA = Array.from({ length: 91 }, (_, i) => ({
-  index: i,
-  count: Math.random() > 0.55 ? Math.floor(Math.random() * 3) + 1 : 0,
-}));
+const HEATMAP_DATA = Array.from({ length: 91 }, (_, i) => ({ index: i, count: 0 }));
 
-const STRENGTH_DATA = [
-  { week: 'W1', value: 80 },
-  { week: 'W2', value: 82.5 },
-  { week: 'W3', value: 82.5 },
-  { week: 'W4', value: 77.5 },
-  { week: 'W5', value: 85 },
-  { week: 'W6', value: 87.5 },
-  { week: 'W7', value: 90 },
-  { week: 'W8', value: 92.5 },
-];
-
-const PRS: { exercise: string; weight: string; date: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { exercise: 'Back Squat',  weight: '90 kg',   date: 'Apr 14', icon: 'barbell-outline' },
-  { exercise: 'Pull-Up',     weight: '15 reps',  date: 'Apr 10', icon: 'trending-up-outline' },
-  { exercise: 'Bench Press', weight: '75 kg',   date: 'Apr 2',  icon: 'barbell-outline' },
-  { exercise: 'Deadlift',    weight: '120 kg',  date: 'Mar 28', icon: 'flash-outline' },
-];
-
-function SimpleLineChart({ data }: { data: { week: string; value: number }[] }) {
-  const max = Math.max(...data.map((d) => d.value));
-  const min = Math.min(...data.map((d) => d.value)) - 5;
-  const chartH = 100;
-  const chartW = width - 80;
-  const pointSpacing = chartW / (data.length - 1);
-
-  return (
-    <View style={{ height: chartH + 30, marginTop: 8 }}>
-      <View style={{ position: 'relative', height: chartH }}>
-        {data.map((d, i) => {
-          if (i === data.length - 1) return null;
-          const x1 = i * pointSpacing;
-          const x2 = (i + 1) * pointSpacing;
-          const y1 = chartH - ((d.value - min) / (max - min)) * chartH;
-          const y2 = chartH - ((data[i + 1].value - min) / (max - min)) * chartH;
-          const dx = x2 - x1;
-          const dy = y2 - y1;
-          const len = Math.sqrt(dx * dx + dy * dy);
-          const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-          return (
-            <View
-              key={i}
-              style={{
-                position: 'absolute',
-                left: x1,
-                top: y1,
-                width: len,
-                height: 2,
-                backgroundColor: Colors.primary,
-                transformOrigin: 'left center',
-                transform: [{ rotate: `${angle}deg` }],
-              }}
-            />
-          );
-        })}
-        {data.map((d, i) => {
-          const x = i * pointSpacing - 5;
-          const y = chartH - ((d.value - min) / (max - min)) * chartH - 5;
-          return (
-            <View key={i} style={{
-              position: 'absolute', left: x, top: y,
-              width: 10, height: 10, borderRadius: 5,
-              backgroundColor: Colors.primary,
-              borderWidth: 2,
-              borderColor: Colors.background,
-            }} />
-          );
-        })}
-      </View>
-      <View style={{ flexDirection: 'row', marginTop: 6 }}>
-        {data.map((d, i) => (
-          <Text key={i} style={{ width: pointSpacing, color: Colors.muted, fontSize: 11, textAlign: 'center' }}>
-            {d.week}
-          </Text>
-        ))}
-      </View>
-    </View>
-  );
-}
 
 function HeatmapCalendar() {
   const cellSize = Math.floor((width - 64) / 13) - 2;
@@ -145,6 +65,7 @@ const MEASUREMENT_ROWS: { label: string; icon: keyof typeof Ionicons.glyphMap }[
 
 export function ProgressScreen() {
   const { isPremium } = useSubscriptionStore();
+  const { profile } = useProfileStore();
   const [activeChart, setActiveChart] = useState('Back Squat');
   const [scanning, setScanning] = useState(false);
 
@@ -218,17 +139,10 @@ export function ProgressScreen() {
             ))}
           </ScrollView>
 
-          <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '900' }}>92.5 kg</Text>
-          <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '600' }}>+12.5 kg in 8 weeks</Text>
-
-          {isPremium ? (
-            <SimpleLineChart data={STRENGTH_DATA} />
-          ) : (
-            <View style={{ height: 100, backgroundColor: Colors.surface2, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 12, borderWidth: 1, borderColor: Colors.border }}>
-              <Ionicons name="lock-closed-outline" size={24} color={Colors.muted} style={{ marginBottom: 6 }} />
-              <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600' }}>Upgrade for detailed charts</Text>
-            </View>
-          )}
+          <View style={{ height: 100, backgroundColor: Colors.surface2, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 12, borderWidth: 1, borderColor: Colors.border }}>
+            <Ionicons name="barbell-outline" size={24} color={Colors.muted} style={{ marginBottom: 6 }} />
+            <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600' }}>No data yet — log sets to track progress</Text>
+          </View>
         </View>
 
         {/* PRs */}
@@ -237,28 +151,9 @@ export function ProgressScreen() {
             <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>Personal Records</Text>
             <Ionicons name="trophy" size={20} color={Colors.primary} />
           </View>
-          <View style={{ gap: 10 }}>
-            {PRS.map((pr) => (
-              <View key={pr.exercise} style={{
-                backgroundColor: Colors.surface,
-                borderRadius: 14,
-                padding: 16,
-                borderWidth: 1,
-                borderColor: Colors.border,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 14,
-              }}>
-                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name={pr.icon} size={22} color={Colors.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 15 }}>{pr.exercise}</Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2 }}>{pr.date}</Text>
-                </View>
-                <Text style={{ color: Colors.primary, fontSize: 18, fontWeight: '900' }}>{pr.weight}</Text>
-              </View>
-            ))}
+          <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 24, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' }}>
+            <Ionicons name="trophy-outline" size={32} color={Colors.muted} style={{ marginBottom: 8 }} />
+            <Text style={{ color: Colors.textSecondary, fontSize: 14, textAlign: 'center' }}>No PRs yet — complete workouts to set your first records</Text>
           </View>
         </View>
 
@@ -271,8 +166,14 @@ export function ProgressScreen() {
             </TouchableOpacity>
           </View>
           <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' }}>
-            <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900' }}>76.2 <Text style={{ fontSize: 18, color: Colors.textSecondary }}>kg</Text></Text>
-            <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '600' }}>-1.8 kg this month</Text>
+            {profile?.weight_kg ? (
+              <>
+                <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900' }}>{profile.weight_kg} <Text style={{ fontSize: 18, color: Colors.textSecondary }}>kg</Text></Text>
+                <Text style={{ color: Colors.muted, fontSize: 13 }}>Starting weight — log entries to track change</Text>
+              </>
+            ) : (
+              <Text style={{ color: Colors.muted, fontSize: 14 }}>No weight logged yet</Text>
+            )}
           </View>
         </View>
 

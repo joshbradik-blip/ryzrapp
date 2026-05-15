@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Workout, WorkoutExercise, Session, SessionSet, Exercise, ExerciseDBExercise } from '../types';
 import { EXERCISES } from '../constants/exercises';
 import { supabase } from '../lib/supabase';
@@ -88,7 +90,7 @@ function applySwapToWorkout(
   };
 }
 
-export const useWorkoutStore = create<WorkoutState>((set, get) => ({
+export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
   workouts: [],
   todayWorkout: null,
   activeSession: null,
@@ -234,4 +236,8 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       return { workouts, todayWorkout };
     });
   },
+}), {
+  name: 'ryzr-workouts',
+  storage: createJSONStorage(() => AsyncStorage),
+  partialize: (state) => ({ workouts: state.workouts, todayWorkout: state.todayWorkout }),
 }));

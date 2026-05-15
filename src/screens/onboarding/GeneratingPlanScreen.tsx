@@ -22,7 +22,7 @@ const STEPS = [
 ];
 
 export function GeneratingPlanScreen({ navigation }: Props) {
-  const { profile, injuries, schedulePrefs, goals, equipment, completeOnboarding } = useProfileStore();
+  const { profile, injuries, disabilities, schedulePrefs, goals, equipment, completeOnboarding } = useProfileStore();
   const { setWorkouts, setTodayWorkout } = useWorkoutStore();
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +50,7 @@ export function GeneratingPlanScreen({ navigation }: Props) {
         const workouts = await generateWorkoutPlan({
           profile: profile!,
           injuries,
+          disabilities,
           schedule: schedulePrefs!,
           goals,
           equipment,

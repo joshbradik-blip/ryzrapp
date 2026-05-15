@@ -6,9 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
+import { WebView } from 'react-native-webview';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TodayStackParamList } from '../../types';
 import { getExerciseById } from '../../constants/exercises';
@@ -36,6 +37,7 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
   const exercise = getExerciseById(exerciseId);
   const { isPremium } = useSubscriptionStore();
   const [activeTab, setActiveTab] = useState<typeof TABS[number]>('Setup');
+  const [videoLoading, setVideoLoading] = useState(true);
 
   if (!exercise) {
     return (
@@ -46,13 +48,8 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
   }
 
   const canSwap = !!(workoutId && workoutExerciseId);
-
-  const handleWatchDemo = async () => {
-    const query = encodeURIComponent(`${exercise.name} proper form tutorial`);
-    await WebBrowser.openBrowserAsync(
-      `https://www.youtube.com/results?search_query=${query}`
-    );
-  };
+  const videoQuery = encodeURIComponent(`${exercise.name} proper form tutorial`);
+  const embedUrl = `https://www.youtube.com/embed?listType=search&list=${videoQuery}&autoplay=0`;
 
   const handleSwap = () => {
     if (!canSwap) {
@@ -81,39 +78,22 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Demo video area */}
-        <TouchableOpacity
-          onPress={handleWatchDemo}
-          activeOpacity={0.85}
-          style={{
-            height: 220,
-            backgroundColor: Colors.surface,
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderBottomWidth: 1,
-            borderBottomColor: Colors.border,
-            gap: 10,
-          }}
-        >
-          <View style={{
-            width: 64,
-            height: 64,
-            borderRadius: 32,
-            backgroundColor: Colors.primary + '22',
-            borderWidth: 2,
-            borderColor: Colors.primary + '66',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <Ionicons name="logo-youtube" size={32} color={Colors.primary} />
-          </View>
-          <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }}>
-            Watch Demo
-          </Text>
-          <Text style={{ color: Colors.muted, fontSize: 13 }}>
-            Opens YouTube in-app
-          </Text>
-        </TouchableOpacity>
+        {/* Embedded demo video */}
+        <View style={{ height: 220, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+          {videoLoading && (
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
+              <ActivityIndicator color={Colors.primary} size="large" />
+            </View>
+          )}
+          <WebView
+            source={{ uri: embedUrl }}
+            style={{ flex: 1, backgroundColor: Colors.surface }}
+            onLoad={() => setVideoLoading(false)}
+            allowsInlineMediaPlayback
+            mediaPlaybackRequiresUserAction={false}
+            javaScriptEnabled
+          />
+        </View>
 
         <View style={{ padding: 24 }}>
           {/* Name & difficulty */}

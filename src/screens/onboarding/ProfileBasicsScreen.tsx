@@ -52,14 +52,36 @@ export function ProfileBasicsScreen({ navigation }: Props) {
 
   const [name, setName] = useState(profile?.name ?? '');
   const [age, setAge] = useState(String(profile?.age ?? ''));
+  const [height, setHeight] = useState(String(profile?.height_cm ?? ''));
+  const [weight, setWeight] = useState(String(profile?.weight_kg ?? ''));
+  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
   const [sex, setSex] = useState<'male' | 'female'>(profile?.sex ?? 'male');
   const [fitnessLevel, setFitnessLevel] = useState<FitnessLevel>(
     profile?.fitness_level ?? 'some_experience'
   );
 
+  const toggleWeightUnit = (unit: 'kg' | 'lbs') => {
+    if (unit === weightUnit) return;
+    const val = parseFloat(weight);
+    if (!isNaN(val)) {
+      const converted = unit === 'lbs' ? val * 2.20462 : val * 0.453592;
+      setWeight(converted.toFixed(1));
+    }
+    setWeightUnit(unit);
+  };
+
   const handleNext = () => {
-    if (!name.trim() || !age) return;
-    setProfile({ name: name.trim(), age: parseInt(age, 10), sex, fitness_level: fitnessLevel });
+    if (!name.trim() || !age || !height || !weight) return;
+    const rawWeight = parseFloat(weight);
+    const weightKg = weightUnit === 'lbs' ? rawWeight * 0.453592 : rawWeight;
+    setProfile({
+      name: name.trim(),
+      age: parseInt(age, 10),
+      height_cm: parseFloat(height),
+      weight_kg: parseFloat(weightKg.toFixed(1)),
+      sex,
+      fitness_level: fitnessLevel,
+    });
     navigation.navigate('Injuries');
   };
 
@@ -97,6 +119,46 @@ export function ProfileBasicsScreen({ navigation }: Props) {
             placeholder="e.g. 28"
             keyboardType="number-pad"
           />
+
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Input
+                label="Height (cm)"
+                value={height}
+                onChangeText={setHeight}
+                placeholder="e.g. 175"
+                keyboardType="decimal-pad"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600', letterSpacing: 0.5 }}>WEIGHT</Text>
+                <View style={{ flexDirection: 'row', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border }}>
+                  {(['kg', 'lbs'] as const).map((u) => (
+                    <TouchableOpacity
+                      key={u}
+                      onPress={() => toggleWeightUnit(u)}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        backgroundColor: weightUnit === u ? Colors.primary : Colors.surface2,
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: weightUnit === u ? Colors.background : Colors.textSecondary }}>
+                        {u}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <Input
+                value={weight}
+                onChangeText={setWeight}
+                placeholder={weightUnit === 'kg' ? 'e.g. 75' : 'e.g. 165'}
+                keyboardType="decimal-pad"
+              />
+            </View>
+          </View>
 
           {/* Sex */}
           <Text style={{ color: Colors.textSecondary, fontSize: 13, marginBottom: 8, fontWeight: '600', letterSpacing: 0.5 }}>
@@ -159,7 +221,7 @@ export function ProfileBasicsScreen({ navigation }: Props) {
             title="Next →"
             onPress={handleNext}
             size="lg"
-            disabled={!name.trim() || !age}
+            disabled={!name.trim() || !age || !height || !weight}
           />
         </ScrollView>
       </SafeAreaView>
