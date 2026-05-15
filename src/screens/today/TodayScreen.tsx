@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StatusBar,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,13 +21,41 @@ import { ExerciseCard } from '../../components/workout/ExerciseCard';
 import { Colors } from '../../constants/theme';
 import { CoachChatSheet } from './CoachChatSheet';
 import { scheduleAffirmationIfNeeded } from '../../lib/notifications';
+import { generateWorkoutPlan } from '../../lib/anthropic';
 
 export function TodayScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<TodayStackParamList>>();
-  const { profile } = useProfileStore();
-  const { todayWorkout, workouts } = useWorkoutStore();
+  const { profile, injuries, schedulePrefs, goals, equipment } = useProfileStore();
+  const { todayWorkout, workouts, setWorkouts, setTodayWorkout } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
   const [chatOpen, setChatOpen] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+
+  const handleRegenerate = async () => {
+    if (!profile || !schedulePrefs) {
+      Alert.alert('Profile incomplete', 'Complete your profile before regenerating a plan.');
+      return;
+    }
+    Alert.alert('Regenerate workout?', "We'll build you a fresh plan based on your current profile.", [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Regenerate',
+        onPress: async () => {
+          setRegenerating(true);
+          try {
+            const newWorkouts = await generateWorkoutPlan({ profile, injuries, disabilities: [], schedule: schedulePrefs, goals, equipment });
+            setWorkouts(newWorkouts);
+            if (newWorkouts.length > 0) setTodayWorkout(newWorkouts[0]);
+            Alert.alert('Done!', 'Your new workout plan is ready.');
+          } catch {
+            Alert.alert('Error', 'Could not generate a new plan. Try again in a moment.');
+          } finally {
+            setRegenerating(false);
+          }
+        },
+      },
+    ]);
+  };
 
   useEffect(() => {
     if (profile?.name) {
@@ -37,7 +66,7 @@ export function TodayScreen() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
-  const streak = 12; // TODO: calculate from sessions table
+  const streak = 0;
   const weekCompleted = workouts.filter((w) => w.week_number === 1).length;
   const weekPlanned = workouts.length;
 
@@ -155,8 +184,8 @@ export function TodayScreen() {
         <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 24, marginTop: 20 }}>
           {[
             { label: 'This week', value: `${weekCompleted}/${weekPlanned}`, sub: 'workouts' },
-            { label: 'Longest streak', value: '12', sub: 'days' },
-            { label: 'Total sessions', value: '48', sub: 'all time' },
+            { label: 'Longest streak', value: '0', sub: 'days' },
+            { label: 'Total sessions', value: '0', sub: 'all time' },
           ].map((stat) => (
             <View key={stat.label} style={{
               flex: 1,
@@ -172,6 +201,32 @@ export function TodayScreen() {
             </View>
           ))}
         </View>
+
+        {/* Regenerate workout */}
+        <TouchableOpacity
+          onPress={handleRegenerate}
+          disabled={regenerating}
+          activeOpacity={0.8}
+          style={{
+            marginHorizontal: 24,
+            marginTop: 12,
+            backgroundColor: Colors.surface,
+            borderRadius: 14,
+            paddingVertical: 14,
+            paddingHorizontal: 18,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            borderWidth: 1,
+            borderColor: Colors.border,
+          }}
+        >
+          <Ionicons name="refresh-outline" size={20} color={regenerating ? Colors.muted : Colors.primary} />
+          <Text style={{ color: regenerating ? Colors.muted : Colors.text, fontWeight: '700', fontSize: 14, flex: 1 }}>
+            {regenerating ? 'Generating new plan…' : 'Regenerate today\'s workout'}
+          </Text>
+          {!regenerating && <Ionicons name="chevron-forward" size={16} color={Colors.muted} />}
+        </TouchableOpacity>
 
         {/* AI Premium prompt */}
         {!isPremium && (
@@ -229,7 +284,8 @@ export function TodayScreen() {
 
     {/* Floating coach button */}
     <TouchableOpacity style={styles.coachFab} onPress={() => setChatOpen(true)} activeOpacity={0.85}>
-      <Ionicons name="chatbubble-ellipses" size={22} color="#000" />
+      <Ionicons name="chatbubble-ellipses" size={20} color="#000" />
+      <Text style={styles.coachFabLabel}>Ask me</Text>
     </TouchableOpacity>
 
     <CoachChatSheet visible={chatOpen} onClose={() => setChatOpen(false)} />
@@ -242,16 +298,23 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 28,
     right: 24,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    height: 48,
+    paddingHorizontal: 20,
+    borderRadius: 24,
     backgroundColor: Colors.primary,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 8,
+  },
+  coachFabLabel: {
+    color: '#000',
+    fontWeight: '800',
+    fontSize: 15,
   },
 });

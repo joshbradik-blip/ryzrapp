@@ -21,7 +21,7 @@ const GOAL_OPTIONS: { value: GoalCategory; label: string; desc: string; icon: ke
 
 const ACTIVITIES = [
   'Surfing', 'Rock climbing', 'Running (5K)', 'Running (10K)', 'Half marathon', 'Full marathon',
-  'Cycling', 'Skiing / snowboarding', 'Basketball', 'Soccer', 'Tennis', 'Pickleball',
+  'Cycling', 'Mountain biking', 'Skiing / snowboarding', 'Basketball', 'Soccer', 'Tennis', 'Pickleball',
   'Swimming', 'Hiking', 'Martial arts', 'Pull-ups (first one)', 'Handstand', 'Backflip',
 ];
 
@@ -64,6 +64,9 @@ export function GoalsScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24 }}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 8 }}>
+          <Ionicons name="chevron-back" size={28} color={Colors.text} />
+        </TouchableOpacity>
         <ProgressBar step={5} total={5} />
 
         <Text style={{ fontSize: 28, fontWeight: '900', color: Colors.text, marginBottom: 8 }}>What's your goal?</Text>

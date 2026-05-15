@@ -173,7 +173,7 @@ export function ProfileScreen() {
             </View>
           )}
           <View style={{ flexDirection: 'row', gap: 24, marginTop: 20 }}>
-            {[{ value: '48', label: 'Sessions' }, { value: '12', label: 'Streak' }, { value: '4', label: 'PRs' }].map((s) => (
+            {[{ value: '0', label: 'Sessions' }, { value: '0', label: 'Streak' }, { value: '0', label: 'PRs' }].map((s) => (
               <View key={s.label} style={{ alignItems: 'center' }}>
                 <Text style={{ color: Colors.primary, fontSize: 22, fontWeight: '900' }}>{s.value}</Text>
                 <Text style={{ color: Colors.muted, fontSize: 12 }}>{s.label}</Text>

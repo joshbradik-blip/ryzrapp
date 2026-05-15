@@ -1,23 +1,25 @@
+import { supabase } from './supabase';
 import { UserProfile, Injury, SchedulePrefs, Goal, Workout } from '../types';
 import { EXERCISES } from '../constants/exercises';
 
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-
-// API key should be retrieved from your Supabase Edge Function — never ship it in the app bundle
-const getApiKey = (): string => {
-  return process.env.EXPO_PUBLIC_ANTHROPIC_KEY ?? '';
-};
+async function callAnthropic(body: object): Promise<any> {
+  const { data, error } = await supabase.functions.invoke('anthropic-proxy', { body });
+  if (error) throw new Error(`Edge function error: ${error.message}`);
+  if (data?.error) throw new Error(`Anthropic error: ${data.error}`);
+  return data;
+}
 
 interface GeneratePlanParams {
   profile: UserProfile;
   injuries: Injury[];
+  disabilities: string[];
   schedule: SchedulePrefs;
   goals: Goal[];
   equipment: string[];
 }
 
 export async function generateWorkoutPlan(params: GeneratePlanParams): Promise<Workout[]> {
-  const { profile, injuries, schedule, goals, equipment } = params;
+  const { profile, injuries, disabilities, schedule, goals, equipment } = params;
 
   const exerciseList = EXERCISES
     .filter((e) =>
@@ -34,6 +36,10 @@ export async function generateWorkoutPlan(params: GeneratePlanParams): Promise<W
     ? injuries.map((i) => `${i.body_part}: ${i.severity}`).join(', ')
     : 'None';
 
+  const disabilityNote = disabilities.length > 0
+    ? disabilities.join(', ')
+    : 'None';
+
   const goalDesc = goals.map((g) =>
     g.specific_activity ? `${g.category} — ${g.specific_activity}` : g.category
   ).join(', ');
@@ -44,8 +50,9 @@ export async function generateWorkoutPlan(params: GeneratePlanParams): Promise<W
 
 USER PROFILE:
 - Age: ${profile.age}, Sex: ${profile.sex}, Fitness: ${profile.fitness_level}
-- Weight: ${profile.weight_kg}kg
+- Height: ${profile.height_cm}cm, Weight: ${profile.weight_kg}kg
 - Injuries: ${injuryNote}
+- Disabilities / adaptive needs: ${disabilityNote}
 - Days/week: ${schedule.days_per_week}, Minutes/session: ${schedule.minutes_per_session}
 - Goals: ${goalDesc}
 - Equipment: ${equipment.join(', ') || 'bodyweight only'}
@@ -82,43 +89,25 @@ Return exactly this JSON structure:
 
 RULES:
 - Never use exercises that conflict with injuries
+- Fully adapt the plan for any listed disabilities (e.g. wheelchair users get seated/upper body only; single-arm amputees get unilateral alternatives; visually impaired users get machine-free, touch-guided exercises)
 - Only use exercises from the available list
 - Keep sessions within the time limit
 - Apply progressive overload across the 2 weeks
 - exercise_id must be the EXACT quoted name from the available list (e.g. "Back Squat", not "Back Squat (barbell)")`;
 
-  const response = await fetch(ANTHROPIC_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': getApiKey(),
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-    }),
+  const data = await callAnthropic({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
   });
 
-  if (!response.ok) {
-    throw new Error(`Anthropic API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const text = data.content[0]?.text ?? '';
-
-  try {
-    const parsed = JSON.parse(text);
-    return mapPlanToWorkouts(parsed);
-  } catch {
-    throw new Error('Failed to parse workout plan from AI response');
-  }
+  const text: string = data.content?.[0]?.text ?? '';
+  const parsed = JSON.parse(text);
+  return mapPlanToWorkouts(parsed);
 }
 
 function mapPlanToWorkouts(plan: any): Workout[] {
-  const { EXERCISES: exList } = require('../constants/exercises');
   return (plan.workouts ?? []).map((w: any) => ({
     id: w.id ?? Math.random().toString(36).slice(2),
     name: w.name,
@@ -128,7 +117,7 @@ function mapPlanToWorkouts(plan: any): Workout[] {
     day_number: w.day_number,
     exercises: (w.exercises ?? [])
       .map((e: any) => {
-        const exercise = exList.find((ex: any) =>
+        const exercise = EXERCISES.find((ex) =>
           ex.name.toLowerCase() === (e.exercise_id ?? '').toLowerCase()
         );
         if (!exercise) return null;
@@ -148,10 +137,10 @@ function mapPlanToWorkouts(plan: any): Workout[] {
 }
 
 export interface FormAnalysis {
-  score: number;          // 0–100
+  score: number;
   isGoodForm: boolean;
   primaryIssue: string | null;
-  cue: string;            // actionable coaching cue, ≤12 words
+  cue: string;
 }
 
 export async function generateAffirmation(
@@ -159,30 +148,21 @@ export async function generateAffirmation(
   workoutName?: string
 ): Promise<string> {
   const context = workoutName ? `Today's workout: ${workoutName}.` : 'Today is a rest day.';
-  const response = await fetch(ANTHROPIC_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': getApiKey(),
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 80,
-      messages: [{
-        role: 'user',
-        content: `Write one short motivational affirmation for ${name}. ${context} 1-2 sentences, personal, direct, energizing. Address them by name. No hashtags or emojis.`,
-      }],
-    }),
+  const data = await callAnthropic({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 80,
+    messages: [{
+      role: 'user',
+      content: `Write one short motivational affirmation for ${name}. ${context} 1-2 sentences, personal, direct, energizing. Address them by name. No hashtags or emojis.`,
+    }],
   });
-  if (!response.ok) throw new Error('Affirmation failed');
-  const data = await response.json();
-  return data.content[0]?.text ?? `${name}, today is your chance to be better than yesterday. Make it count.`;
+  return data.content?.[0]?.text ?? `${name}, today is your chance to be better than yesterday. Make it count.`;
 }
 
 export interface CoachMessage {
   role: 'user' | 'assistant';
   content: string;
+  imageUri?: string; // local URI for display only — not sent to API
 }
 
 export async function askCoach(
@@ -190,23 +170,45 @@ export async function askCoach(
   context: { name: string; workoutName?: string }
 ): Promise<string> {
   const system = `You are RYZR Coach, a knowledgeable and motivating personal trainer helping ${context.name} with their fitness journey.${context.workoutName ? ` Today they're doing: ${context.workoutName}.` : ''} Keep responses concise (2-4 sentences), direct, and practical. Be encouraging but honest.`;
-  const response = await fetch(ANTHROPIC_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': getApiKey(),
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 300,
-      system,
-      messages,
-    }),
+  const data = await callAnthropic({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 300,
+    system,
+    messages,
   });
-  if (!response.ok) throw new Error('Coach unavailable');
-  const data = await response.json();
-  return data.content[0]?.text ?? "Let's focus — what do you need help with?";
+  return data.content?.[0]?.text ?? "Let's focus — what do you need help with?";
+}
+
+export async function askCoachWithImage(
+  history: CoachMessage[],
+  imageBase64: string,
+  caption: string,
+  context: { name: string; workoutName?: string }
+): Promise<string> {
+  const system = `You are RYZR Coach, a knowledgeable personal trainer helping ${context.name}.${context.workoutName ? ` Today they're doing: ${context.workoutName}.` : ''} When shown gym equipment or exercises in a photo, identify what it is, explain what muscle groups it targets, and give clear step-by-step instructions on how to use it safely. Keep responses practical and under 6 sentences.`;
+
+  const recentHistory = history.slice(-6).map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+
+  const data = await callAnthropic({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 500,
+    system,
+    messages: [
+      ...recentHistory,
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+          { type: 'text', text: caption || 'What is this gym equipment and how do I use it properly?' },
+        ],
+      },
+    ],
+  });
+
+  return data.content?.[0]?.text ?? "I couldn't analyze that image. Try again.";
 }
 
 export async function analyzeFormFromImage(
@@ -214,27 +216,20 @@ export async function analyzeFormFromImage(
   imageBase64: string,
   repCount: number
 ): Promise<FormAnalysis> {
-  const response = await fetch(ANTHROPIC_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': getApiKey(),
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 256,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 },
-            },
-            {
-              type: 'text',
-              text: `You are an expert strength coach analyzing form in real time.
+  const data = await callAnthropic({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 256,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 },
+          },
+          {
+            type: 'text',
+            text: `You are an expert strength coach analyzing form in real time.
 Exercise: "${exerciseName}" — rep ${repCount}.
 Analyze this image and return ONLY valid JSON, no explanation or markdown:
 {
@@ -243,17 +238,13 @@ Analyze this image and return ONLY valid JSON, no explanation or markdown:
   "primaryIssue": <one short sentence describing the main fault, or null if form is solid>,
   "cue": <one actionable coaching directive, maximum 12 words, starting with an action verb>
 }`,
-            },
-          ],
-        },
-      ],
-    }),
+          },
+        ],
+      },
+    ],
   });
 
-  if (!response.ok) throw new Error(`Form analysis error: ${response.status}`);
-  const data = await response.json();
-  const text: string = data.content[0]?.text ?? '{}';
-
+  const text: string = data.content?.[0]?.text ?? '{}';
   try {
     const parsed = JSON.parse(text);
     return {

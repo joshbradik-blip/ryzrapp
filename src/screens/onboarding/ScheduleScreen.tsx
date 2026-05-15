@@ -39,6 +39,9 @@ export function ScheduleScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24 }}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 8 }}>
+          <Ionicons name="chevron-back" size={28} color={Colors.text} />
+        </TouchableOpacity>
         <ProgressBar step={3} total={5} />
 
         <Text style={{ fontSize: 28, fontWeight: '900', color: Colors.text, marginBottom: 8 }}>Your schedule</Text>

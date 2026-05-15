@@ -92,7 +92,7 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
             ))}
           </View>
 
-          {/* Streak */}
+          {/* Completion banner */}
           <View style={{
             backgroundColor: Colors.primary + '22',
             borderRadius: 16,
@@ -107,7 +107,7 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
           }}>
             <Ionicons name="flame" size={36} color={Colors.primary} />
             <View>
-              <Text style={{ color: Colors.primary, fontWeight: '900', fontSize: 18 }}>13-day streak!</Text>
+              <Text style={{ color: Colors.primary, fontWeight: '900', fontSize: 18 }}>Session complete!</Text>
               <Text style={{ color: Colors.textSecondary, fontSize: 13 }}>Keep it going — train again tomorrow</Text>
             </View>
           </View>

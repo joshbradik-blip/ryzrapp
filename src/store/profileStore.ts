@@ -1,9 +1,12 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserProfile, Injury, SchedulePrefs, Goal } from '../types';
 
 interface ProfileState {
   profile: UserProfile | null;
   injuries: Injury[];
+  disabilities: string[];
   schedulePrefs: SchedulePrefs | null;
   goals: Goal[];
   equipment: string[];
@@ -11,6 +14,7 @@ interface ProfileState {
 
   setProfile: (profile: Partial<UserProfile>) => void;
   setInjuries: (injuries: Injury[]) => void;
+  setDisabilities: (disabilities: string[]) => void;
   setSchedulePrefs: (prefs: SchedulePrefs) => void;
   setGoals: (goals: Goal[]) => void;
   setEquipment: (equipment: string[]) => void;
@@ -31,43 +35,55 @@ const DEFAULT_PROFILE: UserProfile = {
   subscription_tier: 'free',
 };
 
-export const useProfileStore = create<ProfileState>((set, get) => ({
-  profile: null,
-  injuries: [],
-  schedulePrefs: null,
-  goals: [],
-  equipment: [],
-  onboardingStep: 0,
-
-  setProfile: (data) =>
-    set((s) => ({
-      profile: { ...(s.profile ?? DEFAULT_PROFILE), ...data },
-    })),
-
-  setInjuries: (injuries) => set({ injuries }),
-
-  setSchedulePrefs: (schedulePrefs) => set({ schedulePrefs }),
-
-  setGoals: (goals) => set({ goals }),
-
-  setEquipment: (equipment) => set({ equipment }),
-
-  setOnboardingStep: (step) => set({ onboardingStep: step }),
-
-  completeOnboarding: () =>
-    set((s) => ({
-      profile: s.profile
-        ? { ...s.profile, onboarding_complete: true }
-        : null,
-    })),
-
-  reset: () =>
-    set({
+export const useProfileStore = create<ProfileState>()(
+  persist(
+    (set, get) => ({
       profile: null,
       injuries: [],
+      disabilities: [],
       schedulePrefs: null,
       goals: [],
       equipment: [],
       onboardingStep: 0,
+
+      setProfile: (data) =>
+        set((s) => ({
+          profile: { ...(s.profile ?? DEFAULT_PROFILE), ...data },
+        })),
+
+      setInjuries: (injuries) => set({ injuries }),
+
+      setDisabilities: (disabilities) => set({ disabilities }),
+
+      setSchedulePrefs: (schedulePrefs) => set({ schedulePrefs }),
+
+      setGoals: (goals) => set({ goals }),
+
+      setEquipment: (equipment) => set({ equipment }),
+
+      setOnboardingStep: (step) => set({ onboardingStep: step }),
+
+      completeOnboarding: () =>
+        set((s) => ({
+          profile: s.profile
+            ? { ...s.profile, onboarding_complete: true }
+            : null,
+        })),
+
+      reset: () =>
+        set({
+          profile: null,
+          injuries: [],
+          disabilities: [],
+          schedulePrefs: null,
+          goals: [],
+          equipment: [],
+          onboardingStep: 0,
+        }),
     }),
-}));
+    {
+      name: 'ryzr-profile',
+      storage: createJSONStorage(() => AsyncStorage),
+    }
+  )
+);
