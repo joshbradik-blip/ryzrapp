@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
   Platform,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
@@ -70,7 +71,7 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 export function ProfileScreen() {
-  const { signOut } = useAuthStore();
+  const { signOut, deleteAccount } = useAuthStore();
   const { profile, injuries, schedulePrefs, goals, equipment, setEquipment } = useProfileStore();
   const { isPremium } = useSubscriptionStore();
   const { setWorkouts, setTodayWorkout } = useWorkoutStore();
@@ -276,10 +277,27 @@ export function ProfileScreen() {
           <SettingRow
             icon="trash-outline"
             label="Delete account"
-            onPress={() => Alert.alert('Delete account?', 'This permanently deletes all your data and cannot be undone.', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Delete', style: 'destructive', onPress: () => Alert.alert('Contact support to delete your account.') },
-            ])}
+            onPress={() =>
+              Alert.alert(
+                'Delete Account?',
+                'This permanently deletes all your workout data and signs you out. This cannot be undone.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await deleteAccount();
+                      Linking.openURL(
+                        'mailto:josh@bradikenterprises.com' +
+                        '?subject=Account%20Deletion%20Request' +
+                        '&body=Please%20permanently%20delete%20my%20RYZR%20account%20and%20all%20associated%20data.'
+                      );
+                    },
+                  },
+                ]
+              )
+            }
           />
         </View>
 
