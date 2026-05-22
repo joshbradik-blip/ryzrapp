@@ -33,6 +33,7 @@ const DEFAULT_PROFILE: UserProfile = {
   fitness_level: 'some_experience',
   onboarding_complete: false,
   subscription_tier: 'free',
+  weight_unit: 'lbs',
 };
 
 export const useProfileStore = create<ProfileState>()(

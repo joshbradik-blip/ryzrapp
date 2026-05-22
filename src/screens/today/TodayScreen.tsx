@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   StatusBar,
   StyleSheet,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { TodayStackParamList } from '../../types';
@@ -25,7 +25,7 @@ import { generateWorkoutPlan } from '../../lib/anthropic';
 
 export function TodayScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<TodayStackParamList>>();
-  const { profile, injuries, schedulePrefs, goals, equipment } = useProfileStore();
+  const { profile, injuries, disabilities, schedulePrefs, goals, equipment } = useProfileStore();
   const { todayWorkout, workouts, setWorkouts, setTodayWorkout } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
   const [chatOpen, setChatOpen] = useState(false);
@@ -43,7 +43,7 @@ export function TodayScreen() {
         onPress: async () => {
           setRegenerating(true);
           try {
-            const newWorkouts = await generateWorkoutPlan({ profile, injuries, disabilities: [], schedule: schedulePrefs, goals, equipment });
+            const newWorkouts = await generateWorkoutPlan({ profile, injuries, disabilities, schedule: schedulePrefs, goals, equipment });
             setWorkouts(newWorkouts);
             if (newWorkouts.length > 0) setTodayWorkout(newWorkouts[0]);
             Alert.alert('Done!', 'Your new workout plan is ready.');

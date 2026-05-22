@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList, FitnessLevel } from '../../types';
@@ -52,10 +52,41 @@ export function ProfileBasicsScreen({ navigation }: Props) {
 
   const [name, setName] = useState(profile?.name ?? '');
   const [age, setAge] = useState(String(profile?.age ?? ''));
-  const [height, setHeight] = useState(String(profile?.height_cm ?? ''));
-  const [weight, setWeight] = useState(String(profile?.weight_kg ?? ''));
-  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
+  const [heightCm, setHeightCm] = useState(String(profile?.height_cm ?? ''));
+  const [heightFt, setHeightFt] = useState(() => {
+    if (!profile?.height_cm) return '';
+    const totalIn = profile.height_cm / 2.54;
+    return String(Math.floor(totalIn / 12));
+  });
+  const [heightIn, setHeightIn] = useState(() => {
+    if (!profile?.height_cm) return '';
+    const totalIn = profile.height_cm / 2.54;
+    return String(Math.round(totalIn % 12));
+  });
+  const [heightUnit, setHeightUnit] = useState<'cm' | 'ft'>('ft');
+  const [weight, setWeight] = useState(() => {
+    if (!profile?.weight_kg) return '';
+    return (profile.weight_kg * 2.20462).toFixed(1);
+  });
+  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('lbs');
   const [sex, setSex] = useState<'male' | 'female'>(profile?.sex ?? 'male');
+
+  const toggleHeightUnit = (unit: 'cm' | 'ft') => {
+    if (unit === heightUnit) return;
+    if (unit === 'ft') {
+      const cm = parseFloat(heightCm);
+      if (!isNaN(cm)) {
+        const totalIn = cm / 2.54;
+        setHeightFt(String(Math.floor(totalIn / 12)));
+        setHeightIn(String(Math.round(totalIn % 12)));
+      }
+    } else {
+      const ft = parseFloat(heightFt) || 0;
+      const inches = parseFloat(heightIn) || 0;
+      setHeightCm(((ft * 12 + inches) * 2.54).toFixed(1));
+    }
+    setHeightUnit(unit);
+  };
   const [fitnessLevel, setFitnessLevel] = useState<FitnessLevel>(
     profile?.fitness_level ?? 'some_experience'
   );
@@ -71,13 +102,17 @@ export function ProfileBasicsScreen({ navigation }: Props) {
   };
 
   const handleNext = () => {
-    if (!name.trim() || !age || !height || !weight) return;
+    const heightValid = heightUnit === 'cm' ? !!heightCm : !!heightFt;
+    if (!name.trim() || !age || !heightValid || !weight) return;
     const rawWeight = parseFloat(weight);
     const weightKg = weightUnit === 'lbs' ? rawWeight * 0.453592 : rawWeight;
+    const finalHeightCm = heightUnit === 'ft'
+      ? ((parseFloat(heightFt) || 0) * 12 + (parseFloat(heightIn) || 0)) * 2.54
+      : parseFloat(heightCm);
     setProfile({
       name: name.trim(),
       age: parseInt(age, 10),
-      height_cm: parseFloat(height),
+      height_cm: parseFloat(finalHeightCm.toFixed(1)),
       weight_kg: parseFloat(weightKg.toFixed(1)),
       sex,
       fitness_level: fitnessLevel,
@@ -122,13 +157,29 @@ export function ProfileBasicsScreen({ navigation }: Props) {
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>
-              <Input
-                label="Height (cm)"
-                value={height}
-                onChangeText={setHeight}
-                placeholder="e.g. 175"
-                keyboardType="decimal-pad"
-              />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600', letterSpacing: 0.5 }}>HEIGHT</Text>
+                <View style={{ flexDirection: 'row', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border }}>
+                  {(['cm', 'ft'] as const).map((u) => (
+                    <TouchableOpacity key={u} onPress={() => toggleHeightUnit(u)}
+                      style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: heightUnit === u ? Colors.primary : Colors.surface2 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: heightUnit === u ? Colors.background : Colors.textSecondary }}>{u}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              {heightUnit === 'cm' ? (
+                <Input value={heightCm} onChangeText={setHeightCm} placeholder="e.g. 175" keyboardType="decimal-pad" />
+              ) : (
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <View style={{ flex: 1 }}>
+                    <Input value={heightFt} onChangeText={setHeightFt} placeholder="ft" keyboardType="number-pad" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Input value={heightIn} onChangeText={setHeightIn} placeholder="in" keyboardType="number-pad" />
+                  </View>
+                </View>
+              )}
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -221,7 +272,7 @@ export function ProfileBasicsScreen({ navigation }: Props) {
             title="Next →"
             onPress={handleNext}
             size="lg"
-            disabled={!name.trim() || !age || !height || !weight}
+            disabled={!name.trim() || !age || !(heightUnit === 'cm' ? heightCm : heightFt) || !weight}
           />
         </ScrollView>
       </SafeAreaView>

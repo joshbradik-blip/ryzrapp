@@ -19,6 +19,7 @@ export interface UserProfile {
   fitness_level: FitnessLevel;
   onboarding_complete: boolean;
   subscription_tier: SubscriptionTier;
+  weight_unit: 'kg' | 'lbs';
 }
 
 export interface Injury {

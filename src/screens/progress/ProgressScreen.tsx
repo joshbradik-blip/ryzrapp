@@ -2,18 +2,19 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Dimensions,
   Alert,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useProfileStore } from '../../store/profileStore';
 import { startBodyScan } from '../../modules/PrismModule';
+import { kgToDisplay, weightLabel } from '../../lib/units';
 
 const { width } = Dimensions.get('window');
 
@@ -168,7 +169,7 @@ export function ProgressScreen() {
           <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' }}>
             {profile?.weight_kg ? (
               <>
-                <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900' }}>{profile.weight_kg} <Text style={{ fontSize: 18, color: Colors.textSecondary }}>kg</Text></Text>
+                <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900' }}>{kgToDisplay(profile.weight_kg, profile.weight_unit ?? 'kg')} <Text style={{ fontSize: 18, color: Colors.textSecondary }}>{weightLabel(profile.weight_unit ?? 'kg')}</Text></Text>
                 <Text style={{ color: Colors.muted, fontSize: 13 }}>Starting weight — log entries to track change</Text>
               </>
             ) : (

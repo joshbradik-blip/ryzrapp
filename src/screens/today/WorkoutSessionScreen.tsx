@@ -2,18 +2,20 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
   Alert,
   Vibration,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TodayStackParamList } from '../../types';
 import { useWorkoutStore } from '../../store/workoutStore';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
+import { useProfileStore } from '../../store/profileStore';
+import { weightLabel, kgToDisplay, displayToKg, WeightUnit } from '../../lib/units';
 import { Button } from '../../components/ui/Button';
 import { Colors } from '../../constants/theme';
 import * as Haptics from 'expo-haptics';
@@ -24,6 +26,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
   const { workoutId } = route.params;
   const { workouts, todayWorkout, startSession, logSet, nextExercise, currentExerciseIndex, completeSession } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
+  const { profile, setProfile } = useProfileStore();
 
   const workout = workouts.find((w) => w.id === workoutId) ?? todayWorkout;
 
@@ -103,6 +106,22 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
     nextExercise();
   };
 
+  const handleSkipRemainingSets = () => {
+    const remaining = currentExercise.target_sets - completedCount;
+    if (remaining <= 0) {
+      handleNextExercise();
+      return;
+    }
+    Alert.alert(
+      'Skip remaining sets?',
+      `You still have ${remaining} set${remaining === 1 ? '' : 's'} left of ${currentExercise.exercise.name}. Move on to the next exercise?`,
+      [
+        { text: 'Stay', style: 'cancel' },
+        { text: 'Skip', style: 'destructive', onPress: handleNextExercise },
+      ],
+    );
+  };
+
   const handleFinish = () => {
     Alert.alert('How did that feel?', '', [
       { text: 'Too easy', onPress: () => finish('easy') },
@@ -179,7 +198,31 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
         {/* Weight & reps inputs */}
         <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>WEIGHT (kg)</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600' }}>WEIGHT</Text>
+              <View style={{ flexDirection: 'row', backgroundColor: Colors.surface2, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' }}>
+                {(['kg', 'lbs'] as WeightUnit[]).map((unit) => {
+                  const active = (profile?.weight_unit ?? 'lbs') === unit;
+                  return (
+                    <TouchableOpacity
+                      key={unit}
+                      onPress={() => {
+                        if (active) return;
+                        const current = parseFloat(weight) || 0;
+                        if (current > 0) {
+                          const inKg = displayToKg(current, profile?.weight_unit ?? 'lbs');
+                          setWeight(String(kgToDisplay(inKg, unit)));
+                        }
+                        setProfile({ weight_unit: unit });
+                      }}
+                      style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: active ? Colors.primary : 'transparent' }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: active ? '#000' : Colors.muted }}>{unit.toUpperCase()}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <TouchableOpacity
                 onPress={() => setWeight((w) => String(Math.max(0, (parseFloat(w) || 0) - 2.5)))}
@@ -301,6 +344,18 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
             {isPremium ? 'Check My Form' : 'Form Coach (Premium)'}
           </Text>
         </TouchableOpacity>
+
+        {/* Skip remaining sets (mid-exercise) */}
+        {completedCount < currentExercise.target_sets && !isLastExercise && (
+          <TouchableOpacity
+            onPress={handleSkipRemainingSets}
+            style={{ alignItems: 'center', paddingVertical: 10, marginBottom: 4 }}
+          >
+            <Text style={{ color: Colors.muted, fontSize: 13, fontWeight: '600' }}>
+              Skip to next exercise →
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Next exercise / Finish */}
         {completedCount >= currentExercise.target_sets && (

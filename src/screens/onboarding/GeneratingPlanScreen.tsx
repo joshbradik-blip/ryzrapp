@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, SafeAreaView, Animated } from 'react-native';
+import { View, Text, Animated } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types';
@@ -60,26 +61,8 @@ export function GeneratingPlanScreen({ navigation }: Props) {
         setStepIndex(STEPS.length - 1);
         completeOnboarding();
       } catch (e: any) {
-        // Fallback: use a sample workout so the user isn't stuck
-        const { EXERCISES } = require('../../constants/exercises');
-        const sampleWorkout = {
-          id: 'sample-1',
-          name: 'Full Body Kickstart',
-          focus: 'General fitness',
-          estimated_duration_min: 45,
-          week_number: 1,
-          day_number: 1,
-          exercises: [
-            { id: 'we-1', exercise: EXERCISES[0], target_sets: 3, target_reps: '8-10', target_rpe: 7, rest_seconds: 90, order: 0 },
-            { id: 'we-2', exercise: EXERCISES[5], target_sets: 3, target_reps: '10-12', target_rpe: 7, rest_seconds: 60, order: 1 },
-            { id: 'we-3', exercise: EXERCISES[13], target_sets: 3, target_reps: '30s hold', target_rpe: 6, rest_seconds: 60, order: 2 },
-            { id: 'we-4', exercise: EXERCISES[10], target_sets: 3, target_reps: '10', target_rpe: 7, rest_seconds: 75, order: 3 },
-          ],
-        };
-        setWorkouts([sampleWorkout]);
-        setTodayWorkout(sampleWorkout);
-        setStepIndex(STEPS.length - 1);
-        completeOnboarding();
+        console.error('[GeneratingPlan] failed:', e?.message);
+        setError(e?.message ?? 'Could not generate your plan. Please check your connection and try again.');
       }
     };
     run();
@@ -109,9 +92,13 @@ export function GeneratingPlanScreen({ navigation }: Props) {
         <Ionicons name="flash" size={48} color={Colors.primary} />
       </Animated.View>
 
-      <Text style={{ fontSize: 26, fontWeight: '900', color: Colors.text, marginBottom: 16, textAlign: 'center' }}>
-        {stepIndex === STEPS.length - 1 ? 'Your plan is ready!' : 'Building your plan...'}
-      </Text>
+      {error ? (
+        <Text style={{ fontSize: 16, color: '#FF4444', textAlign: 'center', marginBottom: 16 }}>{error}</Text>
+      ) : (
+        <Text style={{ fontSize: 26, fontWeight: '900', color: Colors.text, marginBottom: 16, textAlign: 'center' }}>
+          {stepIndex === STEPS.length - 1 ? 'Your plan is ready!' : 'Building your plan...'}
+        </Text>
+      )}
 
       <View style={{ gap: 10, alignItems: 'flex-start', width: '100%', maxWidth: 280 }}>
         {STEPS.map((step, i) => (

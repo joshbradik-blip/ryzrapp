@@ -14,6 +14,7 @@ import {
   Image,
   ActionSheetIOS,
   Alert,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -50,6 +51,13 @@ export function CoachChatSheet({ visible, onClose }: Props) {
       Animated.timing(slideAnim, { toValue: 600, duration: 220, useNativeDriver: true }).start();
     }
   }, [visible, slideAnim]);
+
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+    return () => sub.remove();
+  }, []);
 
   const send = useCallback(async () => {
     const trimmed = input.trim();
@@ -133,49 +141,54 @@ export function CoachChatSheet({ visible, onClose }: Props) {
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
       <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
         <SafeAreaView style={{ flex: 1 }} edges={['bottom']}>
-          {/* Handle + header */}
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <View style={styles.avatarDot} />
-              <View>
-                <Text style={styles.headerTitle}>RYZR Coach</Text>
-                <Text style={styles.headerSub}>AI · Always on</Text>
-              </View>
-            </View>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-              <Ionicons name="close" size={22} color={Colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Messages */}
-          <FlatList
-            ref={listRef}
-            data={messages}
-            keyExtractor={(_, i) => String(i)}
-            contentContainerStyle={styles.messageList}
-            showsVerticalScrollIndicator={false}
-            renderItem={({ item }) => (
-              <View style={[styles.bubble, item.role === 'user' ? styles.bubbleUser : styles.bubbleCoach]}>
-                {item.imageUri && (
-                  <Image source={{ uri: item.imageUri }} style={styles.bubbleImage} resizeMode="cover" />
-                )}
-                <Text style={[styles.bubbleText, item.role === 'user' ? styles.bubbleTextUser : styles.bubbleTextCoach]}>
-                  {item.content}
-                </Text>
-              </View>
-            )}
-            ListFooterComponent={
-              loading ? (
-                <View style={[styles.bubble, styles.bubbleCoach, { paddingVertical: 12 }]}>
-                  <ActivityIndicator size="small" color={Colors.primary} />
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={0}
+          >
+            {/* Handle + header */}
+            <View style={styles.handle} />
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <View style={styles.avatarDot} />
+                <View>
+                  <Text style={styles.headerTitle}>RYZR Coach</Text>
+                  <Text style={styles.headerSub}>AI · Always on</Text>
                 </View>
-              ) : null
-            }
-          />
+              </View>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                <Ionicons name="close" size={22} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
 
-          {/* Input row */}
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            {/* Messages */}
+            <FlatList
+              ref={listRef}
+              data={messages}
+              keyExtractor={(_, i) => String(i)}
+              contentContainerStyle={styles.messageList}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <View style={[styles.bubble, item.role === 'user' ? styles.bubbleUser : styles.bubbleCoach]}>
+                  {item.imageUri && (
+                    <Image source={{ uri: item.imageUri }} style={styles.bubbleImage} resizeMode="cover" />
+                  )}
+                  <Text style={[styles.bubbleText, item.role === 'user' ? styles.bubbleTextUser : styles.bubbleTextCoach]}>
+                    {item.content}
+                  </Text>
+                </View>
+              )}
+              ListFooterComponent={
+                loading ? (
+                  <View style={[styles.bubble, styles.bubbleCoach, { paddingVertical: 12 }]}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                  </View>
+                ) : null
+              }
+            />
+
+            {/* Input row */}
             {pendingImage && (
               <View style={styles.imagePreviewRow}>
                 <Image source={{ uri: pendingImage.uri }} style={styles.imagePreview} resizeMode="cover" />

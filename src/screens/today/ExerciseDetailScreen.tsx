@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -49,7 +49,7 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
 
   const canSwap = !!(workoutId && workoutExerciseId);
   const videoQuery = encodeURIComponent(`${exercise.name} proper form tutorial`);
-  const embedUrl = `https://www.youtube.com/embed?listType=search&list=${videoQuery}&autoplay=0`;
+  const embedUrl = `https://m.youtube.com/results?search_query=${videoQuery}`;
 
   const handleSwap = () => {
     if (!canSwap) {

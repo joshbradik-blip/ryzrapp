@@ -3,9 +3,17 @@ import { UserProfile, Injury, SchedulePrefs, Goal, Workout } from '../types';
 import { EXERCISES } from '../constants/exercises';
 
 async function callAnthropic(body: object): Promise<any> {
+  console.log('[Anthropic] invoking edge function...');
   const { data, error } = await supabase.functions.invoke('anthropic-proxy', { body });
-  if (error) throw new Error(`Edge function error: ${error.message}`);
-  if (data?.error) throw new Error(`Anthropic error: ${data.error}`);
+  if (error) {
+    console.error('[Anthropic] edge function error:', JSON.stringify(error));
+    throw new Error(`Edge function error: ${error.message}`);
+  }
+  if (data?.error) {
+    console.error('[Anthropic] API error:', JSON.stringify(data.error));
+    throw new Error(`Anthropic error: ${JSON.stringify(data.error)}`);
+  }
+  console.log('[Anthropic] success');
   return data;
 }
 
@@ -89,22 +97,38 @@ Return exactly this JSON structure:
 
 RULES:
 - Never use exercises that conflict with injuries
-- Fully adapt the plan for any listed disabilities (e.g. wheelchair users get seated/upper body only; single-arm amputees get unilateral alternatives; visually impaired users get machine-free, touch-guided exercises)
+- For disabilities: choose exercises from the available list that CAN be performed given the condition — do NOT rename or modify the exercise name. A wheelchair user can do Push-Up, Overhead Press, Lateral Raise, Dumbbell Bicep Curl, Face Pull, Band Pull-Apart, Pallof Press, Single-Arm Dumbbell Row, Barbell Bench Press, Tricep Dip. Use these exact names.
+- CRITICAL: exercise_id must be EXACTLY one of the quoted names from the available list above — copy-paste the name, do not modify it in any way. Wrong: "Seated Overhead Press". Right: "Overhead Press".
 - Only use exercises from the available list
 - Keep sessions within the time limit
-- Apply progressive overload across the 2 weeks
-- exercise_id must be the EXACT quoted name from the available list (e.g. "Back Squat", not "Back Squat (barbell)")`;
+- Apply progressive overload across the 2 weeks`;
 
   const data = await callAnthropic({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    max_tokens: 8192,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });
 
-  const text: string = data.content?.[0]?.text ?? '';
-  const parsed = JSON.parse(text);
-  return mapPlanToWorkouts(parsed);
+  const raw: string = data.content?.[0]?.text ?? '';
+  console.log('[generateWorkoutPlan] raw length:', raw.length, 'preview:', raw.slice(0, 200));
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start === -1 || end === -1) throw new Error('No JSON object found in response');
+  const jsonSlice = raw.slice(start, end + 1);
+  let parsed: any;
+  try {
+    parsed = JSON.parse(jsonSlice);
+  } catch (err: any) {
+    console.error('[generateWorkoutPlan] JSON.parse failed:', err.message);
+    console.log('[generateWorkoutPlan] JSON tail (last 300 chars):', jsonSlice.slice(-300));
+    throw err;
+  }
+  const workouts = mapPlanToWorkouts(parsed);
+  const totalExercises = workouts.reduce((sum, w) => sum + w.exercises.length, 0);
+  console.log('[generateWorkoutPlan] mapped:', workouts.length, 'workouts,', totalExercises, 'exercises');
+  if (totalExercises === 0) throw new Error('Plan generated but no exercises matched our library');
+  return workouts;
 }
 
 function mapPlanToWorkouts(plan: any): Workout[] {
@@ -117,10 +141,21 @@ function mapPlanToWorkouts(plan: any): Workout[] {
     day_number: w.day_number,
     exercises: (w.exercises ?? [])
       .map((e: any) => {
-        const exercise = EXERCISES.find((ex) =>
-          ex.name.toLowerCase() === (e.exercise_id ?? '').toLowerCase()
-        );
-        if (!exercise) return null;
+        const id = (e.exercise_id ?? '').toLowerCase().trim();
+        const idWords = new Set(id.split(/\s+/).filter((w) => w.length > 2));
+        const exercise =
+          EXERCISES.find((ex) => ex.name.toLowerCase() === id) ??
+          EXERCISES.find((ex) => ex.name.toLowerCase().includes(id)) ??
+          EXERCISES.find((ex) => id.includes(ex.name.toLowerCase())) ??
+          EXERCISES.map((ex) => {
+            const exWords = ex.name.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+            const shared = exWords.filter((w) => idWords.has(w)).length;
+            return { ex, shared };
+          }).filter(({ shared }) => shared >= 2).sort((a, b) => b.shared - a.shared)[0]?.ex;
+        if (!exercise) {
+          console.warn('[mapPlanToWorkouts] no match for exercise_id:', e.exercise_id);
+          return null;
+        }
         return {
           id: e.id ?? Math.random().toString(36).slice(2),
           exercise,
@@ -141,6 +176,27 @@ export interface FormAnalysis {
   isGoodForm: boolean;
   primaryIssue: string | null;
   cue: string;
+}
+
+// Called every N reps during live pose-detected Form Coach sessions.
+// Returns a short coaching cue — no image needed.
+export async function getLiveFormCue(
+  exerciseName: string,
+  repCount: number,
+  formIssue: string | null
+): Promise<string> {
+  const context = formIssue
+    ? `They just completed rep ${repCount} and the on-device sensor detected this form issue: "${formIssue}".`
+    : `They just completed rep ${repCount} with solid form.`;
+  const data = await callAnthropic({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 60,
+    messages: [{
+      role: 'user',
+      content: `You are a terse, motivating strength coach. Exercise: ${exerciseName}. ${context} Give ONE coaching cue — max 12 words, starts with an action verb, no filler. No quotes.`,
+    }],
+  });
+  return (data.content?.[0]?.text ?? '').trim() || 'Stay tight — own every rep.';
 }
 
 export async function generateAffirmation(
