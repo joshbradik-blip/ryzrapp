@@ -5,7 +5,7 @@
   "expo": {
     "name": "RYZR",
     "slug": "ryzrapp",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ryzr.app",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "NSCameraUsageDescription": "RYZR uses your camera to analyze your workout form in real-time.",
         "NSMicrophoneUsageDescription": "RYZR uses audio for voice coaching feedback.",
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.ryzr.app",
-      "versionCode": 6,
+      "versionCode": 7,
       "minSdkVersion": 28,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

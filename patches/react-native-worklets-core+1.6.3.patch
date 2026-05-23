@@ -1,7 +1,8 @@
-diff --git a/android/src/main/java/com/worklets/WorkletsModule.java b/android/src/main/java/com/worklets/WorkletsModule.java
---- a/android/src/main/java/com/worklets/WorkletsModule.java
-+++ b/android/src/main/java/com/worklets/WorkletsModule.java
-@@ -45,7 +45,9 @@
+diff --git a/node_modules/react-native-worklets-core/android/src/main/java/com/worklets/WorkletsModule.java b/node_modules/react-native-worklets-core/android/src/main/java/com/worklets/WorkletsModule.java
+index eef2791..8959227 100644
+--- a/node_modules/react-native-worklets-core/android/src/main/java/com/worklets/WorkletsModule.java
++++ b/node_modules/react-native-worklets-core/android/src/main/java/com/worklets/WorkletsModule.java
+@@ -45,7 +45,9 @@ public class WorkletsModule extends com.worklets.WorkletsSpec {
        }
  
        long jsiRuntimeRef = context.getJavaScriptContextHolder().get();
