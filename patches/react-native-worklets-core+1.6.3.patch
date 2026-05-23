@@ -1,0 +1,14 @@
+diff --git a/android/src/main/java/com/worklets/WorkletsModule.java b/android/src/main/java/com/worklets/WorkletsModule.java
+--- a/android/src/main/java/com/worklets/WorkletsModule.java
++++ b/android/src/main/java/com/worklets/WorkletsModule.java
+@@ -45,7 +45,9 @@
+       }
+ 
+       long jsiRuntimeRef = context.getJavaScriptContextHolder().get();
+-      CallInvokerHolder jsCallInvokerHolder = context.getCatalystInstance().getJSCallInvokerHolder();
++      // ReactContext.getJSCallInvokerHolder() works in both old bridge and
++      // RN 0.74+ bridgeless new architecture; avoids NPE from getCatalystInstance().
++      CallInvokerHolder jsCallInvokerHolder = context.getJSCallInvokerHolder();
+       return nativeInstall(jsiRuntimeRef, jsCallInvokerHolder);
+     } catch (Exception exception) {
+       Log.e(NAME, "Failed to initialize react-native-worklets-core!", exception);

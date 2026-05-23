@@ -7,7 +7,6 @@ import {
   Animated,
   ScrollView,
   ActivityIndicator,
-  Dimensions,
   Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,36 +16,23 @@ import { TodayStackParamList } from '../../types';
 import { Colors } from '../../constants/theme';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
-import { Camera, useCameraDevice, useFrameProcessor } from 'react-native-vision-camera';
-import { useTensorflowModel } from 'react-native-fast-tflite';
-import { runOnJS } from 'react-native-reanimated';
-import Svg, { Line, Circle } from 'react-native-svg';
-import {
-  Keypoint,
-  KP,
-  SKELETON_PAIRS,
-  parseMoveNetOutput,
-  getExerciseConfig,
-  RepCounter,
-  FormIssue,
-} from '../../lib/poseUtils';
-import { getLiveFormCue } from '../../lib/anthropic';
-import { useProfileStore } from '../../store/profileStore';
+import { Camera, useCameraDevice, useCameraFormat } from 'react-native-vision-camera';
+import { analyzePoseSnapshot, PoseSnapshot } from '../../lib/anthropic';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'FormCoach'>;
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const MIN_COACHING_INTERVAL_MS = 10_000; // don't call API more than once per 10s
-const COACHING_EVERY_N_REPS = 5;
-const UI_UPDATE_EVERY_N_FRAMES = 2; // throttle skeleton redraws to ~15fps
 const INTRO_DISMISSED_KEY = 'formcoach_intro_dismissed_v1';
+const CAPTURE_INTERVAL_MS = 2000;       // how often to snapshot the camera
+const MIN_SPEAK_INTERVAL_MS = 6_000;    // don't repeat the same cue too often
+
+interface FormIssue { cue: string; }
 
 const POSITIONING_TIPS: { icon: keyof typeof Ionicons.glyphMap; text: string }[] = [
   { icon: 'phone-portrait-outline', text: 'Prop your phone up 6–10 feet away so it can see your full body head-to-toe.' },
   { icon: 'body-outline',           text: 'Stand side-on for squats, deadlifts, and lunges. Face the camera for curls, presses, and rows.' },
-  { icon: 'sunny-outline',          text: 'Bright, even lighting helps the AI track your joints. Avoid backlight from windows.' },
-  { icon: 'square-outline',         text: 'A clean, uncluttered background works best — fewer false detections.' },
-  { icon: 'shirt-outline',          text: 'Form-fitting clothes are easier to track than baggy hoodies.' },
+  { icon: 'sunny-outline',          text: 'Bright, even lighting helps the AI read your position. Avoid backlight from windows.' },
+  { icon: 'square-outline',         text: 'A clean, uncluttered background works best.' },
+  { icon: 'shirt-outline',          text: 'Form-fitting clothes are easier to read than baggy hoodies.' },
 ];
 
 const SET_COMPLETE_PHRASES = [
@@ -64,64 +50,30 @@ function scoreColor(s: number) {
   return Colors.danger;
 }
 
-// ── Skeleton overlay ───────────────────────────────────────────────────────
-
-interface SkeletonProps {
-  keypoints: Keypoint[];
-  width: number;
-  height: number;
+async function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      resolve(dataUrl.split(',')[1] ?? '');
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
-
-function SkeletonOverlay({ keypoints, width, height }: SkeletonProps) {
-  if (keypoints.length < 17) return null;
-  return (
-    <Svg style={StyleSheet.absoluteFill} width={width} height={height}>
-      {/* Connections */}
-      {SKELETON_PAIRS.map(([a, b]) => {
-        const kpA = keypoints[a], kpB = keypoints[b];
-        if (!kpA || !kpB || kpA.score < 0.3 || kpB.score < 0.3) return null;
-        return (
-          <Line
-            key={`${a}-${b}`}
-            x1={kpA.x * width}  y1={kpA.y * height}
-            x2={kpB.x * width}  y2={kpB.y * height}
-            stroke={Colors.primary}
-            strokeWidth={2.5}
-            strokeOpacity={0.85}
-          />
-        );
-      })}
-      {/* Joints */}
-      {keypoints.map((kp, i) => {
-        if (kp.score < 0.3) return null;
-        return (
-          <Circle
-            key={i}
-            cx={kp.x * width}
-            cy={kp.y * height}
-            r={i === KP.NOSE ? 6 : 5}
-            fill={Colors.primary}
-            fillOpacity={0.9}
-          />
-        );
-      })}
-    </Svg>
-  );
-}
-
-// ── Main screen ────────────────────────────────────────────────────────────
 
 export function FormCoachScreen({ navigation, route }: Props) {
   const { exerciseName } = route.params;
-  const { profile } = useProfileStore();
-  const config = getExerciseConfig(exerciseName);
 
   // Camera
-  const device = useCameraDevice('front');
+  const [cameraFacing, setCameraFacing] = useState<'back' | 'front'>('back');
+  const device = useCameraDevice(cameraFacing);
+  // Pick a low-res photo format so payloads stay small enough for the vision API
+  const format = useCameraFormat(device, [
+    { photoResolution: { width: 1280, height: 720 } },
+  ]);
+  const cameraRef = useRef<Camera>(null);
   const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'unknown'>('unknown');
-
-  // TFLite model
-  const model = useTensorflowModel(require('../../../assets/models/movenet_lightning.tflite'));
 
   // Session state
   const [isActive, setIsActive] = useState(false);
@@ -129,24 +81,28 @@ export function FormCoachScreen({ navigation, route }: Props) {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
 
-  // Live pose state (updated at ~15fps from worklet)
-  const [keypoints, setKeypoints] = useState<Keypoint[]>([]);
+  // Live coach state
   const [currentFormIssue, setCurrentFormIssue] = useState<FormIssue | null>(null);
-  const [poseConfidence, setPoseConfidence] = useState(0); // avg visible joint score
+  const [formScore, setFormScore] = useState(0);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [snapshotsTaken, setSnapshotsTaken] = useState(0);
+  const [statusText, setStatusText] = useState<string>('');
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [lastPayloadKB, setLastPayloadKB] = useState<number>(0);
 
   // Coaching cue overlay
   const [coachingCue, setCoachingCue] = useState<string | null>(null);
-  const [loadingCue, setLoadingCue] = useState(false);
   const cueAnim = useRef(new Animated.Value(0)).current;
 
-  // Refs that are safe to read in worklets / callbacks
-  const repCounterRef = useRef(new RepCounter(config.downThreshold, config.upThreshold));
+  // Refs
   const isActiveRef = useRef(false);
-  const frameCountRef = useRef(0);
-  const lastCoachingRef = useRef(0);
+  const analyzingRef = useRef(false);
+  const lastPositionRef = useRef<PoseSnapshot['position']>('ready');
   const repCountRef = useRef(0);
+  const lastSpokenCueRef = useRef<string | null>(null);
+  const lastSpokenAtRef = useRef(0);
 
-  // Session summary data
+  // Summary data
   const [repFormScores, setRepFormScores] = useState<number[]>([]);
   const [allFormIssues, setAllFormIssues] = useState<string[]>([]);
 
@@ -173,7 +129,6 @@ export function FormCoachScreen({ navigation, route }: Props) {
     setIntroVisible(false);
   }, [dontShowAgain]);
 
-  // ── Animate coaching cue ──
   const showCue = useCallback((cue: string) => {
     setCoachingCue(cue);
     Animated.sequence([
@@ -181,111 +136,122 @@ export function FormCoachScreen({ navigation, route }: Props) {
       Animated.delay(5000),
       Animated.timing(cueAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
     ]).start();
-    if (voiceEnabled) {
-      Speech.stop();
-      Speech.speak(cue, { rate: 0.9, pitch: 1.0 });
-    }
-  }, [voiceEnabled, cueAnim]);
+  }, [cueAnim]);
 
-  // ── Fetch AI coaching cue (async, non-blocking) ──
-  const fetchCoachingCue = useCallback(async (reps: number, issue: string | null) => {
+  const maybeSpeak = useCallback((text: string, opts?: Speech.SpeechOptions) => {
+    if (!voiceEnabled) return;
     const now = Date.now();
-    if (now - lastCoachingRef.current < MIN_COACHING_INTERVAL_MS) return;
-    lastCoachingRef.current = now;
-    setLoadingCue(true);
-    try {
-      const cue = await getLiveFormCue(exerciseName, reps, issue);
-      showCue(cue);
-    } catch { /* non-critical */ } finally {
-      setLoadingCue(false);
+    if (text === lastSpokenCueRef.current && now - lastSpokenAtRef.current < MIN_SPEAK_INTERVAL_MS) {
+      return;
     }
-  }, [exerciseName, showCue]);
+    lastSpokenCueRef.current = text;
+    lastSpokenAtRef.current = now;
+    Speech.stop();
+    Speech.speak(text, { rate: 0.95, pitch: 1.0, ...opts });
+  }, [voiceEnabled]);
 
-  // ── Called from worklet thread via runOnJS ──
-  const onPoseUpdate = useCallback((
-    kps: Keypoint[],
-    confidence: number,
-    repCompleted: boolean,
-    formIssueText: string | null,
-    formScore: number,
-  ) => {
-    setKeypoints(kps);
-    setPoseConfidence(confidence);
-
-    if (formIssueText) {
-      setCurrentFormIssue({ cue: formIssueText });
-    } else {
-      setCurrentFormIssue(null);
-    }
-
-    if (repCompleted) {
-      const nextRep = repCountRef.current + 1;
-      repCountRef.current = nextRep;
-      setRepCount(nextRep);
-      setRepFormScores(prev => [...prev, formScore]);
-      if (formIssueText) setAllFormIssues(prev => [...prev, formIssueText]);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-      if (nextRep % COACHING_EVERY_N_REPS === 0) {
-        fetchCoachingCue(nextRep, formIssueText);
-      }
-    }
-  }, [fetchCoachingCue]);
-
-  // ── Frame processor (runs on worklet thread) ──
-  const frameProcessor = useFrameProcessor((frame) => {
-    'worklet';
+  // ── Capture + analyze loop ──────────────────────────────────────────────
+  const captureAndAnalyze = useCallback(async () => {
+    if (!cameraRef.current) return;
+    if (analyzingRef.current) return;
     if (!isActiveRef.current) return;
-    if (model.state !== 'loaded') return;
 
-    frameCountRef.current += 1;
-    const shouldUpdateUI = frameCountRef.current % UI_UPDATE_EVERY_N_FRAMES === 0;
-
+    analyzingRef.current = true;
+    setIsAnalyzing(true);
     try {
-      const outputs = model.model.runSync([frame]);
-      const raw = outputs[0]; // Float32Array, shape [1,1,17,3] flattened
-      const kps = parseMoveNetOutput(raw as Float32Array);
+      // Silent capture — no shutter sound on Android
+      const photo = await cameraRef.current.takePhoto({
+        flash: 'off',
+        enableShutterSound: false,
+      });
+      setSnapshotsTaken(s => s + 1);
 
-      // Confidence: average score of major joints
-      const majorJoints = [KP.LEFT_SHOULDER, KP.RIGHT_SHOULDER, KP.LEFT_HIP, KP.RIGHT_HIP];
-      const avgConf = majorJoints.reduce((s, i) => s + (kps[i]?.score ?? 0), 0) / majorJoints.length;
+      // file:// path → blob → base64
+      const filePath = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+      const response = await fetch(filePath);
+      const blob = await response.blob();
+      const base64 = await blobToBase64(blob);
+      setLastPayloadKB(Math.round(base64.length / 1024));
 
-      // Form check
-      const formIssue = config.checkForm(kps);
-      const formScore = Math.round(avgConf * 100);
+      const result = await analyzePoseSnapshot(exerciseName, base64);
+      setLastError(null);
 
-      // Rep counting
-      let repCompleted = false;
-      if (config.autoCount && avgConf > 0.4) {
-        const progress = config.getProgress(kps);
-        if (progress !== null) {
-          repCompleted = repCounterRef.current.tick(progress);
+      if (!isActiveRef.current) return; // session ended while waiting
+
+      setFormScore(result.score);
+
+      if (!result.visible || result.position === 'unknown') {
+        setStatusText("Can't see you clearly");
+        setCurrentFormIssue(null);
+        return;
+      }
+
+      setStatusText(result.position.toUpperCase());
+
+      if (result.formIssue) {
+        setCurrentFormIssue({ cue: result.formIssue });
+        maybeSpeak(result.formIssue);
+      } else {
+        setCurrentFormIssue(null);
+      }
+
+      // Rep counting state machine:
+      // contracted → ready (or mid going up) = rep complete
+      const prev = lastPositionRef.current;
+      const curr = result.position;
+      const repCompleted =
+        prev === 'contracted' && (curr === 'ready' || curr === 'mid');
+
+      if (repCompleted) {
+        const next = repCountRef.current + 1;
+        repCountRef.current = next;
+        setRepCount(next);
+        setRepFormScores(p => [...p, result.score]);
+        if (result.formIssue) setAllFormIssues(p => [...p, result.formIssue!]);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+        if (voiceEnabled) {
+          Speech.stop();
+          Speech.speak(String(next), { rate: 1.0, pitch: 1.05 });
         }
       }
 
-      if (shouldUpdateUI) {
-        runOnJS(onPoseUpdate)(kps, avgConf, repCompleted, formIssue?.cue ?? null, formScore);
-      } else if (repCompleted) {
-        // Always fire rep events even if skipping UI update
-        runOnJS(onPoseUpdate)(kps, avgConf, true, formIssue?.cue ?? null, formScore);
-      }
-    } catch {
-      // Frame processing errors are non-fatal
+      lastPositionRef.current = curr;
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      console.warn('[FormCoach] capture/analyze failed:', msg);
+      setLastError(msg.slice(0, 200));
+    } finally {
+      analyzingRef.current = false;
+      setIsAnalyzing(false);
     }
-  }, [model.state, model.model]);
+  }, [exerciseName, maybeSpeak, voiceEnabled]);
+
+  // Drive the capture loop while the session is active
+  useEffect(() => {
+    if (!isActive) return;
+    const interval = setInterval(() => {
+      captureAndAnalyze();
+    }, CAPTURE_INTERVAL_MS);
+    // also fire one immediately so we don't wait the full interval
+    captureAndAnalyze();
+    return () => clearInterval(interval);
+  }, [isActive, captureAndAnalyze]);
 
   const startSession = () => {
-    repCounterRef.current = new RepCounter(config.downThreshold, config.upThreshold);
     repCountRef.current = 0;
-    frameCountRef.current = 0;
-    lastCoachingRef.current = 0;
+    lastPositionRef.current = 'ready';
+    lastSpokenCueRef.current = null;
+    lastSpokenAtRef.current = 0;
+    analyzingRef.current = false;
     isActiveRef.current = true;
     setIsActive(true);
     setRepCount(0);
+    setSnapshotsTaken(0);
     setRepFormScores([]);
     setAllFormIssues([]);
     setCurrentFormIssue(null);
     setCoachingCue(null);
+    setStatusText('Warming up…');
   };
 
   const endSet = () => {
@@ -299,17 +265,14 @@ export function FormCoachScreen({ navigation, route }: Props) {
   };
 
   const addManualRep = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     const next = repCountRef.current + 1;
     repCountRef.current = next;
     setRepCount(next);
-    setRepFormScores(prev => [...prev, Math.round(poseConfidence * 100)]);
-    if (next % COACHING_EVERY_N_REPS === 0) {
-      fetchCoachingCue(next, currentFormIssue?.cue ?? null);
-    }
+    setRepFormScores(prev => [...prev, formScore]);
   };
 
-  // ── Permission gate ──────────────────────────────────────────────────────
+  // ── Permission gate ──
   if (cameraPermission === 'unknown') {
     return <View style={{ flex: 1, backgroundColor: Colors.background }} />;
   }
@@ -320,7 +283,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
         <Ionicons name="camera-outline" size={48} color={Colors.primary} style={{ marginBottom: 20 }} />
         <Text style={styles.permTitle}>Camera access needed</Text>
         <Text style={styles.permBody}>
-          Form Coach watches your movement in real time — no video is stored or sent.
+          Form Coach watches your movement in real time — no video is stored.
         </Text>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.permBtn}>
           <Text style={styles.permBtnText}>Go Back</Text>
@@ -333,7 +296,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
     return (
       <View style={styles.centered}>
         <Ionicons name="camera-outline" size={48} color={Colors.muted} style={{ marginBottom: 20 }} />
-        <Text style={styles.permTitle}>No front camera found</Text>
+        <Text style={styles.permTitle}>No camera found</Text>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
           <Text style={{ color: Colors.muted, fontSize: 15 }}>Go back</Text>
         </TouchableOpacity>
@@ -341,34 +304,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
     );
   }
 
-  // ── Model loading state ──────────────────────────────────────────────────
-  if (model.state === 'loading') {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={{ color: Colors.textSecondary, marginTop: 16, fontSize: 15 }}>
-          Loading pose model…
-        </Text>
-      </View>
-    );
-  }
-
-  if (model.state === 'error') {
-    return (
-      <View style={styles.centered}>
-        <Ionicons name="warning-outline" size={48} color={Colors.danger} style={{ marginBottom: 20 }} />
-        <Text style={styles.permTitle}>Model failed to load</Text>
-        <Text style={styles.permBody}>
-          Make sure the MoveNet model file is at{'\n'}assets/models/movenet_lightning.tflite
-        </Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.permBtn}>
-          <Text style={styles.permBtnText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  // ── Summary screen ───────────────────────────────────────────────────────
+  // ── Summary ──
   if (showSummary) {
     const avgScore = repFormScores.length > 0
       ? Math.round(repFormScores.reduce((a, b) => a + b, 0) / repFormScores.length)
@@ -380,7 +316,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
         <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '600', letterSpacing: 1, marginBottom: 8 }}>SET COMPLETE</Text>
         <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', marginBottom: 4 }}>{exerciseName}</Text>
         <Text style={{ color: Colors.textSecondary, fontSize: 16, marginBottom: 32 }}>
-          {repCount} rep{repCount !== 1 ? 's' : ''} · pose-detected
+          {repCount} rep{repCount !== 1 ? 's' : ''}
         </Text>
 
         <View style={[styles.scoreCard, { borderColor: scoreColor(avgScore) + '55' }]}>
@@ -421,10 +357,9 @@ export function FormCoachScreen({ navigation, route }: Props) {
     );
   }
 
-  // ── Live camera screen ────────────────────────────────────────────────────
+  // ── Live camera ──
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* Positioning tutorial modal */}
       <Modal
         visible={introChecked && introVisible}
         transparent
@@ -471,23 +406,18 @@ export function FormCoachScreen({ navigation, route }: Props) {
       </Modal>
 
       <Camera
+        ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
+        format={format}
         isActive={true}
-        frameProcessor={isActive ? frameProcessor : undefined}
+        photo={true}
         outputOrientation="preview"
       />
 
-      {/* Skeleton overlay */}
-      {isActive && keypoints.length > 0 && (
-        <SkeletonOverlay keypoints={keypoints} width={SCREEN_W} height={SCREEN_H} />
-      )}
-
-      {/* Top scrim */}
       <View style={styles.topScrim} />
       <View style={styles.bottomScrim} />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => { Speech.stop(); navigation.goBack(); }}
@@ -507,36 +437,69 @@ export function FormCoachScreen({ navigation, route }: Props) {
           )}
         </View>
 
-        <TouchableOpacity onPress={() => setVoiceEnabled(v => !v)} style={{ opacity: voiceEnabled ? 1 : 0.4 }}>
-          <Ionicons name={voiceEnabled ? 'volume-high' : 'volume-mute'} size={22} color={Colors.text} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <TouchableOpacity onPress={() => setCameraFacing(f => f === 'back' ? 'front' : 'back')}>
+            <Ionicons name="sync-outline" size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setVoiceEnabled(v => !v)} style={{ opacity: voiceEnabled ? 1 : 0.4 }}>
+            <Ionicons name={voiceEnabled ? 'volume-high' : 'volume-mute'} size={22} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Pose confidence badge */}
+      {/* Form score badge */}
       {isActive && (
-        <View style={[styles.badge, { top: 100, right: 20, borderColor: scoreColor(Math.round(poseConfidence * 100)) }]}>
-          <Text style={{ color: scoreColor(Math.round(poseConfidence * 100)), fontSize: 20, fontWeight: '900', lineHeight: 22 }}>
-            {Math.round(poseConfidence * 100)}
+        <View style={[styles.badge, { top: 100, right: 20, borderColor: scoreColor(formScore) }]}>
+          <Text style={{ color: scoreColor(formScore), fontSize: 20, fontWeight: '900', lineHeight: 22 }}>
+            {formScore || '—'}
           </Text>
-          <Text style={{ color: Colors.muted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>CONF</Text>
+          <Text style={{ color: Colors.muted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>FORM</Text>
         </View>
       )}
 
-      {/* Form issue badge */}
-      {isActive && currentFormIssue && (
-        <View style={[styles.badge, { top: 100, left: 20, borderColor: Colors.warning, paddingHorizontal: 8, paddingVertical: 6, maxWidth: 140 }]}>
-          <Ionicons name="flash" size={12} color={Colors.warning} />
-          <Text style={{ color: Colors.warning, fontSize: 10, fontWeight: '700', textAlign: 'center', marginTop: 2 }}>
-            FORM
+      {/* Position / status */}
+      {isActive && !!statusText && (
+        <View style={{
+          position: 'absolute', top: 100, left: 20,
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,
+          flexDirection: 'row', alignItems: 'center', gap: 6,
+        }}>
+          {isAnalyzing && <ActivityIndicator size="small" color={Colors.primary} />}
+          <Text style={{ color: Colors.primary, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>
+            {statusText}
           </Text>
         </View>
       )}
 
-      {/* Loading cue indicator */}
-      {loadingCue && (
-        <View style={[styles.analyzingBadge, { top: 160, left: 20 }]}>
-          <ActivityIndicator size="small" color={Colors.primary} />
-          <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '700' }}>Coach…</Text>
+      {/* Debug strip — snapshots taken so far */}
+      {isActive && (
+        <View style={{
+          position: 'absolute', top: 160, right: 20,
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
+        }}>
+          <Text style={{ color: Colors.muted, fontSize: 10, fontWeight: '700' }}>
+            snaps {snapshotsTaken}
+          </Text>
+          {lastPayloadKB > 0 && (
+            <Text style={{ color: Colors.muted, fontSize: 10, fontWeight: '700' }}>
+              {lastPayloadKB}KB
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* Error banner */}
+      {isActive && lastError && (
+        <View style={{
+          position: 'absolute', top: 200, left: 20, right: 20,
+          backgroundColor: 'rgba(180,30,30,0.85)',
+          borderRadius: 8, padding: 10,
+        }}>
+          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }} numberOfLines={4}>
+            ⚠ {lastError}
+          </Text>
         </View>
       )}
 
@@ -558,7 +521,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
         )}
       </Animated.View>
 
-      {/* Form issue text (local, instant) */}
+      {/* Form issue (live) */}
       {isActive && currentFormIssue && !coachingCue && (
         <View style={[styles.cueBubble, { borderLeftColor: Colors.warning, opacity: 1 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
@@ -574,7 +537,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
       {isActive && (
         <View style={styles.repCenter}>
           <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 2 }}>
-            {config.autoCount ? 'REPS (AUTO)' : 'REPS (TAP +)'}
+            REPS
           </Text>
           <Text style={{ color: Colors.text, fontSize: 96, fontWeight: '900', lineHeight: 100 }}>{repCount}</Text>
         </View>
@@ -589,7 +552,6 @@ export function FormCoachScreen({ navigation, route }: Props) {
           </TouchableOpacity>
         ) : (
           <View style={{ gap: 12 }}>
-            {/* Manual rep button shown for both auto and manual counting */}
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity
                 onPress={() => {
@@ -600,18 +562,9 @@ export function FormCoachScreen({ navigation, route }: Props) {
               >
                 <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '300' }}>−</Text>
               </TouchableOpacity>
-
-              {!config.autoCount && (
-                <TouchableOpacity onPress={addManualRep} style={[styles.repBtn, { flex: 2, borderColor: Colors.primary, backgroundColor: Colors.primary + '22' }]}>
-                  <Text style={{ color: Colors.primary, fontSize: 15, fontWeight: '800' }}>+ Rep</Text>
-                </TouchableOpacity>
-              )}
-
-              {config.autoCount && (
-                <View style={[styles.repBtn, { flex: 2, opacity: 0.4 }]}>
-                  <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '600', textAlign: 'center' }}>Auto counting</Text>
-                </View>
-              )}
+              <TouchableOpacity onPress={addManualRep} style={[styles.repBtn, { flex: 2, borderColor: Colors.primary, backgroundColor: Colors.primary + '22' }]}>
+                <Text style={{ color: Colors.primary, fontSize: 15, fontWeight: '800' }}>+ Rep</Text>
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity onPress={endSet} style={styles.endBtn}>
@@ -653,12 +606,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8,
     alignItems: 'center',
   },
-  analyzingBadge: {
-    position: 'absolute',
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,
-  },
   cueBubble: {
     position: 'absolute', top: 165, left: 20, right: 20,
     backgroundColor: 'rgba(10,10,10,0.9)',
@@ -697,7 +644,6 @@ const styles = StyleSheet.create({
   doneBtn:    { backgroundColor: Colors.primary, borderRadius: 14, padding: 18, alignItems: 'center' },
   doneBtnText: { color: '#000', fontWeight: '800', fontSize: 16 },
 
-  // Positioning tutorial modal
   introBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.85)',
     alignItems: 'center', justifyContent: 'center', padding: 20,

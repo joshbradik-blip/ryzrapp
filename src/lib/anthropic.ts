@@ -267,6 +267,77 @@ export async function askCoachWithImage(
   return data.content?.[0]?.text ?? "I couldn't analyze that image. Try again.";
 }
 
+export interface PoseSnapshot {
+  position: 'ready' | 'mid' | 'contracted' | 'unknown';
+  formIssue: string | null;
+  score: number;
+  visible: boolean;
+}
+
+// One frame → position state + form issue. JS-side state machine counts reps
+// from position transitions (contracted → ready/mid = rep complete).
+export async function analyzePoseSnapshot(
+  exerciseName: string,
+  imageBase64: string
+): Promise<PoseSnapshot> {
+  const data = await callAnthropic({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 180,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 },
+          },
+          {
+            type: 'text',
+            text: `You are an expert strength coach watching a single still frame of a person doing "${exerciseName}".
+
+Classify the body position decisively. Pick ONE — do NOT default to "mid" when you can reasonably tell.
+
+position categories:
+- "ready"      = top of the movement / starting position. Squat: standing or hips above parallel. Pushup: arms mostly extended. Curl: arms hanging, weight low. Hip thrust: hips on floor. Deadlift: bar on floor or just off floor. Press: arms locked overhead.
+- "contracted" = bottom or peak of the movement, even if not perfect form. Squat: hips at or below knee level OR knees clearly bent past 90°. Pushup: chest within ~1 ft of floor. Curl: weight at shoulder or elbow clearly past 90°. Hip thrust: hips clearly lifted, glutes engaged. Deadlift: bar at hip lockout. Press: arms bent, weight at shoulders. Lunge: rear knee close to ground.
+- "mid"        = clearly between, e.g. squat with knees at ~45° bend
+- "unknown"    = person not visible / not in frame / unrelated activity
+
+BIAS toward "ready" or "contracted" — they're what reps are counted from. Only return "mid" if the person is genuinely halfway between positions.
+
+formIssue should be a short actionable cue (max 12 words, starts with a verb) ONLY if you actually see a clear form problem; otherwise null. Don't nitpick — only flag real issues.
+
+Respond with ONLY valid JSON (no markdown, no commentary):
+{
+  "position": "<ready|mid|contracted|unknown>",
+  "formIssue": <string or null>,
+  "score": <integer 0-100>,
+  "visible": <true|false>
+}`,
+          },
+        ],
+      },
+    ],
+  });
+
+  const text: string = data.content?.[0]?.text ?? '{}';
+  try {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    const slice = start >= 0 && end > start ? text.slice(start, end + 1) : '{}';
+    const parsed = JSON.parse(slice);
+    const pos = parsed.position;
+    return {
+      position: (pos === 'ready' || pos === 'mid' || pos === 'contracted') ? pos : 'unknown',
+      formIssue: typeof parsed.formIssue === 'string' && parsed.formIssue.trim().length > 0 ? parsed.formIssue.trim() : null,
+      score: Math.max(0, Math.min(100, Number(parsed.score) || 75)),
+      visible: parsed.visible !== false,
+    };
+  } catch {
+    return { position: 'unknown', formIssue: null, score: 0, visible: false };
+  }
+}
+
 export async function analyzeFormFromImage(
   exerciseName: string,
   imageBase64: string,

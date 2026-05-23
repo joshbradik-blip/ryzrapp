@@ -58,6 +58,15 @@
           "cameraPermission": "RYZR uses your camera to analyze your workout form in real-time."
         }
       ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "RYZR uses your camera to analyze your workout form in real-time.",
+          "enableMicrophonePermission": false,
+          "enableLocation": false,
+          "enableFrameProcessors": true
+        }
+      ],
       "react-native-fast-tflite",
       [
         "expo-notifications",

@@ -5,9 +5,16 @@ import { TodayScreen } from '../screens/today/TodayScreen';
 import { WorkoutSessionScreen } from '../screens/today/WorkoutSessionScreen';
 import { ExerciseDetailScreen } from '../screens/today/ExerciseDetailScreen';
 import { SubstituteExerciseScreen } from '../screens/today/SubstituteExerciseScreen';
-import { FormCoachScreen } from '../screens/today/FormCoachScreen';
 import { WorkoutCompleteScreen } from '../screens/today/WorkoutCompleteScreen';
 import { Colors } from '../constants/theme';
+
+// Lazy-load FormCoachScreen so Vision Camera and fast-tflite TurboModules are
+// only initialized when the user actually navigates to Form Coach, preventing
+// a startup SIGABRT caused by those modules accessing native APIs too early.
+function LazyFormCoachScreen(props: any) {
+  const { FormCoachScreen } = require('../screens/today/FormCoachScreen');
+  return <FormCoachScreen {...props} />;
+}
 
 const Stack = createNativeStackNavigator<TodayStackParamList>();
 
@@ -39,7 +46,7 @@ export function TodayNavigator() {
       />
       <Stack.Screen
         name="FormCoach"
-        component={FormCoachScreen}
+        component={LazyFormCoachScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
