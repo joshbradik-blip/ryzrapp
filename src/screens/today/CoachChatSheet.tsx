@@ -6,8 +6,8 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
-  KeyboardAvoidingView,
   Platform,
+  Dimensions,
   ActivityIndicator,
   StyleSheet,
   Animated,
@@ -43,6 +43,7 @@ export function CoachChatSheet({ visible, onClose }: Props) {
   const [pendingImage, setPendingImage] = useState<{ uri: string; base64: string } | null>(null);
   const slideAnim = useRef(new Animated.Value(600)).current;
   const listRef = useRef<FlatList<CoachMessage>>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
     if (visible) {
@@ -53,10 +54,22 @@ export function CoachChatSheet({ visible, onClose }: Props) {
   }, [visible, slideAnim]);
 
   useEffect(() => {
-    const sub = Keyboard.addListener('keyboardDidShow', () => {
+    const show = Keyboard.addListener('keyboardDidShow', (e) => {
+      // On edge-to-edge Android the keyboard sits on top of the gesture nav bar,
+      // so e.endCoordinates.height only covers the keyboard, not the bar beneath it.
+      // Measuring windowHeight - screenY captures the full blocked area.
+      const windowH = Dimensions.get('window').height;
+      const kbHeight = Math.max(
+        e.endCoordinates.height,
+        windowH - e.endCoordinates.screenY,
+      );
+      setKeyboardHeight(kbHeight);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     });
-    return () => sub.remove();
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => { show.remove(); hide.remove(); };
   }, []);
 
   const send = useCallback(async () => {
@@ -139,13 +152,8 @@ export function CoachChatSheet({ visible, onClose }: Props) {
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
-        <SafeAreaView style={{ flex: 1 }} edges={['bottom']}>
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={0}
-          >
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }], bottom: keyboardHeight }]}>
+        <SafeAreaView style={{ flex: 1 }} edges={keyboardHeight > 0 ? [] : ['bottom']}>
             {/* Handle + header */}
             <View style={styles.handle} />
             <View style={styles.header}>
@@ -221,7 +229,6 @@ export function CoachChatSheet({ visible, onClose }: Props) {
                 <Ionicons name="send" size={18} color="#000" />
               </TouchableOpacity>
             </View>
-          </KeyboardAvoidingView>
         </SafeAreaView>
       </Animated.View>
     </Modal>

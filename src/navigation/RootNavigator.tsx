@@ -7,6 +7,7 @@ import { MainTabNavigator } from './MainTabNavigator';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
 import { useIntroStore } from '../store/introStore';
+import { useSubscriptionStore } from '../store/subscriptionStore';
 import { supabase } from '../lib/supabase';
 import { View, ActivityIndicator } from 'react-native';
 import { Colors } from '../constants/theme';
@@ -19,6 +20,7 @@ export function RootNavigator() {
   const { session, setSession, setInitialized, initialized } = useAuthStore();
   const { profile } = useProfileStore();
   const { seen: introSeen, initSeen } = useIntroStore();
+  const { initialize } = useSubscriptionStore();
 
   useEffect(() => {
     Promise.all([
@@ -35,10 +37,16 @@ export function RootNavigator() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
+      if (s?.user?.id) initialize(s.user.id);
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Run initialize whenever the signed-in user changes
+  useEffect(() => {
+    if (session?.user?.id) initialize(session.user.id);
+  }, [session?.user?.id]);
 
   if (!initialized || introSeen === null) {
     return (
