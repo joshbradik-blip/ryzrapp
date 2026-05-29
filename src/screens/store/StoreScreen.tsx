@@ -5,69 +5,20 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
-import { useSubscriptionStore } from '../../store/subscriptionStore';
-
-const PROGRAMS: { id: string; name: string; icon: keyof typeof Ionicons.glyphMap; description: string; price: number; tag: string | null; tagColor: string | null; weeks: number; sessions: number }[] = [
-  {
-    id: 'surf-prep',
-    name: '12-Week Surf Prep',
-    icon: 'water-outline',
-    description: 'Explosive hips, rotational core, single-leg balance. Paddle strength and pop-up power.',
-    price: 12.99,
-    tag: 'Most popular',
-    tagColor: Colors.primary,
-    weeks: 12,
-    sessions: 36,
-  },
-  {
-    id: 'beginner-recomp',
-    name: 'Beginner Recomp',
-    icon: 'barbell-outline',
-    description: 'Build muscle and lose fat simultaneously. Perfect for newcomers with 3 days/week.',
-    price: 9.99,
-    tag: null,
-    tagColor: null,
-    weeks: 8,
-    sessions: 24,
-  },
-  {
-    id: 'powerlifting',
-    name: 'Powerlifting Foundation',
-    icon: 'barbell-outline',
-    description: 'Squat, bench, deadlift. Linear progression with technique coaching built in.',
-    price: 14.99,
-    tag: 'Advanced',
-    tagColor: Colors.warning,
-    weeks: 12,
-    sessions: 48,
-  },
-  {
-    id: 'marathon',
-    name: 'Marathon Ready — 16 Weeks',
-    icon: 'walk-outline',
-    description: 'Strength-first approach to marathon training. Less injury, faster times.',
-    price: 12.99,
-    tag: null,
-    tagColor: null,
-    weeks: 16,
-    sessions: 64,
-  },
-  {
-    id: 'handstand',
-    name: 'Handstand in 90 Days',
-    icon: 'body-outline',
-    description: 'Progressive wrist prep, shoulder strength, and balance drills. Freestanding handstand guaranteed.',
-    price: 9.99,
-    tag: 'New',
-    tagColor: Colors.info,
-    weeks: 13,
-    sessions: 39,
-  },
-];
+import { supabase } from '../../lib/supabase';
+import {
+  useSubscriptionStore,
+  PRICE_MONTHLY,
+  PRICE_ANNUAL,
+  PRICE_LIFETIME,
+  LIFETIME_SLOTS_TOTAL,
+} from '../../store/subscriptionStore';
 
 const PREMIUM_FEATURES: { icon: keyof typeof Ionicons.glyphMap; title: string; desc: string }[] = [
   { icon: 'hardware-chip-outline', title: 'AI Workout Generation',       desc: 'Personalized plans rebuilt weekly around your progress' },
@@ -77,9 +28,96 @@ const PREMIUM_FEATURES: { icon: keyof typeof Ionicons.glyphMap; title: string; d
   { icon: 'flash-outline',         title: 'Priority Support',            desc: 'Direct access to the RYZR coaching team' },
 ];
 
+// ─── Affiliate gear ──────────────────────────────────────────────────────────
+// Replace with your real Amazon Associates tracking tag (e.g. "ryzr-20").
+// Until then links still open, they just won't earn commission.
+const AMAZON_ASSOCIATE_TAG = 'bradikshop-20';
+
+// Products live in the `gear_products` Supabase table — add/edit/remove them in
+// the dashboard with no app rebuild. See supabase/migrations/002_gear_products.sql.
+type GearRow = {
+  section: string;
+  name: string;
+  description: string;
+  asin: string; // Amazon product ID (the "B0..." code in any product URL)
+  icon: string; // Ionicons name
+};
+
+type GearItem = { asin: string; name: string; desc: string; icon: keyof typeof Ionicons.glyphMap };
+type GearSection = { title: string; items: GearItem[] };
+
+// Group flat rows (already sorted by sort_order) into sections, preserving order.
+function groupGear(rows: GearRow[]): GearSection[] {
+  const sections: GearSection[] = [];
+  for (const row of rows) {
+    let section = sections.find((s) => s.title === row.section);
+    if (!section) {
+      section = { title: row.section, items: [] };
+      sections.push(section);
+    }
+    section.items.push({
+      asin: row.asin,
+      name: row.name,
+      desc: row.description,
+      icon: row.icon as keyof typeof Ionicons.glyphMap,
+    });
+  }
+  return sections;
+}
+
 export function StoreScreen() {
-  const { isPremium, packages, fetchOfferings, purchasePackage, restorePurchases, loading } = useSubscriptionStore();
-  const [activeTab, setActiveTab] = useState<'premium' | 'programs'>('premium');
+  const {
+    isPremium, packages, fetchOfferings, purchasePackage, purchaseLifetime,
+    restorePurchases, loading, lifetimeSlotsRemaining,
+  } = useSubscriptionStore();
+
+  const slotsGone = lifetimeSlotsRemaining <= 0;
+
+  const [tab, setTab] = useState<'membership' | 'gear'>('membership');
+
+  const [gearSections, setGearSections] = useState<GearSection[]>([]);
+  const [gearLoading, setGearLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from('gear_products')
+        .select('section, name, description, asin, icon')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      if (!active) return;
+      setGearSections(error || !data ? [] : groupGear(data as GearRow[]));
+      setGearLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const openGearLink = (asin: string) => {
+    const url = `https://www.amazon.com/dp/${asin}?tag=${AMAZON_ASSOCIATE_TAG}`;
+    Linking.openURL(url).catch(() =>
+      Alert.alert('Could not open link', 'Please try again in a moment.')
+    );
+  };
+
+  // Prefer the live, localized price from the loaded RevenueCat package; fall
+  // back to the constants only when offerings haven't loaded (or RC isn't
+  // configured). Avoids showing a price that differs from what's charged.
+  const monthlyPkg = packages.find((p) => p.packageType === 'MONTHLY');
+  const annualPkg = packages.find((p) => p.packageType === 'ANNUAL');
+  const lifetimePkg = packages.find((p) => p.packageType === 'LIFETIME');
+
+  const monthlyPrice = monthlyPkg?.product.priceString ?? `$${PRICE_MONTHLY}`;
+  const annualPrice = annualPkg?.product.priceString ?? `$${PRICE_ANNUAL}`;
+  const lifetimePrice = lifetimePkg?.product.priceString ?? `$${PRICE_LIFETIME}`;
+
+  // Per-month equivalent for the annual plan — reuse the annual package's own
+  // currency formatting so non-USD locales render correctly.
+  const annualPerMonth = annualPkg
+    ? annualPkg.product.priceString.replace(/[\d.,]+/, (annualPkg.product.price / 12).toFixed(2))
+    : `$${(PRICE_ANNUAL / 12).toFixed(2)}`;
 
   useEffect(() => {
     fetchOfferings();
@@ -90,23 +128,22 @@ export function StoreScreen() {
       type === 'monthly' ? p.packageType === 'MONTHLY' : p.packageType === 'ANNUAL'
     );
     if (!pkg) {
+      const price = type === 'monthly' ? `$${PRICE_MONTHLY}/mo` : `$${PRICE_ANNUAL}/yr`;
       Alert.alert(
-        type === 'monthly' ? 'RYZR Premium — $9.99/mo' : 'RYZR Premium — $59.99/yr',
+        `RYZR Premium — ${price}`,
         'RevenueCat setup required. Add your iOS/Android API keys in src/store/subscriptionStore.ts to enable purchases.',
         [{ text: 'Got it' }]
       );
       return;
     }
     const success = await purchasePackage(pkg);
-    if (success) Alert.alert('Welcome to Premium!', 'You now have access to all RYZR features.');
+    if (success) Alert.alert('Welcome to Premium! 🎉', 'You now have access to all RYZR features.');
   };
 
-  const handleBuyProgram = (program: typeof PROGRAMS[number]) => {
-    Alert.alert(
-      program.name,
-      `$${program.price} one-time purchase.\n\nThis will be available as an in-app purchase via RevenueCat once configured.`,
-      [{ text: 'OK' }]
-    );
+  const handleLifetime = async () => {
+    if (slotsGone) return;
+    const ok = await purchaseLifetime();
+    if (ok) Alert.alert('You\'re a Founding Member! 🏆', 'Lifetime access is yours.');
   };
 
   return (
@@ -115,37 +152,34 @@ export function StoreScreen() {
         {/* Header */}
         <View style={{ padding: 24, paddingBottom: 0 }}>
           <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900' }}>Store</Text>
-          <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 2, marginBottom: 16 }}>
-            Unlock your full potential
+          <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 2 }}>
+            {tab === 'membership' ? 'Unlock your full potential' : 'Gear we use to train'}
           </Text>
-
-          {/* Tab switch */}
-          <View style={{ flexDirection: 'row', backgroundColor: Colors.surface2, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: Colors.border }}>
-            {(['premium', 'programs'] as const).map((tab) => (
-              <TouchableOpacity
-                key={tab}
-                onPress={() => setActiveTab(tab)}
-                style={{
-                  flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: 'center',
-                  flexDirection: 'row', justifyContent: 'center', gap: 6,
-                  backgroundColor: activeTab === tab ? Colors.surface3 : 'transparent',
-                }}
-              >
-                <Ionicons
-                  name={tab === 'premium' ? 'flash-outline' : 'library-outline'}
-                  size={16}
-                  color={activeTab === tab ? Colors.text : Colors.muted}
-                />
-                <Text style={{ color: activeTab === tab ? Colors.text : Colors.muted, fontWeight: '700' }}>
-                  {tab === 'premium' ? 'Premium' : 'Programs'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         </View>
 
-        {activeTab === 'premium' ? (
-          <View style={{ padding: 24 }}>
+        {/* Segmented toggle */}
+        <View style={{ flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 12, padding: 4, marginHorizontal: 24, marginTop: 16, borderWidth: 1, borderColor: Colors.border }}>
+          {(['membership', 'gear'] as const).map((t) => (
+            <TouchableOpacity
+              key={t}
+              onPress={() => setTab(t)}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                borderRadius: 8,
+                alignItems: 'center',
+                backgroundColor: tab === t ? Colors.primary : 'transparent',
+              }}
+            >
+              <Text style={{ color: tab === t ? '#000' : Colors.textSecondary, fontWeight: '800', fontSize: 14 }}>
+                {t === 'membership' ? 'Membership' : 'Gear'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {tab === 'membership' && (
+        <View style={{ padding: 24 }}>
             {isPremium ? (
               <View style={{ backgroundColor: Colors.primary + '11', borderRadius: 20, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: Colors.primary + '44' }}>
                 <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.primary, marginBottom: 12 }}>
@@ -192,32 +226,64 @@ export function StoreScreen() {
 
                 {/* Pricing cards */}
                 <View style={{ gap: 12, marginBottom: 16 }}>
+                  {/* Lifetime founding member — shown when slots remain */}
+                  {!slotsGone && (
+                    <TouchableOpacity
+                      onPress={handleLifetime}
+                      disabled={loading}
+                      style={{
+                        backgroundColor: Colors.primary,
+                        borderRadius: 16,
+                        padding: 20,
+                        position: 'relative',
+                      }}
+                    >
+                      <View style={{ position: 'absolute', top: -12, right: 16, backgroundColor: '#000', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                        <Text style={{ color: Colors.primary, fontSize: 11, fontWeight: '800' }}>🔥 {lifetimeSlotsRemaining} OF {LIFETIME_SLOTS_TOTAL} LEFT</Text>
+                      </View>
+                      {loading ? <ActivityIndicator color="#000" /> : (
+                        <>
+                          <Text style={{ color: '#000', fontSize: 20, fontWeight: '900' }}>Founding Member</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
+                            <Text style={{ color: '#000', fontSize: 32, fontWeight: '900' }}>{lifetimePrice}</Text>
+                            <Text style={{ color: '#00000099', fontSize: 14 }}>one-time</Text>
+                          </View>
+                          <Text style={{ color: '#00000088', fontSize: 13, marginTop: 2 }}>Pay once · lifetime access · first 100 only</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
                   {/* Annual — best value */}
                   <TouchableOpacity
                     onPress={() => handleSubscribe('annual')}
+                    disabled={loading}
                     style={{
-                      backgroundColor: Colors.primary + '11',
+                      backgroundColor: slotsGone ? Colors.primary + '11' : Colors.surface,
                       borderRadius: 16,
                       padding: 20,
-                      borderWidth: 2,
-                      borderColor: Colors.primary,
+                      borderWidth: slotsGone ? 2 : 1,
+                      borderColor: slotsGone ? Colors.primary : Colors.border,
                       position: 'relative',
                     }}
                   >
-                    <View style={{ position: 'absolute', top: -12, right: 16, backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
-                      <Text style={{ color: '#000', fontSize: 11, fontWeight: '800' }}>BEST VALUE — SAVE 50%</Text>
-                    </View>
+                    {slotsGone && (
+                      <View style={{ position: 'absolute', top: -12, right: 16, backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                        <Text style={{ color: '#000', fontSize: 11, fontWeight: '800' }}>BEST VALUE — SAVE 50%</Text>
+                      </View>
+                    )}
                     <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Annual Plan</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-                      <Text style={{ color: Colors.primary, fontSize: 32, fontWeight: '900' }}>$59.99</Text>
+                      <Text style={{ color: slotsGone ? Colors.primary : Colors.text, fontSize: 32, fontWeight: '900' }}>{annualPrice}</Text>
                       <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>/ year</Text>
                     </View>
-                    <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 2 }}>$5/month billed annually</Text>
+                    <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 2 }}>{annualPerMonth}/month billed annually</Text>
                   </TouchableOpacity>
 
                   {/* Monthly */}
                   <TouchableOpacity
                     onPress={() => handleSubscribe('monthly')}
+                    disabled={loading}
                     style={{
                       backgroundColor: Colors.surface,
                       borderRadius: 16,
@@ -228,7 +294,7 @@ export function StoreScreen() {
                   >
                     <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Monthly Plan</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-                      <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900' }}>$9.99</Text>
+                      <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900' }}>{monthlyPrice}</Text>
                       <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>/ month</Text>
                     </View>
                     <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 2 }}>Cancel anytime</Text>
@@ -245,77 +311,60 @@ export function StoreScreen() {
               </>
             )}
           </View>
-        ) : (
+        )}
+
+        {tab === 'gear' && (
           <View style={{ padding: 24 }}>
-            <Text style={{ color: Colors.textSecondary, fontSize: 14, lineHeight: 20, marginBottom: 20 }}>
-              One-time purchases. AI-generated plans for specific goals, built by the RYZR team and refined with real athletes.
+            <Text style={{ color: Colors.text, fontSize: 15, lineHeight: 22, marginBottom: 20 }}>
+              Make Form Coach work its best. These are the tripods, lights, and training
+              tools we recommend — tap to view on Amazon.
             </Text>
 
-            <View style={{ gap: 14 }}>
-              {PROGRAMS.map((program) => (
-                <View key={program.id} style={{
-                  backgroundColor: Colors.surface,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: Colors.border,
-                  overflow: 'hidden',
-                }}>
-                  {program.tag && (
-                    <View style={{ backgroundColor: (program.tagColor ?? Colors.primary) + '22', paddingHorizontal: 16, paddingVertical: 6, flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: program.tagColor ?? Colors.primary }} />
-                      <Text style={{ color: program.tagColor ?? Colors.primary, fontSize: 12, fontWeight: '700' }}>{program.tag}</Text>
-                    </View>
-                  )}
-                  <View style={{ padding: 16 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 10 }}>
-                      <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name={program.icon} size={26} color={Colors.primary} />
+            {gearLoading ? (
+              <ActivityIndicator color={Colors.primary} style={{ marginTop: 20 }} />
+            ) : gearSections.length === 0 ? (
+              <Text style={{ color: Colors.muted, fontSize: 14, textAlign: 'center', marginTop: 20, lineHeight: 20 }}>
+                No gear yet — check back soon.
+              </Text>
+            ) : (
+              <>
+              {gearSections.map((section) => (
+              <View key={section.title} style={{ marginBottom: 24 }}>
+                <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '800', letterSpacing: 1, marginBottom: 12, textTransform: 'uppercase' }}>
+                  {section.title}
+                </Text>
+                <View style={{ gap: 12 }}>
+                  {section.items.map((item) => (
+                    <View
+                      key={item.asin}
+                      style={{ flexDirection: 'row', gap: 14, alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}
+                    >
+                      <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Ionicons name={item.icon} size={24} color={Colors.primary} />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800' }}>{program.name}</Text>
-                        <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 4, lineHeight: 18 }}>
-                          {program.description}
-                        </Text>
+                        <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 15 }}>{item.name}</Text>
+                        <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 }}>{item.desc}</Text>
                       </View>
+                      <TouchableOpacity
+                        onPress={() => openGearLink(item.asin)}
+                        style={{ backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, flexShrink: 0 }}
+                      >
+                        <Text style={{ color: '#000', fontWeight: '800', fontSize: 13 }}>View</Text>
+                      </TouchableOpacity>
                     </View>
-
-                    <View style={{ flexDirection: 'row', gap: 16, marginBottom: 14, alignItems: 'center' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Ionicons name="calendar-outline" size={13} color={Colors.muted} />
-                        <Text style={{ color: Colors.muted, fontSize: 13 }}>{program.weeks} weeks</Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Ionicons name="flash-outline" size={13} color={Colors.muted} />
-                        <Text style={{ color: Colors.muted, fontSize: 13 }}>{program.sessions} sessions</Text>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      onPress={() => handleBuyProgram(program)}
-                      style={{
-                        backgroundColor: Colors.surface2,
-                        borderRadius: 10,
-                        padding: 14,
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        borderWidth: 1,
-                        borderColor: Colors.border,
-                      }}
-                    >
-                      <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 15 }}>
-                        ${program.price.toFixed(2)}
-                        <Text style={{ color: Colors.muted, fontSize: 13, fontWeight: '400' }}> one-time</Text>
-                      </Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 14 }}>Get it</Text>
-                        <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
-                      </View>
-                    </TouchableOpacity>
-                  </View>
+                  ))}
                 </View>
+              </View>
               ))}
-            </View>
+
+              {/* FTC affiliate disclosure — legally required */}
+              <Text style={{ color: Colors.muted, fontSize: 11, textAlign: 'center', lineHeight: 16, marginTop: 4 }}>
+                RYZR may earn a commission from purchases made through these links, at no
+                extra cost to you. As an Amazon Associate we earn from qualifying purchases.
+              </Text>
+              </>
+            )}
           </View>
         )}
       </ScrollView>
