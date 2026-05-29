@@ -6,6 +6,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList, GoalCategory } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { useProfileStore } from '../../store/profileStore';
+import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { Colors } from '../../constants/theme';
 
 type Props = {
@@ -26,11 +27,11 @@ const ACTIVITIES = [
   'Swimming', 'Hiking', 'Martial arts', 'Pull-ups (first one)', 'Handstand', 'Backflip',
 ];
 
-const TIMEFRAMES = [
-  { weeks: 4, label: '4 weeks' },
-  { weeks: 8, label: '8 weeks' },
-  { weeks: 12, label: '12 weeks' },
-  { weeks: 0, label: 'Ongoing' },
+const TIMEFRAMES: { weeks: number; label: string; premium: boolean }[] = [
+  { weeks: 4,  label: '4 weeks',  premium: false },
+  { weeks: 8,  label: '8 weeks',  premium: true  },
+  { weeks: 12, label: '12 weeks', premium: true  },
+  { weeks: 0,  label: 'Ongoing',  premium: true  },
 ];
 
 function ProgressBar({ step, total }: { step: number; total: number }) {
@@ -46,10 +47,11 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
 
 export function GoalsScreen({ navigation }: Props) {
   const { setGoals } = useProfileStore();
+  const { isPremium } = useSubscriptionStore();
   const [category, setCategory] = useState<GoalCategory>('build_muscle');
   const [specificActivity, setSpecificActivity] = useState('');
   const [customActivity, setCustomActivity] = useState('');
-  const [targetWeeks, setTargetWeeks] = useState(12);
+  const [targetWeeks, setTargetWeeks] = useState(4);
 
   const handleNext = () => {
     const goal = {
@@ -59,7 +61,7 @@ export function GoalsScreen({ navigation }: Props) {
       target_weeks: targetWeeks,
     };
     setGoals([goal]);
-    navigation.navigate('GeneratingPlan');
+    navigation.navigate('ChoosePlan');
   };
 
   return (
@@ -158,27 +160,52 @@ export function GoalsScreen({ navigation }: Props) {
         <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600', letterSpacing: 0.5, marginBottom: 12 }}>
           TARGET TIMEFRAME
         </Text>
-        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 40 }}>
-          {TIMEFRAMES.map((t) => (
-            <TouchableOpacity
-              key={t.weeks}
-              onPress={() => setTargetWeeks(t.weeks)}
-              style={{
-                flex: 1,
-                paddingVertical: 12,
-                borderRadius: 12,
-                alignItems: 'center',
-                backgroundColor: targetWeeks === t.weeks ? Colors.primary + '22' : Colors.surface2,
-                borderWidth: 1.5,
-                borderColor: targetWeeks === t.weeks ? Colors.primary : Colors.border,
-              }}
-            >
-              <Text style={{ color: targetWeeks === t.weeks ? Colors.primary : Colors.text, fontWeight: '700', fontSize: 13 }}>
-                {t.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+          {TIMEFRAMES.map((t) => {
+            const locked = t.premium && !isPremium;
+            const selected = targetWeeks === t.weeks;
+            return (
+              <TouchableOpacity
+                key={t.weeks}
+                onPress={() => setTargetWeeks(t.weeks)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  paddingTop: t.premium ? 8 : 12,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  backgroundColor: selected ? Colors.primary + '22' : Colors.surface2,
+                  borderWidth: 1.5,
+                  borderColor: selected ? Colors.primary : Colors.border,
+                  opacity: locked ? 0.6 : 1,
+                }}
+              >
+                {t.premium && (
+                  <View style={{
+                    backgroundColor: Colors.primary + '33',
+                    borderRadius: 4,
+                    paddingHorizontal: 5,
+                    paddingVertical: 1,
+                    marginBottom: 4,
+                  }}>
+                    <Text style={{ color: Colors.primary, fontSize: 8, fontWeight: '800', letterSpacing: 0.5 }}>
+                      PREMIUM
+                    </Text>
+                  </View>
+                )}
+                <Text style={{ color: selected ? Colors.primary : locked ? Colors.muted : Colors.text, fontWeight: '700', fontSize: 13 }}>
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
+        {!isPremium && (
+          <Text style={{ color: Colors.muted, fontSize: 12, marginBottom: 32, lineHeight: 17 }}>
+            🔒 8+ week plans are available with Premium — you can upgrade on the next screen.
+          </Text>
+        )}
+        {isPremium && <View style={{ marginBottom: 32 }} />}
 
         <Button title="Build My Plan" onPress={handleNext} size="lg" />
       </ScrollView>

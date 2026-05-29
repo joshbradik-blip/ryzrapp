@@ -6,6 +6,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types';
 import { useProfileStore } from '../../store/profileStore';
 import { useWorkoutStore } from '../../store/workoutStore';
+import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { generateWorkoutPlan } from '../../lib/anthropic';
 import { Colors } from '../../constants/theme';
 
@@ -25,6 +26,7 @@ const STEPS = [
 export function GeneratingPlanScreen({ navigation }: Props) {
   const { profile, injuries, disabilities, schedulePrefs, goals, equipment, completeOnboarding } = useProfileStore();
   const { setWorkouts, setTodayWorkout } = useWorkoutStore();
+  const { isPremium } = useSubscriptionStore();
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const pulseAnim = useRef(new Animated.Value(0.8)).current;
@@ -48,12 +50,17 @@ export function GeneratingPlanScreen({ navigation }: Props) {
   useEffect(() => {
     const run = async () => {
       try {
+        // Free users are limited to 4-week plans
+        const effectiveGoals = isPremium
+          ? goals
+          : goals.map((g) => ({ ...g, target_weeks: Math.min(g.target_weeks || 4, 4) }));
+
         const workouts = await generateWorkoutPlan({
           profile: profile!,
           injuries,
           disabilities,
           schedule: schedulePrefs!,
-          goals,
+          goals: effectiveGoals,
           equipment,
         });
         setWorkouts(workouts);

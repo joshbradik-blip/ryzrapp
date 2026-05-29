@@ -20,6 +20,7 @@ import { Button } from '../../components/ui/Button';
 import { ExerciseCard } from '../../components/workout/ExerciseCard';
 import { Colors } from '../../constants/theme';
 import { CoachChatSheet } from './CoachChatSheet';
+import { PremiumModal } from '../../components/ui/PremiumModal';
 import { scheduleAffirmationIfNeeded } from '../../lib/notifications';
 import { generateWorkoutPlan } from '../../lib/anthropic';
 
@@ -29,9 +30,20 @@ export function TodayScreen() {
   const { todayWorkout, workouts, setWorkouts, setTodayWorkout } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
   const [chatOpen, setChatOpen] = useState(false);
+  const [premiumOpen, setPremiumOpen] = useState(false);
+  const [premiumFeatureTitle, setPremiumFeatureTitle] = useState<string | undefined>();
   const [regenerating, setRegenerating] = useState(false);
 
+  const openPremium = (title?: string) => {
+    setPremiumFeatureTitle(title);
+    setPremiumOpen(true);
+  };
+
   const handleRegenerate = async () => {
+    if (!isPremium) {
+      openPremium('Unlimited Plan Regeneration');
+      return;
+    }
     if (!profile || !schedulePrefs) {
       Alert.alert('Profile incomplete', 'Complete your profile before regenerating a plan.');
       return;
@@ -228,7 +240,7 @@ export function TodayScreen() {
           {!regenerating && <Ionicons name="chevron-forward" size={16} color={Colors.muted} />}
         </TouchableOpacity>
 
-        {/* AI Premium prompt */}
+        {/* Premium upsell card */}
         {!isPremium && (
           <TouchableOpacity
             style={{
@@ -243,13 +255,13 @@ export function TodayScreen() {
               alignItems: 'center',
               gap: 14,
             }}
-            onPress={() => {}}
+            onPress={() => openPremium()}
           >
-            <Ionicons name="hardware-chip-outline" size={28} color={Colors.primary} />
+            <Ionicons name="flash" size={28} color={Colors.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: Colors.primary, fontWeight: '800', fontSize: 14 }}>Unlock AI Form Coach</Text>
+              <Text style={{ color: Colors.primary, fontWeight: '800', fontSize: 14 }}>Upgrade to Premium</Text>
               <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-                Real-time camera analysis — upgrade to Premium
+                Form Coach · AI Coach · 8 & 12-week plans
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
@@ -283,12 +295,22 @@ export function TodayScreen() {
     </SafeAreaView>
 
     {/* Floating coach button */}
-    <TouchableOpacity style={styles.coachFab} onPress={() => setChatOpen(true)} activeOpacity={0.85}>
+    <TouchableOpacity
+      style={styles.coachFab}
+      onPress={() => isPremium ? setChatOpen(true) : openPremium('AI Coach Chat')}
+      activeOpacity={0.85}
+    >
+      {!isPremium && <Ionicons name="lock-closed" size={14} color="#000" />}
       <Ionicons name="chatbubble-ellipses" size={20} color="#000" />
       <Text style={styles.coachFabLabel}>Ask me</Text>
     </TouchableOpacity>
 
     <CoachChatSheet visible={chatOpen} onClose={() => setChatOpen(false)} />
+    <PremiumModal
+      visible={premiumOpen}
+      onClose={() => setPremiumOpen(false)}
+      featureTitle={premiumFeatureTitle}
+    />
     </View>
   );
 }

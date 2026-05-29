@@ -8,9 +8,8 @@ import { SubstituteExerciseScreen } from '../screens/today/SubstituteExerciseScr
 import { WorkoutCompleteScreen } from '../screens/today/WorkoutCompleteScreen';
 import { Colors } from '../constants/theme';
 
-// Lazy-load FormCoachScreen so Vision Camera and fast-tflite TurboModules are
-// only initialized when the user actually navigates to Form Coach, preventing
-// a startup SIGABRT caused by those modules accessing native APIs too early.
+// Lazy-load FormCoachScreen so Vision Camera is only initialized when the user
+// navigates to Form Coach, preventing a startup SIGABRT from early native API access.
 function LazyFormCoachScreen(props: any) {
   const { FormCoachScreen } = require('../screens/today/FormCoachScreen');
   return <FormCoachScreen {...props} />;

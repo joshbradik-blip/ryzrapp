@@ -3,8 +3,8 @@ import { Platform } from 'react-native';
 import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 import { supabase } from '../lib/supabase';
 
-export const REVENUECAT_API_KEY_IOS = 'appl_YOUR_IOS_KEY_HERE';
-export const REVENUECAT_API_KEY_ANDROID = 'goog_YOUR_ANDROID_KEY_HERE';
+export const REVENUECAT_API_KEY_IOS = 'appl_ncBNRQuNkRYHyRUGOxYRenoKvGA';
+export const REVENUECAT_API_KEY_ANDROID = 'goog_SqmsQvDGeXhkJJrdDoFDeQAiyeP';
 
 export const ENTITLEMENT_PREMIUM = 'premium';
 
@@ -63,6 +63,7 @@ interface SubscriptionState {
   lifetimeSlotsRemaining: number;
 
   initialize: (userId: string) => Promise<void>;
+  logOut: () => Promise<void>;
   grantPremium: () => void;
   fetchOfferings: () => Promise<void>;
   fetchLifetimeSlots: () => Promise<void>;
@@ -102,6 +103,17 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     } catch { /* non-critical */ }
 
     get().fetchLifetimeSlots();
+  },
+
+  // Reset RevenueCat to an anonymous user on sign-out so the next account
+  // on this device doesn't inherit the previous user's entitlements.
+  logOut: async () => {
+    try {
+      await Purchases.logOut();
+    } catch {
+      // RevenueCat not configured, or already anonymous — safe to ignore
+    }
+    set({ isPremium: false, customerInfo: null, packages: [] });
   },
 
   grantPremium: () => set({ isPremium: true }),

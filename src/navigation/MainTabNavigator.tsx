@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { MainTabParamList } from '../types';
 import { TodayNavigator } from './TodayNavigator';
 import { ProgressScreen } from '../screens/progress/ProgressScreen';
-import { SocialScreen } from '../screens/social/SocialScreen';
+// Social tab hidden until user base grows — re-add SocialScreen here when ready
 import { StoreScreen } from '../screens/store/StoreScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { Colors } from '../constants/theme';
@@ -14,7 +14,6 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const TAB_ICONS: Record<string, { active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap }> = {
   Today:    { active: 'flash',     inactive: 'flash-outline' },
   Progress: { active: 'bar-chart', inactive: 'bar-chart-outline' },
-  Social:   { active: 'people',    inactive: 'people-outline' },
   Store:    { active: 'bag',       inactive: 'bag-outline' },
   Profile:  { active: 'person',    inactive: 'person-outline' },
 };
@@ -54,7 +53,6 @@ export function MainTabNavigator() {
     >
       <Tab.Screen name="Today" component={TodayNavigator} />
       <Tab.Screen name="Progress" component={ProgressScreen} />
-      <Tab.Screen name="Social" component={SocialScreen} />
       <Tab.Screen name="Store" component={StoreScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
