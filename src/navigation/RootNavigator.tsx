@@ -37,7 +37,6 @@ export function RootNavigator() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      if (s?.user?.id) initialize(s.user.id);
     });
 
     return () => subscription.unsubscribe();

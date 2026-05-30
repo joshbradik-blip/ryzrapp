@@ -460,7 +460,7 @@ export function ProfileScreen() {
         </View>
 
         <Text style={{ color: Colors.muted, fontSize: 12, textAlign: 'center', marginTop: 24 }}>
-          RYZR v1.0.0 · Built by Claude
+          RYZR v1.0.5 · Built by Claude
         </Text>
       </ScrollView>
 

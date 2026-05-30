@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "ryzr-stub",
+    "slug": "ryzrapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "android": {
+      "package": "com.ryzr.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0A0A",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
+      }
+    },
+    "plugins": [
+      "./plugins/withAdiRegistration"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b0b5de98-cbf0-4c33-8080-5726cd0708d2"
+      }
+    }
+  }
+}

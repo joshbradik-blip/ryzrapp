@@ -128,22 +128,29 @@ export function StoreScreen() {
       type === 'monthly' ? p.packageType === 'MONTHLY' : p.packageType === 'ANNUAL'
     );
     if (!pkg) {
-      const price = type === 'monthly' ? `$${PRICE_MONTHLY}/mo` : `$${PRICE_ANNUAL}/yr`;
-      Alert.alert(
-        `RYZR Premium — ${price}`,
-        'RevenueCat setup required. Add your iOS/Android API keys in src/store/subscriptionStore.ts to enable purchases.',
-        [{ text: 'Got it' }]
-      );
+      Alert.alert('Unavailable', 'Subscriptions are not available right now. Please try again in a moment.');
       return;
     }
-    const success = await purchasePackage(pkg);
-    if (success) Alert.alert('Welcome to Premium! 🎉', 'You now have access to all RYZR features.');
+    try {
+      const success = await purchasePackage(pkg);
+      if (success) Alert.alert('Welcome to Premium!', 'You now have access to all RYZR features.');
+    } catch {
+      Alert.alert('Purchase Failed', 'Something went wrong. Please try again.');
+    }
   };
 
   const handleLifetime = async () => {
     if (slotsGone) return;
-    const ok = await purchaseLifetime();
-    if (ok) Alert.alert('You\'re a Founding Member! 🏆', 'Lifetime access is yours.');
+    if (!lifetimePkg) {
+      Alert.alert('Unavailable', 'Lifetime membership is not available right now. Please try again in a moment.');
+      return;
+    }
+    try {
+      const ok = await purchaseLifetime();
+      if (ok) Alert.alert("You're a Founding Member!", 'Lifetime access is yours.');
+    } catch {
+      Alert.alert('Purchase Failed', 'Something went wrong. Please try again.');
+    }
   };
 
   return (

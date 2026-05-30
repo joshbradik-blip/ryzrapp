@@ -152,8 +152,9 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       const isPremium = customerInfo.entitlements.active[ENTITLEMENT_PREMIUM] !== undefined;
       set({ isPremium, customerInfo });
       return isPremium;
-    } catch {
-      return false;
+    } catch (e: any) {
+      if (e?.userCancelled) return false;
+      throw e;
     } finally {
       set({ loading: false });
     }
@@ -162,15 +163,10 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   purchaseLifetime: async () => {
     set({ loading: true });
     try {
-      // Find the lifetime package in RevenueCat offerings (type LIFETIME)
       const pkg = get().packages.find((p) => p.packageType === 'LIFETIME');
       if (!pkg) {
-        // RevenueCat not configured yet — simulate success for dev
-        set({ isPremium: true });
-        // Decrement slot count in Supabase
-        await supabase.rpc('decrement_lifetime_slots');
-        await get().fetchLifetimeSlots();
-        return true;
+        // Offerings not loaded yet — don't grant access
+        return false;
       }
       const { customerInfo } = await Purchases.purchasePackage(pkg);
       const isPremium = customerInfo.entitlements.active[ENTITLEMENT_PREMIUM] !== undefined;
@@ -180,8 +176,9 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
         await get().fetchLifetimeSlots();
       }
       return isPremium;
-    } catch {
-      return false;
+    } catch (e: any) {
+      if (e?.userCancelled) return false;
+      throw e;
     } finally {
       set({ loading: false });
     }
