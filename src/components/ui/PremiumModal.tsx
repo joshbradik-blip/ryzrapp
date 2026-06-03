@@ -34,35 +34,52 @@ interface Props {
 }
 
 export function PremiumModal({ visible, onClose, featureTitle }: Props) {
-  const { lifetimeSlotsRemaining, loading, purchasePackage, purchaseLifetime, packages, restorePurchases } =
+  const { lifetimeSlotsRemaining, loading, purchasePackage, purchaseLifetime, packages, restorePurchases, fetchOfferings } =
     useSubscriptionStore();
 
   const slotsGone = lifetimeSlotsRemaining <= 0;
 
+  const monthlyPkg = packages.find((p) => p.packageType === 'MONTHLY');
+  const annualPkg = packages.find((p) => p.packageType === 'ANNUAL');
+  const lifetimePkg = packages.find((p) => p.packageType === 'LIFETIME');
+
+  const monthlyPrice = monthlyPkg?.product.priceString ?? `$${PRICE_MONTHLY}`;
+  const annualPrice = annualPkg?.product.priceString ?? `$${PRICE_ANNUAL}`;
+  const lifetimePrice = lifetimePkg?.product.priceString ?? `$${PRICE_LIFETIME}`;
+  const annualPerMonth = annualPkg
+    ? annualPkg.product.priceString.replace(/[\d.,]+/, (annualPkg.product.price / 12).toFixed(2))
+    : `$${(PRICE_ANNUAL / 12).toFixed(2)}`;
+
+  React.useEffect(() => {
+    if (visible && packages.length === 0) fetchOfferings();
+  }, [visible]);
+
   const handleMonthly = async () => {
-    const pkg = packages.find((p) => p.packageType === 'MONTHLY');
-    if (!pkg) {
-      Alert.alert('Setup required', `Add your RevenueCat API keys to enable purchases.\n\nMonthly: $${PRICE_MONTHLY}/mo`);
+    if (!monthlyPkg) {
+      Alert.alert('Unavailable', 'Subscriptions are not available right now. Please try again in a moment.');
       return;
     }
-    const ok = await purchasePackage(pkg);
-    if (ok) { Alert.alert('Welcome to RYZR Premium! 🎉'); onClose(); }
+    const ok = await purchasePackage(monthlyPkg);
+    if (ok) { Alert.alert('Welcome to RYZR Premium!', 'All features are now unlocked.'); onClose(); }
   };
 
   const handleAnnual = async () => {
-    const pkg = packages.find((p) => p.packageType === 'ANNUAL');
-    if (!pkg) {
-      Alert.alert('Setup required', `Add your RevenueCat API keys to enable purchases.\n\nAnnual: $${PRICE_ANNUAL}/yr`);
+    if (!annualPkg) {
+      Alert.alert('Unavailable', 'Subscriptions are not available right now. Please try again in a moment.');
       return;
     }
-    const ok = await purchasePackage(pkg);
-    if (ok) { Alert.alert('Welcome to RYZR Premium! 🎉'); onClose(); }
+    const ok = await purchasePackage(annualPkg);
+    if (ok) { Alert.alert('Welcome to RYZR Premium!', 'All features are now unlocked.'); onClose(); }
   };
 
   const handleLifetime = async () => {
     if (slotsGone) return;
+    if (!lifetimePkg) {
+      Alert.alert('Unavailable', 'Lifetime membership is not available right now. Please try again in a moment.');
+      return;
+    }
     const ok = await purchaseLifetime();
-    if (ok) { Alert.alert('You\'re a RYZR Founding Member! 🏆', 'Lifetime access is yours.'); onClose(); }
+    if (ok) { Alert.alert("You're a RYZR Founding Member!", 'Lifetime access is yours.'); onClose(); }
   };
 
   return (
@@ -111,7 +128,7 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
                     {lifetimeSlotsRemaining} of {LIFETIME_SLOTS_TOTAL} founding spots left
                   </Text>
                   <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-                    $100 lifetime — first 100 subscribers only
+                    {lifetimePrice} lifetime — first {LIFETIME_SLOTS_TOTAL} subscribers only
                   </Text>
                 </View>
               </View>
@@ -161,7 +178,7 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
                   ) : (
                     <>
                       <Text style={{ color: '#000', fontWeight: '900', fontSize: 16 }}>
-                        Founding Member — $100 Lifetime
+                        Founding Member — {lifetimePrice} Lifetime
                       </Text>
                       <Text style={{ color: '#00000088', fontSize: 12, marginTop: 2 }}>
                         {lifetimeSlotsRemaining} spots remaining · Pay once, keep forever
@@ -185,10 +202,10 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
                 }}
               >
                 <Text style={{ color: slotsGone ? '#000' : Colors.text, fontWeight: '800', fontSize: 15 }}>
-                  Annual — ${PRICE_ANNUAL}/yr
+                  Annual — {annualPrice}/yr
                 </Text>
                 <Text style={{ color: slotsGone ? '#00000099' : Colors.muted, fontSize: 12, marginTop: 2 }}>
-                  ${(PRICE_ANNUAL / 12).toFixed(2)}/mo · Save 50%
+                  {annualPerMonth}/mo · Save 50%
                 </Text>
               </TouchableOpacity>
 
@@ -206,7 +223,7 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
                 }}
               >
                 <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>
-                  Monthly — ${PRICE_MONTHLY}/mo
+                  Monthly — {monthlyPrice}/mo
                 </Text>
                 <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 2 }}>Cancel anytime</Text>
               </TouchableOpacity>

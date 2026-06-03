@@ -51,7 +51,7 @@ export const BETA_TESTERS: string[] = [
 // Pricing constants — update RevenueCat dashboard to match
 export const PRICE_MONTHLY = 14.99;
 export const PRICE_ANNUAL = 89.99;
-export const PRICE_LIFETIME = 100;
+export const PRICE_LIFETIME = 99.99;
 export const LIFETIME_SLOTS_TOTAL = 100;
 
 interface SubscriptionState {
