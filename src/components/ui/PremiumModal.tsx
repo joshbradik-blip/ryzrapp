@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
@@ -234,8 +235,16 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
             </TouchableOpacity>
 
             <Text style={{ color: Colors.muted, fontSize: 11, textAlign: 'center', lineHeight: 16 }}>
-              Subscriptions auto-renew. Cancel anytime in your App Store or Google Play settings.
+              Subscriptions auto-renew. Cancel anytime in your App Store account settings.
             </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 10 }}>
+              <TouchableOpacity onPress={() => Linking.openURL('https://joshbradik-blip.github.io/ryzr-privacy/privacy-policy.html')}>
+                <Text style={{ color: Colors.muted, fontSize: 11, textDecorationLine: 'underline' }}>Privacy Policy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => Linking.openURL('https://joshbradik-blip.github.io/ryzr-privacy/terms-of-service.html')}>
+                <Text style={{ color: Colors.muted, fontSize: 11, textDecorationLine: 'underline' }}>Terms of Service</Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
         </View>
       </View>

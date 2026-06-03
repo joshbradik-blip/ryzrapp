@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -242,7 +243,10 @@ export function ChoosePlanScreen({ navigation }: Props) {
         </TouchableOpacity>
 
         <Text style={{ color: Colors.muted, fontSize: 11, textAlign: 'center', lineHeight: 16 }}>
-          Subscriptions auto-renew. Cancel anytime in your App Store or Google Play account settings.
+          Subscriptions auto-renew. Cancel anytime in your App Store account settings.{'\n'}
+          <Text style={{ color: Colors.muted, fontSize: 11, textDecorationLine: 'underline' }} onPress={() => Linking.openURL('https://joshbradik-blip.github.io/ryzr-privacy/privacy-policy.html')}>Privacy Policy</Text>
+          {'  '}
+          <Text style={{ color: Colors.muted, fontSize: 11, textDecorationLine: 'underline' }} onPress={() => Linking.openURL('https://joshbradik-blip.github.io/ryzr-privacy/terms-of-service.html')}>Terms of Service</Text>
         </Text>
       </ScrollView>
     </SafeAreaView>
