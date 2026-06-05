@@ -104,6 +104,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     } catch { /* non-critical */ }
 
     get().fetchLifetimeSlots();
+    get().fetchOfferings();
   },
 
   // Reset RevenueCat to an anonymous user on sign-out so the next account
