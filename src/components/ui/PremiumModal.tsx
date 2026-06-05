@@ -42,7 +42,7 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
   const handleMonthly = async () => {
     const pkg = packages.find((p) => p.packageType === 'MONTHLY');
     if (!pkg) {
-      Alert.alert('Setup required', `Add your RevenueCat API keys to enable purchases.\n\nMonthly: $${PRICE_MONTHLY}/mo`);
+      Alert.alert('Unable to load products', 'Please check your connection and try again.');
       return;
     }
     const ok = await purchasePackage(pkg);
@@ -52,7 +52,7 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
   const handleAnnual = async () => {
     const pkg = packages.find((p) => p.packageType === 'ANNUAL');
     if (!pkg) {
-      Alert.alert('Setup required', `Add your RevenueCat API keys to enable purchases.\n\nAnnual: $${PRICE_ANNUAL}/yr`);
+      Alert.alert('Unable to load products', 'Please check your connection and try again.');
       return;
     }
     const ok = await purchasePackage(pkg);
