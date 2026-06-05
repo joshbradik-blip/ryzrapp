@@ -46,7 +46,6 @@ export function ChoosePlanScreen({ navigation }: Props) {
     loading,
     purchasePackage,
     purchaseLifetime,
-    grantPremium,
     packages,
   } = useSubscriptionStore();
 
@@ -57,12 +56,7 @@ export function ChoosePlanScreen({ navigation }: Props) {
   const handleMonthly = async () => {
     const pkg = packages.find((p) => p.packageType === 'MONTHLY');
     if (!pkg) {
-      grantPremium();
-      Alert.alert(
-        'Setup required',
-        `RevenueCat isn\'t configured yet.\n\nTo enable purchases add your API keys in subscriptionStore.ts.\n\nProceeding with premium for now.`,
-        [{ text: 'OK', onPress: proceed }]
-      );
+      Alert.alert('Unable to load products', 'Please check your connection and try again.');
       return;
     }
     const ok = await purchasePackage(pkg);
@@ -72,12 +66,7 @@ export function ChoosePlanScreen({ navigation }: Props) {
   const handleAnnual = async () => {
     const pkg = packages.find((p) => p.packageType === 'ANNUAL');
     if (!pkg) {
-      grantPremium();
-      Alert.alert(
-        'Setup required',
-        `RevenueCat isn\'t configured yet.\n\nProceeding with premium for now.`,
-        [{ text: 'OK', onPress: proceed }]
-      );
+      Alert.alert('Unable to load products', 'Please check your connection and try again.');
       return;
     }
     const ok = await purchasePackage(pkg);

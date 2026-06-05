@@ -89,8 +89,9 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       const info = await Purchases.getCustomerInfo();
       const isPremium = info.entitlements.active[ENTITLEMENT_PREMIUM] !== undefined;
       set({ isPremium, customerInfo: info, initialized: true });
+      // Pre-load offerings so purchase buttons work immediately
+      get().fetchOfferings();
     } catch {
-      // RevenueCat not yet configured — default free
       set({ initialized: true });
     }
 
