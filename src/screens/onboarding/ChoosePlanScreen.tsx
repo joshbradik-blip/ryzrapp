@@ -48,29 +48,31 @@ export function ChoosePlanScreen({ navigation }: Props) {
     purchasePackage,
     purchaseLifetime,
     packages,
+    fetchOfferings,
   } = useSubscriptionStore();
 
   const slotsGone = lifetimeSlotsRemaining <= 0;
 
+  const monthlyPkg = packages.find((p) => p.packageType === 'MONTHLY');
+  const annualPkg = packages.find((p) => p.packageType === 'ANNUAL');
+
+  const offeringsLoading = loading && packages.length === 0;
+
+  React.useEffect(() => {
+    if (packages.length === 0) fetchOfferings();
+  }, []);
+
   const proceed = () => navigation.navigate('GeneratingPlan');
 
   const handleMonthly = async () => {
-    const pkg = packages.find((p) => p.packageType === 'MONTHLY');
-    if (!pkg) {
-      Alert.alert('Unable to load products', 'Please check your connection and try again.');
-      return;
-    }
-    const ok = await purchasePackage(pkg);
+    if (!monthlyPkg) return;
+    const ok = await purchasePackage(monthlyPkg);
     if (ok) proceed();
   };
 
   const handleAnnual = async () => {
-    const pkg = packages.find((p) => p.packageType === 'ANNUAL');
-    if (!pkg) {
-      Alert.alert('Unable to load products', 'Please check your connection and try again.');
-      return;
-    }
-    const ok = await purchasePackage(pkg);
+    if (!annualPkg) return;
+    const ok = await purchasePackage(annualPkg);
     if (ok) proceed();
   };
 
@@ -164,72 +166,79 @@ export function ChoosePlanScreen({ navigation }: Props) {
         </View>
 
         {/* Purchase buttons */}
-        <View style={{ gap: 10, marginBottom: 16 }}>
-          {/* Lifetime */}
-          {!slotsGone && (
+        {offeringsLoading ? (
+          <View style={{ paddingVertical: 32, alignItems: 'center', marginBottom: 16 }}>
+            <ActivityIndicator color={Colors.primary} size="large" />
+            <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 12 }}>Loading plans…</Text>
+          </View>
+        ) : (
+          <View style={{ gap: 10, marginBottom: 16 }}>
+            {/* Lifetime */}
+            {!slotsGone && (
+              <TouchableOpacity
+                onPress={handleLifetime}
+                disabled={loading}
+                style={{
+                  backgroundColor: Colors.primary,
+                  borderRadius: 16,
+                  padding: 18,
+                  alignItems: 'center',
+                }}
+              >
+                {loading ? <ActivityIndicator color="#000" /> : (
+                  <>
+                    <Text style={{ color: '#000', fontWeight: '900', fontSize: 17 }}>
+                      🏆 Founding Member — $100 Lifetime
+                    </Text>
+                    <Text style={{ color: '#00000077', fontSize: 12, marginTop: 3 }}>
+                      Pay once · {lifetimeSlotsRemaining} spots left
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {/* Annual */}
             <TouchableOpacity
-              onPress={handleLifetime}
+              onPress={handleAnnual}
               disabled={loading}
               style={{
-                backgroundColor: Colors.primary,
+                backgroundColor: slotsGone ? Colors.primary : Colors.surface,
                 borderRadius: 16,
-                padding: 18,
+                padding: 16,
                 alignItems: 'center',
+                borderWidth: slotsGone ? 2 : 1,
+                borderColor: slotsGone ? Colors.primary : Colors.border,
               }}
             >
-              {loading ? <ActivityIndicator color="#000" /> : (
-                <>
-                  <Text style={{ color: '#000', fontWeight: '900', fontSize: 17 }}>
-                    🏆 Founding Member — $100 Lifetime
-                  </Text>
-                  <Text style={{ color: '#00000077', fontSize: 12, marginTop: 3 }}>
-                    Pay once · {lifetimeSlotsRemaining} spots left
-                  </Text>
-                </>
-              )}
+              <Text style={{ color: slotsGone ? '#000' : Colors.text, fontWeight: '800', fontSize: 16 }}>
+                Annual — ${PRICE_ANNUAL}/yr
+              </Text>
+              <Text style={{ color: slotsGone ? '#00000088' : Colors.muted, fontSize: 12, marginTop: 2 }}>
+                ${(PRICE_ANNUAL / 12).toFixed(2)}/mo · Best value
+              </Text>
             </TouchableOpacity>
-          )}
 
-          {/* Annual */}
-          <TouchableOpacity
-            onPress={handleAnnual}
-            disabled={loading}
-            style={{
-              backgroundColor: slotsGone ? Colors.primary : Colors.surface,
-              borderRadius: 16,
-              padding: 16,
-              alignItems: 'center',
-              borderWidth: slotsGone ? 2 : 1,
-              borderColor: slotsGone ? Colors.primary : Colors.border,
-            }}
-          >
-            <Text style={{ color: slotsGone ? '#000' : Colors.text, fontWeight: '800', fontSize: 16 }}>
-              Annual — ${PRICE_ANNUAL}/yr
-            </Text>
-            <Text style={{ color: slotsGone ? '#00000088' : Colors.muted, fontSize: 12, marginTop: 2 }}>
-              ${(PRICE_ANNUAL / 12).toFixed(2)}/mo · Best value
-            </Text>
-          </TouchableOpacity>
-
-          {/* Monthly */}
-          <TouchableOpacity
-            onPress={handleMonthly}
-            disabled={loading}
-            style={{
-              backgroundColor: Colors.surface,
-              borderRadius: 16,
-              padding: 16,
-              alignItems: 'center',
-              borderWidth: 1,
-              borderColor: Colors.border,
-            }}
-          >
-            <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>
-              Monthly — ${PRICE_MONTHLY}/mo
-            </Text>
-            <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 2 }}>Cancel anytime</Text>
-          </TouchableOpacity>
-        </View>
+            {/* Monthly */}
+            <TouchableOpacity
+              onPress={handleMonthly}
+              disabled={loading}
+              style={{
+                backgroundColor: Colors.surface,
+                borderRadius: 16,
+                padding: 16,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: Colors.border,
+              }}
+            >
+              <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>
+                Monthly — ${PRICE_MONTHLY}/mo
+              </Text>
+              <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 2 }}>Cancel anytime</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Start free */}
         <TouchableOpacity
