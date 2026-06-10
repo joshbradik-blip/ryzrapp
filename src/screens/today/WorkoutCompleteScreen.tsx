@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutComplete'>;
 
 export function WorkoutCompleteScreen({ navigation }: Props) {
-  const { activeSession, activeSets, workouts, todayWorkout, reset } = useWorkoutStore();
+  const { activeSession, activeSets, workouts, todayWorkout, reset, advanceWorkout } = useWorkoutStore();
   const scaleAnim = useRef(new Animated.Value(0.3)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -30,6 +30,7 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
   }, []);
 
   const handleDone = () => {
+    advanceWorkout();
     reset();
     navigation.navigate('TodayHome');
   };

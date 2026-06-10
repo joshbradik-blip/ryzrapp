@@ -15,6 +15,7 @@ interface ActiveSet {
 interface WorkoutState {
   workouts: Workout[];
   todayWorkout: Workout | null;
+  currentWorkoutIndex: number;
   activeSession: Session | null;
   activeSets: ActiveSet[];
   currentExerciseIndex: number;
@@ -24,6 +25,8 @@ interface WorkoutState {
 
   setWorkouts: (workouts: Workout[]) => void;
   setTodayWorkout: (workout: Workout | null) => void;
+  advanceWorkout: () => void;
+  selectWorkout: (workoutId: string) => void;
   startSession: (workoutId: string) => void;
   logSet: (set: ActiveSet) => void;
   nextExercise: () => void;
@@ -93,6 +96,7 @@ function applySwapToWorkout(
 export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
   workouts: [],
   todayWorkout: null,
+  currentWorkoutIndex: 0,
   activeSession: null,
   activeSets: [],
   currentExerciseIndex: 0,
@@ -100,9 +104,26 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
   restTimerActive: false,
   restSecondsRemaining: 0,
 
-  setWorkouts: (workouts) => set({ workouts }),
+  setWorkouts: (workouts) => set({ workouts, currentWorkoutIndex: 0 }),
 
   setTodayWorkout: (workout) => set({ todayWorkout: workout }),
+
+  // Advance to the next workout in the plan, wrapping back to the first
+  // after the last day so the plan repeats.
+  advanceWorkout: () =>
+    set((s) => {
+      if (s.workouts.length === 0) return {};
+      const nextIndex = (s.currentWorkoutIndex + 1) % s.workouts.length;
+      return { currentWorkoutIndex: nextIndex, todayWorkout: s.workouts[nextIndex] };
+    }),
+
+  // Manually jump to any workout in the plan (e.g. picking a different day).
+  selectWorkout: (workoutId) =>
+    set((s) => {
+      const idx = s.workouts.findIndex((w) => w.id === workoutId);
+      if (idx === -1) return {};
+      return { currentWorkoutIndex: idx, todayWorkout: s.workouts[idx] };
+    }),
 
   startSession: (workoutId) =>
     set({
@@ -239,5 +260,5 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
 }), {
   name: 'ryzr-workouts',
   storage: createJSONStorage(() => AsyncStorage),
-  partialize: (state) => ({ workouts: state.workouts, todayWorkout: state.todayWorkout }),
+  partialize: (state) => ({ workouts: state.workouts, todayWorkout: state.todayWorkout, currentWorkoutIndex: state.currentWorkoutIndex }),
 }));

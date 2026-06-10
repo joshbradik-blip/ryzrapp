@@ -27,7 +27,7 @@ import { generateWorkoutPlan } from '../../lib/anthropic';
 export function TodayScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<TodayStackParamList>>();
   const { profile, injuries, disabilities, schedulePrefs, goals, equipment } = useProfileStore();
-  const { todayWorkout, workouts, setWorkouts, setTodayWorkout } = useWorkoutStore();
+  const { todayWorkout, workouts, currentWorkoutIndex, setWorkouts, setTodayWorkout, selectWorkout } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
   const [chatOpen, setChatOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
@@ -81,6 +81,13 @@ export function TodayScreen() {
   const streak = 0;
   const weekCompleted = workouts.filter((w) => w.week_number === 1).length;
   const weekPlanned = workouts.length;
+
+  // Upcoming workouts in plan order, starting after the current one and
+  // wrapping around so every other day is reachable.
+  const upcoming = workouts.length > 1
+    ? Array.from({ length: workouts.length - 1 }, (_, i) =>
+        workouts[(currentWorkoutIndex + 1 + i) % workouts.length])
+    : [];
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
@@ -269,24 +276,32 @@ export function TodayScreen() {
         )}
 
         {/* Upcoming workouts */}
-        {workouts.length > 1 && (
-          <View style={{ paddingHorizontal: 24 }}>
-            <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800', marginBottom: 12 }}>Coming up</Text>
+        {upcoming.length > 0 && (
+          <View style={{ paddingHorizontal: 24, marginTop: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>Coming up</Text>
+              <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '600', letterSpacing: 0.5 }}>TAP TO SWITCH</Text>
+            </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -24, paddingHorizontal: 24 }}>
-              {workouts.slice(1, 5).map((w) => (
-                <View key={w.id} style={{
-                  width: 160,
-                  backgroundColor: Colors.surface,
-                  borderRadius: 14,
-                  padding: 14,
-                  marginRight: 10,
-                  borderWidth: 1,
-                  borderColor: Colors.border,
-                }}>
+              {upcoming.map((w) => (
+                <TouchableOpacity
+                  key={w.id}
+                  activeOpacity={0.8}
+                  onPress={() => selectWorkout(w.id)}
+                  style={{
+                    width: 160,
+                    backgroundColor: Colors.surface,
+                    borderRadius: 14,
+                    padding: 14,
+                    marginRight: 10,
+                    borderWidth: 1,
+                    borderColor: Colors.border,
+                  }}
+                >
                   <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '600' }}>WEEK {w.week_number} · DAY {w.day_number}</Text>
                   <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700', marginTop: 4 }} numberOfLines={2}>{w.name}</Text>
                   <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 4 }}>{w.estimated_duration_min} min</Text>
-                </View>
+                </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
