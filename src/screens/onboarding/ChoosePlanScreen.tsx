@@ -55,6 +55,8 @@ export function ChoosePlanScreen({ navigation }: Props) {
 
   const monthlyPkg = packages.find((p) => p.packageType === 'MONTHLY');
   const annualPkg = packages.find((p) => p.packageType === 'ANNUAL');
+  const lifetimePkg = packages.find((p) => p.packageType === 'LIFETIME');
+  const lifetimePrice = lifetimePkg?.product.priceString ?? `$${PRICE_LIFETIME}`;
 
   const offeringsLoading = loading && packages.length === 0;
 
@@ -128,7 +130,7 @@ export function ChoosePlanScreen({ navigation }: Props) {
                 {lifetimeSlotsRemaining} of {LIFETIME_SLOTS_TOTAL} founding spots remaining
               </Text>
               <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 3 }}>
-                First 100 subscribers get lifetime access for $100
+                First {LIFETIME_SLOTS_TOTAL} subscribers get lifetime access for {lifetimePrice}
               </Text>
             </View>
           </View>
@@ -188,7 +190,7 @@ export function ChoosePlanScreen({ navigation }: Props) {
                 {loading ? <ActivityIndicator color="#000" /> : (
                   <>
                     <Text style={{ color: '#000', fontWeight: '900', fontSize: 17 }}>
-                      🏆 Founding Member — $100 Lifetime
+                      🏆 Founding Member — {lifetimePrice} Lifetime
                     </Text>
                     <Text style={{ color: '#00000077', fontSize: 12, marginTop: 3 }}>
                       Pay once · {lifetimeSlotsRemaining} spots left

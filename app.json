@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ryzr.app",
-      "buildNumber": "12",
+      "buildNumber": "13",
       "infoPlist": {
         "NSCameraUsageDescription": "RYZR uses your camera to analyze your workout form in real-time.",
         "NSMicrophoneUsageDescription": "RYZR uses audio for voice coaching feedback.",
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.ryzr.app",
-      "versionCode": 13,
+      "versionCode": 14,
       "minSdkVersion": 28,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
