@@ -58,11 +58,6 @@ export function ChoosePlanScreen({ navigation }: Props) {
   const annualPkg = packages.find((p) => p.packageType === 'ANNUAL');
   const lifetimePkg = packages.find((p) => p.packageType === 'LIFETIME');
   const lifetimePrice = lifetimePkg?.product.priceString ?? `$${PRICE_LIFETIME}`;
-  const monthlyPrice = monthlyPkg?.product.priceString ?? `$${PRICE_MONTHLY}`;
-  const annualPrice = annualPkg?.product.priceString ?? `$${PRICE_ANNUAL}`;
-  const annualPerMonth = annualPkg
-    ? annualPkg.product.priceString.replace(/[\d.,]+/, (annualPkg.product.price / 12).toFixed(2))
-    : `$${(PRICE_ANNUAL / 12).toFixed(2)}`;
 
   const offeringsLoading = loading && packages.length === 0;
 
@@ -229,10 +224,10 @@ export function ChoosePlanScreen({ navigation }: Props) {
               }}
             >
               <Text style={{ color: slotsGone ? '#000' : Colors.text, fontWeight: '800', fontSize: 16 }}>
-                Annual — {annualPrice}/yr
+                Annual — ${PRICE_ANNUAL}/yr
               </Text>
               <Text style={{ color: slotsGone ? '#00000088' : Colors.muted, fontSize: 12, marginTop: 2 }}>
-                {annualPerMonth}/mo · Best value
+                ${(PRICE_ANNUAL / 12).toFixed(2)}/mo · Best value
               </Text>
             </TouchableOpacity>
 
@@ -250,7 +245,7 @@ export function ChoosePlanScreen({ navigation }: Props) {
               }}
             >
               <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>
-                Monthly — {monthlyPrice}/mo
+                Monthly — ${PRICE_MONTHLY}/mo
               </Text>
               <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 2 }}>Cancel anytime</Text>
             </TouchableOpacity>
