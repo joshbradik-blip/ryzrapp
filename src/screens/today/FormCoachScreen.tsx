@@ -473,7 +473,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
       )}
 
       {/* Debug strip — snapshots taken so far */}
-      {isActive && (
+      {__DEV__ && isActive && (
         <View style={{
           position: 'absolute', top: 160, right: 20,
           backgroundColor: 'rgba(0,0,0,0.6)',

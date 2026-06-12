@@ -8,43 +8,8 @@ export const REVENUECAT_API_KEY_ANDROID = 'goog_SqmsQvDGeXhkJJrdDoFDeQAiyeP';
 
 export const ENTITLEMENT_PREMIUM = 'premium';
 
-// ── Beta tester allowlist ─────────────────────────────────────────────────────
-// Any account signed in with one of these emails gets isPremium=true
-// automatically, regardless of RevenueCat status.  Add / remove freely.
+// Apple reviewer test account only. Other beta testers should use RevenueCat promotional entitlements.
 export const BETA_TESTERS: string[] = [
-  'sendtojoshperry@gmail.com',
-  'aideni1026@gmail.com',
-  'carnell.jones@gmail.com',
-  'intosurf@gmail.com',
-  'isaaccd0711@gmail.com',
-  'joerob32189@gmail.com',
-  'kgivler@gmail.com',
-  'pmanbooking@gmail.com',
-  'toasty1mk3vw@gmail.com',
-  'anareliclements@gmail.com',
-  'jeffneely@gmail.com',
-  'jjpprayin@gmail.com',
-  'lcoons69@gmail.com',
-  'olossus@gmail.com',
-  'onegolfnut1330@yahoo.com',
-  'jackie.okler@gmail.com',
-  'joshbradik@gmail.com',
-  'bnolan8@cox.net',
-  'bradenrichardson3321@gmail.com',
-  'wurkb@hotmail.com',
-  'autumnlovesjesus@gmail.com',
-  'godlovesgavin@gmail.com',
-  'godlovesjp@gmail.com',
-  'primadawna@msn.com',
-  'briannacake540@gmail.com',
-  'thytar@ymail.com',
-  'kevster069@hotmail.com',
-  'johnny760@me.com',
-  'richardkelly88@gmail.com',
-  'thomas.lee.verdugo@gmail.com',
-  'lukasleddington@gmail.com',
-  'cliffgorman2020@gmail.com',
-  'angel.perry1201@gmail.com',
   'test@ryzr.com',
 ];
 
@@ -69,7 +34,7 @@ interface SubscriptionState {
   fetchLifetimeSlots: () => Promise<void>;
   purchasePackage: (pkg: PurchasesPackage) => Promise<boolean>;
   purchaseLifetime: () => Promise<boolean>;
-  restorePurchases: () => Promise<void>;
+  restorePurchases: () => Promise<boolean>;
   checkPremium: () => Promise<void>;
 }
 
@@ -192,6 +157,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       const info = await Purchases.restorePurchases();
       const isPremium = info.entitlements.active[ENTITLEMENT_PREMIUM] !== undefined;
       set({ isPremium, customerInfo: info });
+      return isPremium;
     } finally {
       set({ loading: false });
     }

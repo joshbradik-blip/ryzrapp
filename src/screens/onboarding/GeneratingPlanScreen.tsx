@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, Animated } from 'react-native';
+import { View, Text, Animated, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -29,6 +29,7 @@ export function GeneratingPlanScreen({ navigation }: Props) {
   const { isPremium } = useSubscriptionStore();
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const pulseAnim = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
@@ -48,6 +49,8 @@ export function GeneratingPlanScreen({ navigation }: Props) {
   }, [stepIndex]);
 
   useEffect(() => {
+    setError(null);
+    setStepIndex(0);
     const run = async () => {
       try {
         // Free users are limited to 4-week plans
@@ -73,7 +76,7 @@ export function GeneratingPlanScreen({ navigation }: Props) {
       }
     };
     run();
-  }, []);
+  }, [retryKey]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
@@ -100,7 +103,28 @@ export function GeneratingPlanScreen({ navigation }: Props) {
       </Animated.View>
 
       {error ? (
-        <Text style={{ fontSize: 16, color: '#FF4444', textAlign: 'center', marginBottom: 16 }}>{error}</Text>
+        <>
+          <Text style={{ fontSize: 16, color: '#FF4444', textAlign: 'center', marginBottom: 24 }}>{error}</Text>
+          <TouchableOpacity
+            onPress={() => setRetryKey((k) => k + 1)}
+            style={{
+              backgroundColor: Colors.primary,
+              borderRadius: 14,
+              paddingVertical: 14,
+              paddingHorizontal: 40,
+              marginBottom: 12,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: '#000', fontWeight: '800', fontSize: 16 }}>Try again</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={{ paddingVertical: 12, paddingHorizontal: 40, alignItems: 'center' }}
+          >
+            <Text style={{ color: Colors.textSecondary, fontWeight: '600', fontSize: 15 }}>Go back</Text>
+          </TouchableOpacity>
+        </>
       ) : (
         <Text style={{ fontSize: 26, fontWeight: '900', color: Colors.text, marginBottom: 16, textAlign: 'center' }}>
           {stepIndex === STEPS.length - 1 ? 'Your plan is ready!' : 'Building your plan...'}

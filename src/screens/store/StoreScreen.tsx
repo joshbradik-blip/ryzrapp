@@ -89,6 +89,15 @@ export function StoreScreen() {
 
   const slotsGone = lifetimeSlotsRemaining <= 0;
 
+  const handleRestore = async () => {
+    const restored = await restorePurchases();
+    if (restored) {
+      Alert.alert('Purchases restored!', 'Your subscription has been restored.');
+    } else {
+      Alert.alert('No purchases found', 'No active subscriptions to restore.');
+    }
+  };
+
   const [tab, setTab] = useState<'membership' | 'gear' | 'faq'>('membership');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const toggleFaq = useCallback((i: number) => setExpandedFaq((prev: number | null) => (prev === i ? null : i)), []);
@@ -326,7 +335,7 @@ export function StoreScreen() {
                   </TouchableOpacity>
                 </View>
 
-                <TouchableOpacity onPress={restorePurchases} style={{ alignItems: 'center', paddingVertical: 10 }}>
+                <TouchableOpacity onPress={handleRestore} style={{ alignItems: 'center', paddingVertical: 10 }}>
                   <Text style={{ color: Colors.muted, fontSize: 13 }}>Restore purchases</Text>
                 </TouchableOpacity>
 

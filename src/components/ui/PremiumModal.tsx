@@ -40,6 +40,15 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
 
   const slotsGone = lifetimeSlotsRemaining <= 0;
 
+  const handleRestore = async () => {
+    const restored = await restorePurchases();
+    if (restored) {
+      Alert.alert('Purchases restored!', 'Your subscription has been restored.');
+    } else {
+      Alert.alert('No purchases found', 'No active subscriptions to restore.');
+    }
+  };
+
   const monthlyPkg = packages.find((p) => p.packageType === 'MONTHLY');
   const annualPkg = packages.find((p) => p.packageType === 'ANNUAL');
   const lifetimePkg = packages.find((p) => p.packageType === 'LIFETIME');
@@ -240,7 +249,7 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
               </View>
             )}
 
-            <TouchableOpacity onPress={restorePurchases} style={{ alignItems: 'center', paddingVertical: 14 }}>
+            <TouchableOpacity onPress={handleRestore} style={{ alignItems: 'center', paddingVertical: 14 }}>
               <Text style={{ color: Colors.muted, fontSize: 13 }}>Restore purchases</Text>
             </TouchableOpacity>
 

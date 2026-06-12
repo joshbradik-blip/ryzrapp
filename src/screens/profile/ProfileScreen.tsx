@@ -8,7 +8,6 @@ import {
   Alert,
   Modal,
   Platform,
-  Linking,
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -365,7 +364,7 @@ export function ProfileScreen() {
             value={disabilities.length === 0 ? 'None' : `${disabilities.length} selected`}
             onPress={openDisabilityModal}
           />
-          <SettingRow icon="calendar-outline" label="Schedule" value={`${schedulePrefs?.days_per_week ?? '—'} days/week`} onPress={() => Alert.alert('Edit schedule', 'Coming soon')} />
+          {/* TODO: Edit schedule — hidden for App Store review, not yet implemented */}
           <SettingRow
             icon="barbell-outline"
             label="Equipment"
@@ -418,14 +417,14 @@ export function ProfileScreen() {
               />
             }
           />
-          <SettingRow icon="notifications-outline" label="Notifications" onPress={() => Alert.alert('Notification settings', 'Coming soon')} />
+          {/* TODO: Notification settings — hidden for App Store review, not yet implemented */}
         </View>
 
         {/* Account */}
         <SectionHeader title="ACCOUNT" />
         <View style={{ backgroundColor: Colors.surface, marginHorizontal: 16, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border }}>
-          <SettingRow icon="share-outline" label="Export my data" onPress={() => Alert.alert('Export data', 'Coming soon')} />
-          <SettingRow icon="key-outline" label="Change password" onPress={() => Alert.alert('Change password', 'Coming soon')} />
+          {/* TODO: Export my data — hidden for App Store review, not yet implemented */}
+          {/* TODO: Change password — hidden for App Store review, not yet implemented */}
           <SettingRow icon="log-out-outline" label="Sign out" onPress={handleSignOut} />
         </View>
 
@@ -445,12 +444,12 @@ export function ProfileScreen() {
                     text: 'Delete',
                     style: 'destructive',
                     onPress: async () => {
-                      await deleteAccount();
-                      Linking.openURL(
-                        'mailto:josh@bradikenterprises.com' +
-                        '?subject=Account%20Deletion%20Request' +
-                        '&body=Please%20permanently%20delete%20my%20RYZR%20account%20and%20all%20associated%20data.'
-                      );
+                      try {
+                        await deleteAccount();
+                        Alert.alert('Account deleted', 'Your account has been permanently deleted.');
+                      } catch {
+                        Alert.alert('Error', 'Could not delete account. Please try again or contact support.');
+                      }
                     },
                   },
                 ]
@@ -460,7 +459,7 @@ export function ProfileScreen() {
         </View>
 
         <Text style={{ color: Colors.muted, fontSize: 12, textAlign: 'center', marginTop: 24 }}>
-          RYZR v1.0.5 · Built by Claude
+          RYZR v1.0.7
         </Text>
       </ScrollView>
 

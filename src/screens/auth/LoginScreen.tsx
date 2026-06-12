@@ -14,6 +14,7 @@ import { AuthStackParamList } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useAuthStore } from '../../store/authStore';
+import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/theme';
 
 type Props = {
@@ -26,6 +27,15 @@ export function LoginScreen({ navigation }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { signIn, loading } = useAuthStore();
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      Alert.alert('Enter your email', 'Please enter your email address first.');
+      return;
+    }
+    await supabase.auth.resetPasswordForEmail(email.trim());
+    Alert.alert('Check your email', 'We sent a password reset link to ' + email.trim());
+  };
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -82,6 +92,13 @@ export function LoginScreen({ navigation }: Props) {
             secureToggle
             error={errors.password}
           />
+
+          <TouchableOpacity
+            onPress={handleForgotPassword}
+            style={{ alignSelf: 'flex-end', marginTop: 4, marginBottom: 8 }}
+          >
+            <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '600' }}>Forgot password?</Text>
+          </TouchableOpacity>
 
           <View style={{ marginTop: 8 }}>
             <Button title="Log In" onPress={handleLogin} loading={loading} size="lg" />

@@ -162,7 +162,7 @@ export function ProgressScreen() {
         <View style={{ marginHorizontal: 24, marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>Body Weight</Text>
-            <TouchableOpacity style={{ backgroundColor: Colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border }}>
+            <TouchableOpacity onPress={() => Alert.alert('Coming soon', 'Body weight logging coming in a future update.')} style={{ backgroundColor: Colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border }}>
               <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 13 }}>+ Log</Text>
             </TouchableOpacity>
           </View>
