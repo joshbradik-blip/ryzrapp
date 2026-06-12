@@ -17,6 +17,21 @@ async function callAnthropic(body: object): Promise<any> {
   return data;
 }
 
+async function callWorkoutCoach(body: object): Promise<any> {
+  console.log('[WorkoutCoach] invoking edge function...');
+  const { data, error } = await supabase.functions.invoke('workout-coach', { body });
+  if (error) {
+    console.error('[WorkoutCoach] edge function error:', JSON.stringify(error));
+    throw new Error(`Edge function error: ${error.message}`);
+  }
+  if (data?.error) {
+    console.error('[WorkoutCoach] API error:', JSON.stringify(data.error));
+    throw new Error(`Coach error: ${JSON.stringify(data.error)}`);
+  }
+  console.log('[WorkoutCoach] success');
+  return data;
+}
+
 interface GeneratePlanParams {
   profile: UserProfile;
   injuries: Injury[];
@@ -219,6 +234,50 @@ export interface CoachMessage {
   role: 'user' | 'assistant';
   content: string;
   imageUri?: string; // local URI for display only — not sent to API
+}
+
+export async function askWorkoutCoach(
+  messages: CoachMessage[],
+  context: { name: string; workoutName?: string; exerciseNames?: string[] }
+): Promise<string> {
+  const apiMessages = messages.map((m) => ({ role: m.role, content: m.content }));
+  const data = await callWorkoutCoach({
+    messages: apiMessages,
+    user_name: context.name,
+    workout_name: context.workoutName,
+    current_exercises: context.exerciseNames ?? [],
+    mode: 'chat',
+  });
+  return data.content?.[0]?.text ?? "Let's focus — what do you need help with?";
+}
+
+export async function generatePreWorkoutChallenge(
+  name: string,
+  workoutName: string,
+  exerciseNames: string[]
+): Promise<string> {
+  const data = await callWorkoutCoach({
+    messages: [],
+    user_name: name,
+    workout_name: workoutName,
+    current_exercises: exerciseNames,
+    mode: 'pre_workout_challenge',
+  });
+  return data.content?.[0]?.text ?? '';
+}
+
+export async function generateDailyCoachMessage(
+  name: string,
+  workoutName?: string
+): Promise<string> {
+  const data = await callWorkoutCoach({
+    messages: [],
+    user_name: name,
+    workout_name: workoutName,
+    current_exercises: [],
+    mode: 'daily_encouragement',
+  });
+  return data.content?.[0]?.text ?? '';
 }
 
 export async function askCoach(

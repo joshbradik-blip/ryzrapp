@@ -22,12 +22,17 @@ import { Colors } from '../../constants/theme';
 import { CoachChatSheet } from './CoachChatSheet';
 import { PremiumModal } from '../../components/ui/PremiumModal';
 import { scheduleAffirmationIfNeeded } from '../../lib/notifications';
-import { generateWorkoutPlan } from '../../lib/anthropic';
+import { generateWorkoutPlan, generatePreWorkoutChallenge, generateDailyCoachMessage } from '../../lib/anthropic';
 
 export function TodayScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<TodayStackParamList>>();
   const { profile, injuries, disabilities, schedulePrefs, goals, equipment } = useProfileStore();
-  const { todayWorkout, workouts, currentWorkoutIndex, setWorkouts, setTodayWorkout, selectWorkout } = useWorkoutStore();
+  const {
+    todayWorkout, workouts, currentWorkoutIndex,
+    setWorkouts, setTodayWorkout, selectWorkout,
+    pendingCoachMessages, addPendingCoachMessage,
+    lastCoachMessageDate, setLastCoachMessageDate,
+  } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
   const [chatOpen, setChatOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
@@ -74,6 +79,36 @@ export function TodayScreen() {
       scheduleAffirmationIfNeeded(profile.name, todayWorkout?.name);
     }
   }, [profile?.name, todayWorkout?.name]);
+
+  // Generate daily encouragement + pre-workout challenge once per calendar day.
+  // Messages queue as a badge on the Ask Me button — fallback for users without notifications.
+  useEffect(() => {
+    if (!profile?.name) return;
+    const today = new Date().toDateString();
+    if (lastCoachMessageDate === today) return;
+
+    const generate = async () => {
+      try {
+        const [daily, challenge] = await Promise.all([
+          generateDailyCoachMessage(profile.name, todayWorkout?.name),
+          todayWorkout
+            ? generatePreWorkoutChallenge(
+                profile.name,
+                todayWorkout.name,
+                todayWorkout.exercises.map((e) => e.exercise.name)
+              )
+            : Promise.resolve(''),
+        ]);
+        if (daily) addPendingCoachMessage(daily);
+        if (challenge) addPendingCoachMessage(challenge);
+        setLastCoachMessageDate(today);
+      } catch {
+        // Silently ignore — non-critical background call
+      }
+    };
+
+    generate();
+  }, [profile?.name, todayWorkout?.id]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -318,6 +353,11 @@ export function TodayScreen() {
       {!isPremium && <Ionicons name="lock-closed" size={14} color="#000" />}
       <Ionicons name="chatbubble-ellipses" size={20} color="#000" />
       <Text style={styles.coachFabLabel}>Ask me</Text>
+      {pendingCoachMessages.length > 0 && (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{pendingCoachMessages.length}</Text>
+        </View>
+      )}
     </TouchableOpacity>
 
     <CoachChatSheet visible={chatOpen} onClose={() => setChatOpen(false)} />
@@ -353,5 +393,24 @@ const styles = StyleSheet.create({
     color: '#000',
     fontWeight: '800',
     fontSize: 15,
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FF3B30',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: Colors.background,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '900',
   },
 });

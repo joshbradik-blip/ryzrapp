@@ -20,7 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
-import { askCoach, askCoachWithImage, CoachMessage } from '../../lib/anthropic';
+import { askWorkoutCoach, askCoachWithImage, CoachMessage } from '../../lib/anthropic';
 import { useProfileStore } from '../../store/profileStore';
 import { useWorkoutStore } from '../../store/workoutStore';
 
@@ -36,7 +36,7 @@ const WELCOME: CoachMessage = {
 
 export function CoachChatSheet({ visible, onClose }: Props) {
   const { profile } = useProfileStore();
-  const { todayWorkout } = useWorkoutStore();
+  const { todayWorkout, pendingCoachMessages, clearPendingCoachMessages } = useWorkoutStore();
   const [messages, setMessages] = useState<CoachMessage[]>([WELCOME]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -48,6 +48,12 @@ export function CoachChatSheet({ visible, onClose }: Props) {
   useEffect(() => {
     if (visible) {
       Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
+      // Drain any queued coach messages (daily encouragement + pre-workout challenge) into the chat
+      if (pendingCoachMessages.length > 0) {
+        const queued = pendingCoachMessages.map((text) => ({ role: 'assistant' as const, content: text }));
+        setMessages([WELCOME, ...queued]);
+        clearPendingCoachMessages();
+      }
     } else {
       Animated.timing(slideAnim, { toValue: 600, duration: 220, useNativeDriver: true }).start();
     }
@@ -76,7 +82,11 @@ export function CoachChatSheet({ visible, onClose }: Props) {
     const trimmed = input.trim();
     if ((!trimmed && !pendingImage) || loading) return;
 
-    const ctx = { name: profile?.name ?? 'Athlete', workoutName: todayWorkout?.name };
+    const ctx = {
+      name: profile?.name ?? 'Athlete',
+      workoutName: todayWorkout?.name,
+      exerciseNames: todayWorkout?.exercises.map((e) => e.exercise.name) ?? [],
+    };
 
     if (pendingImage) {
       const caption = trimmed || 'What is this gym equipment and how do I use it?';
@@ -104,7 +114,7 @@ export function CoachChatSheet({ visible, onClose }: Props) {
       setLoading(true);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
       try {
-        const reply = await askCoach(updated, ctx);
+        const reply = await askWorkoutCoach(updated, ctx);
         setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
       } catch {
         setMessages((prev) => [...prev, { role: 'assistant', content: "I'm having trouble connecting right now. Try again in a moment." }]);

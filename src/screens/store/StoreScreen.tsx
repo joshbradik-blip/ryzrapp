@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,22 @@ const PREMIUM_FEATURES: { icon: keyof typeof Ionicons.glyphMap; title: string; d
 // Replace with your real Amazon Associates tracking tag (e.g. "ryzr-20").
 // Until then links still open, they just won't earn commission.
 const AMAZON_ASSOCIATE_TAG = 'bradikshop-20';
+
+const FAQ_ITEMS: { q: string; a: string }[] = [
+  { q: 'How do I start a workout?', a: 'Go to the Today tab and tap "Start Workout" on your daily card. You\'ll enter the live session where you log sets, use the rest timer, and track form.' },
+  { q: 'How do I jump to a different workout day?', a: 'On the Today tab, scroll down to the "Coming up" section and tap any workout card. It becomes your active workout immediately.' },
+  { q: 'What is RPE?', a: 'RPE stands for Rate of Perceived Exertion — a 1–10 scale of effort. RPE 7 means 3 reps left in the tank. RPE 9 means 1 rep left. Use it to match the right intensity for each set.' },
+  { q: 'How do I unlock Form Coach?', a: 'Form Coach requires a Premium subscription. Tap the Membership tab above to upgrade. Once subscribed, tap the camera icon during any exercise set for live AI form feedback.' },
+  { q: 'How do I log my body weight?', a: 'Go to the Progress tab, scroll to the Body Weight section, and tap the "+" button to log today\'s weight.' },
+  { q: 'How do I regenerate my workout plan?', a: 'On the Today tab, tap "Regenerate today\'s workout" (Premium required). A new AI-generated plan based on your current profile is ready in about 10 seconds.' },
+  { q: 'How do I substitute an exercise?', a: 'During a workout session, tap the swap icon next to any exercise name to choose an alternative from the library or the ExerciseDB database.' },
+  { q: 'How do I change my units to lbs?', a: 'Go to the Profile tab → Edit Profile and toggle between kg and lbs. All weight displays and logging update immediately.' },
+  { q: 'How do I join a challenge?', a: 'Go to the Social tab and tap "Challenges" to see active community challenges. Tap any challenge to join and track your rank on the leaderboard.' },
+  { q: 'What does my streak count?', a: 'Your streak counts consecutive calendar days you complete a workout. Finishing any session keeps it alive. Missing a full day resets it to zero.' },
+  { q: 'What\'s free vs. Premium?', a: 'Free: manual workout logging, exercise library, basic stats, social feed, challenges, gear shop, and FAQ.\n\nPremium adds: AI Coach Chat, Form Coach, AI-generated plans, advanced progress charts, and unlimited plan regeneration.' },
+  { q: 'How do I cancel my subscription?', a: 'Subscriptions are managed by the App Store (iOS) or Google Play (Android). Go to your device Settings → Subscriptions to manage or cancel at any time.' },
+  { q: 'How do I contact support?', a: 'Email us at support@ryzrapp.com — we typically respond within 24 hours.' },
+];
 
 // Products live in the `gear_products` Supabase table — add/edit/remove them in
 // the dashboard with no app rebuild. See supabase/migrations/002_gear_products.sql.
@@ -73,7 +89,9 @@ export function StoreScreen() {
 
   const slotsGone = lifetimeSlotsRemaining <= 0;
 
-  const [tab, setTab] = useState<'membership' | 'gear'>('membership');
+  const [tab, setTab] = useState<'membership' | 'gear' | 'faq'>('membership');
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const toggleFaq = useCallback((i: number) => setExpandedFaq((prev: number | null) => (prev === i ? null : i)), []);
 
   const [gearSections, setGearSections] = useState<GearSection[]>([]);
   const [gearLoading, setGearLoading] = useState(true);
@@ -160,13 +178,13 @@ export function StoreScreen() {
         <View style={{ padding: 24, paddingBottom: 0 }}>
           <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900' }}>Store</Text>
           <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 2 }}>
-            {tab === 'membership' ? 'Unlock your full potential' : 'Gear we use to train'}
+            {tab === 'membership' ? 'Unlock your full potential' : tab === 'gear' ? 'Gear we use to train' : 'Quick answers about RYZR'}
           </Text>
         </View>
 
         {/* Segmented toggle */}
         <View style={{ flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 12, padding: 4, marginHorizontal: 24, marginTop: 16, borderWidth: 1, borderColor: Colors.border }}>
-          {(['membership', 'gear'] as const).map((t) => (
+          {(['membership', 'gear', 'faq'] as const).map((t) => (
             <TouchableOpacity
               key={t}
               onPress={() => setTab(t)}
@@ -178,8 +196,8 @@ export function StoreScreen() {
                 backgroundColor: tab === t ? Colors.primary : 'transparent',
               }}
             >
-              <Text style={{ color: tab === t ? '#000' : Colors.textSecondary, fontWeight: '800', fontSize: 14 }}>
-                {t === 'membership' ? 'Membership' : 'Gear'}
+              <Text style={{ color: tab === t ? '#000' : Colors.textSecondary, fontWeight: '800', fontSize: 13 }}>
+                {t === 'membership' ? 'Membership' : t === 'gear' ? 'Gear' : 'FAQ'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -380,6 +398,44 @@ export function StoreScreen() {
               </Text>
               </>
             )}
+          </View>
+        )}
+        {tab === 'faq' && (
+          <View style={{ padding: 24, gap: 10 }}>
+            {FAQ_ITEMS.map((item, i) => (
+              <TouchableOpacity
+                key={i}
+                onPress={() => toggleFaq(i)}
+                activeOpacity={0.8}
+                style={{
+                  backgroundColor: Colors.surface,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: expandedFaq === i ? Colors.primary + '66' : Colors.border,
+                  overflow: 'hidden',
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 14, lineHeight: 20 }}>
+                      {item.q}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={expandedFaq === i ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={expandedFaq === i ? Colors.primary : Colors.muted}
+                  />
+                </View>
+                {expandedFaq === i && (
+                  <View style={{ paddingHorizontal: 16, paddingBottom: 16, borderTopWidth: 1, borderTopColor: Colors.border }}>
+                    <Text style={{ color: Colors.textSecondary, fontSize: 14, lineHeight: 22, marginTop: 12 }}>
+                      {item.a}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
         )}
       </ScrollView>

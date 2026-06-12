@@ -22,6 +22,8 @@ interface WorkoutState {
   currentSetIndex: number;
   restTimerActive: boolean;
   restSecondsRemaining: number;
+  pendingCoachMessages: string[];
+  lastCoachMessageDate: string | null;
 
   setWorkouts: (workouts: Workout[]) => void;
   setTodayWorkout: (workout: Workout | null) => void;
@@ -35,6 +37,10 @@ interface WorkoutState {
   stopRestTimer: () => void;
   completeSession: (feltRating: 'easy' | 'just_right' | 'hard') => void;
   reset: () => void;
+  addPendingCoachMessage: (msg: string) => void;
+  clearPendingCoachMessages: () => void;
+  setLastCoachMessageDate: (date: string) => void;
+  saveSession: (weightUnit: 'kg' | 'lbs') => Promise<void>;
 
   // Swap for current session only (in-memory)
   swapForSession: (
@@ -103,6 +109,8 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
   currentSetIndex: 0,
   restTimerActive: false,
   restSecondsRemaining: 0,
+  pendingCoachMessages: [],
+  lastCoachMessageDate: null,
 
   setWorkouts: (workouts) => set({ workouts, currentWorkoutIndex: 0 }),
 
@@ -175,6 +183,56 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
       restTimerActive: false,
       restSecondsRemaining: 0,
     }),
+
+  addPendingCoachMessage: (msg) =>
+    set((s) => ({ pendingCoachMessages: [...s.pendingCoachMessages, msg] })),
+
+  clearPendingCoachMessages: () => set({ pendingCoachMessages: [] }),
+
+  setLastCoachMessageDate: (date) => set({ lastCoachMessageDate: date }),
+
+  saveSession: async (weightUnit) => {
+    const { activeSession, activeSets, todayWorkout } = get();
+    if (!activeSession || !todayWorkout) return;
+
+    const feltMap: Record<string, number> = { easy: 2, just_right: 3, hard: 5 };
+    const duration = activeSession.completed_at
+      ? Math.round(
+          (new Date(activeSession.completed_at).getTime() -
+            new Date(activeSession.started_at).getTime()) / 1000
+        )
+      : null;
+
+    const sets = activeSets.map((s) => {
+      const we = todayWorkout.exercises.find((e) => e.id === s.workoutExerciseId);
+      return {
+        exercise_name: we?.exercise.name ?? 'Unknown',
+        exercise_id: we?.exercise.id,
+        set_number: s.setNumber,
+        reps: s.reps,
+        weight: s.weight,
+      };
+    });
+
+    try {
+      await supabase.functions.invoke('save-workout-session', {
+        body: {
+          workout_id: activeSession.workout_id,
+          workout_name: todayWorkout.name,
+          week_number: todayWorkout.week_number,
+          day_number: todayWorkout.day_number,
+          started_at: activeSession.started_at,
+          completed_at: activeSession.completed_at ?? new Date().toISOString(),
+          duration_seconds: duration,
+          felt_rating: activeSession.felt_rating ? feltMap[activeSession.felt_rating] : null,
+          weight_unit: weightUnit,
+          sets,
+        },
+      });
+    } catch (e) {
+      console.error('[workoutStore] saveSession failed:', e);
+    }
+  },
 
   swapForSession: (workoutId, workoutExerciseId, replacement, source) => {
     const newExercise = buildReplacementExercise(replacement, source);
@@ -260,5 +318,11 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
 }), {
   name: 'ryzr-workouts',
   storage: createJSONStorage(() => AsyncStorage),
-  partialize: (state) => ({ workouts: state.workouts, todayWorkout: state.todayWorkout, currentWorkoutIndex: state.currentWorkoutIndex }),
+  partialize: (state) => ({
+    workouts: state.workouts,
+    todayWorkout: state.todayWorkout,
+    currentWorkoutIndex: state.currentWorkoutIndex,
+    pendingCoachMessages: state.pendingCoachMessages,
+    lastCoachMessageDate: state.lastCoachMessageDate,
+  }),
 }));

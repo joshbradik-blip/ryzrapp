@@ -5,13 +5,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TodayStackParamList } from '../../types';
 import { useWorkoutStore } from '../../store/workoutStore';
+import { useProfileStore } from '../../store/profileStore';
 import { Colors } from '../../constants/theme';
 import * as Haptics from 'expo-haptics';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutComplete'>;
 
 export function WorkoutCompleteScreen({ navigation }: Props) {
-  const { activeSession, activeSets, workouts, todayWorkout, reset, advanceWorkout } = useWorkoutStore();
+  const { activeSession, activeSets, workouts, todayWorkout, reset, advanceWorkout, saveSession } = useWorkoutStore();
+  const { profile } = useProfileStore();
   const scaleAnim = useRef(new Animated.Value(0.3)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -30,6 +32,7 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
   }, []);
 
   const handleDone = () => {
+    saveSession(profile?.weight_unit ?? 'kg'); // fire and forget — reads state before reset clears it
     advanceWorkout();
     reset();
     navigation.navigate('TodayHome');
