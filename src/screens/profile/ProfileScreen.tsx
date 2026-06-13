@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useProfileStore } from '../../store/profileStore';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useWorkoutStore } from '../../store/workoutStore';
+import { useHistoryStore } from '../../store/historyStore';
 import { generateWorkoutPlan } from '../../lib/anthropic';
 import { kgToDisplay, displayToKg, weightLabel } from '../../lib/units';
 import { InjurySeverity } from '../../types';
@@ -92,10 +93,20 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 export function ProfileScreen() {
-  const { signOut, deleteAccount } = useAuthStore();
+  const { signOut, deleteAccount, session } = useAuthStore();
   const { profile, injuries, disabilities, schedulePrefs, goals, equipment, setEquipment, setDisabilities, setProfile } = useProfileStore();
   const { isPremium } = useSubscriptionStore();
   const { setWorkouts, setTodayWorkout } = useWorkoutStore();
+  const { totalSessions, currentStreak, bestWeights, fetchHistory } = useHistoryStore();
+
+  const userId = session?.user?.id;
+  useEffect(() => {
+    if (userId) fetchHistory(userId);
+  }, [userId]);
+
+  const recentPRs = Object.values(bestWeights).filter(
+    (b) => Date.now() - new Date(b.at).getTime() < 30 * 86400000
+  ).length;
 
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
@@ -315,7 +326,7 @@ export function ProfileScreen() {
             </View>
           )}
           <View style={{ flexDirection: 'row', gap: 24, marginTop: 20 }}>
-            {[{ value: '0', label: 'Sessions' }, { value: '0', label: 'Streak' }, { value: '0', label: 'PRs' }].map((s) => (
+            {[{ value: String(totalSessions), label: 'Sessions' }, { value: String(currentStreak), label: 'Streak' }, { value: String(recentPRs), label: 'PRs' }].map((s) => (
               <View key={s.label} style={{ alignItems: 'center' }}>
                 <Text style={{ color: Colors.primary, fontSize: 22, fontWeight: '900' }}>{s.value}</Text>
                 <Text style={{ color: Colors.muted, fontSize: 12 }}>{s.label}</Text>
@@ -459,7 +470,7 @@ export function ProfileScreen() {
         </View>
 
         <Text style={{ color: Colors.muted, fontSize: 12, textAlign: 'center', marginTop: 24 }}>
-          RYZR v1.0.7
+          RYZR v1.0.8
         </Text>
       </ScrollView>
 

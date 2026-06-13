@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../types';
-import { Button } from '../../components/ui/Button';
+import { GradientButton } from '../../components/ui/GradientButton';
 import { Input } from '../../components/ui/Input';
 import { useAuthStore } from '../../store/authStore';
 import { supabase } from '../../lib/supabase';
@@ -107,7 +107,7 @@ export function LoginScreen({ navigation }: Props) {
           </TouchableOpacity>
 
           <View style={{ marginTop: 8 }}>
-            <Button title="Log In" onPress={handleLogin} loading={loading} size="lg" />
+            <GradientButton title="Log In" onPress={handleLogin} loading={loading} />
           </View>
 
           <View style={{ flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 24, marginTop: 40 }}>
