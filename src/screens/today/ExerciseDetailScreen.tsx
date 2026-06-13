@@ -13,7 +13,7 @@ import { TodayStackParamList } from '../../types';
 import { getExerciseById } from '../../constants/exercises';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useWorkoutStore } from '../../store/workoutStore';
-import { exerciseImageUrl } from '../../lib/exerciseMedia';
+import { exerciseImageUrl, exerciseVideoUrl } from '../../lib/exerciseMedia';
 import { ExerciseHero } from '../../components/workout/ExerciseHero';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { Colors } from '../../constants/theme';
@@ -86,6 +86,7 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
         <ExerciseHero
           name={exercise.name}
           mediaUrl={exercise.media_url ?? exerciseImageUrl(exercise.id)}
+          videoUrl={exercise.id.startsWith('edb_') ? undefined : exerciseVideoUrl(exercise.id)}
           muscles={exercise.muscles_primary}
           cues={[...exercise.setup_cues, ...exercise.execution_cues]}
         />
