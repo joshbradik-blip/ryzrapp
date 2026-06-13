@@ -214,22 +214,6 @@ export async function getLiveFormCue(
   return (data.content?.[0]?.text ?? '').trim() || 'Stay tight — own every rep.';
 }
 
-export async function generateAffirmation(
-  name: string,
-  workoutName?: string
-): Promise<string> {
-  const context = workoutName ? `Today's workout: ${workoutName}.` : 'Today is a rest day.';
-  const data = await callAnthropic({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 80,
-    messages: [{
-      role: 'user',
-      content: `Write one short motivational affirmation for ${name}. ${context} 1-2 sentences, personal, direct, energizing. Address them by name. No hashtags or emojis.`,
-    }],
-  });
-  return data.content?.[0]?.text ?? `${name}, today is your chance to be better than yesterday. Make it count.`;
-}
-
 export interface CoachMessage {
   role: 'user' | 'assistant';
   content: string;

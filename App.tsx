@@ -1,6 +1,6 @@
 import './global.css';
-import './src/lib/notifications'; // registers notification handler at startup
 import React from 'react';
+import { cancelLegacyScheduledNotifications } from './src/lib/notifications';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -8,6 +8,10 @@ import { RootNavigator } from './src/navigation/RootNavigator';
 import { Colors } from './src/constants/theme';
 
 export default function App() {
+  React.useEffect(() => {
+    cancelLegacyScheduledNotifications();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.background }}>
       <StatusBar style="light" backgroundColor={Colors.background} />

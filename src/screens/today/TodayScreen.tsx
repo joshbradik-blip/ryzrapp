@@ -21,7 +21,6 @@ import { ExerciseCard } from '../../components/workout/ExerciseCard';
 import { Colors } from '../../constants/theme';
 import { CoachChatSheet } from './CoachChatSheet';
 import { PremiumModal } from '../../components/ui/PremiumModal';
-import { scheduleAffirmationIfNeeded } from '../../lib/notifications';
 import { generateWorkoutPlan, generatePreWorkoutChallenge, generateDailyCoachMessage } from '../../lib/anthropic';
 
 export function TodayScreen() {
@@ -73,12 +72,6 @@ export function TodayScreen() {
       },
     ]);
   };
-
-  useEffect(() => {
-    if (profile?.name) {
-      scheduleAffirmationIfNeeded(profile.name, todayWorkout?.name);
-    }
-  }, [profile?.name, todayWorkout?.name]);
 
   // Generate daily encouragement + pre-workout challenge once per calendar day.
   // Messages queue as a badge on the Ask Me button — fallback for users without notifications.
@@ -352,7 +345,7 @@ export function TodayScreen() {
     >
       {!isPremium && <Ionicons name="lock-closed" size={14} color="#000" />}
       <Ionicons name="chatbubble-ellipses" size={20} color="#000" />
-      <Text style={styles.coachFabLabel}>Ask me</Text>
+      <Text style={styles.coachFabLabel}>Ask Coach</Text>
       {pendingCoachMessages.length > 0 && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{pendingCoachMessages.length}</Text>
