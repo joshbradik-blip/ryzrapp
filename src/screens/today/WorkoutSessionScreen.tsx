@@ -6,27 +6,39 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Vibration,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TodayStackParamList } from '../../types';
 import { useWorkoutStore } from '../../store/workoutStore';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useProfileStore } from '../../store/profileStore';
-import { weightLabel, kgToDisplay, displayToKg, WeightUnit } from '../../lib/units';
+import { useHistoryStore } from '../../store/historyStore';
+import { kgToDisplay, displayToKg, WeightUnit } from '../../lib/units';
 import { Button } from '../../components/ui/Button';
+import { GradientButton } from '../../components/ui/GradientButton';
 import { Colors } from '../../constants/theme';
 import * as Haptics from 'expo-haptics';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutSession'>;
+
+interface LoggedSet {
+  weightKg: number;
+  reps: number;
+}
+
+function fmtWeight(kg: number, unit: WeightUnit): string {
+  const n = kgToDisplay(kg, unit);
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
 
 export function WorkoutSessionScreen({ navigation, route }: Props) {
   const { workoutId } = route.params;
   const { workouts, todayWorkout, startSession, logSet, nextExercise, currentExerciseIndex, completeSession } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
   const { profile, setProfile } = useProfileStore();
+  const { lastSets, bestWeights } = useHistoryStore();
 
   const workout = workouts.find((w) => w.id === workoutId) ?? todayWorkout;
 
@@ -35,7 +47,8 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
   const [reps, setReps] = useState('');
   const [restActive, setRestActive] = useState(false);
   const [restRemaining, setRestRemaining] = useState(0);
-  const [completedSets, setCompletedSets] = useState<Record<string, number>>({});
+  const [restTotal, setRestTotal] = useState(0);
+  const [completedSets, setCompletedSets] = useState<Record<string, LoggedSet[]>>({});
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const currentExercise = workout?.exercises[currentExerciseIndex];
@@ -71,9 +84,20 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
     );
   }
 
+  const unit: WeightUnit = profile?.weight_unit ?? 'lbs';
+  const exId = currentExercise.exercise.id;
+  const logged = completedSets[currentExercise.id] ?? [];
+  const completedCount = logged.length;
+
+  const last = lastSets[exId];
+  const best = bestWeights[exId];
+  const enteredKg = displayToKg(parseFloat(weight) || 0, unit);
+  const prDeltaKg = best && enteredKg > best.weight_kg ? enteredKg - best.weight_kg : 0;
+
   const handleLogSet = () => {
     if (!reps) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const weightKg = displayToKg(parseFloat(weight) || 0, unit);
     logSet({
       workoutExerciseId: currentExercise.id,
       setNumber: setIndex + 1,
@@ -82,17 +106,16 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
     });
 
     const key = currentExercise.id;
-    const newCount = (completedSets[key] ?? 0) + 1;
-    setCompletedSets((prev) => ({ ...prev, [key]: newCount }));
+    const newSets = [...(completedSets[key] ?? []), { weightKg, reps: parseInt(reps, 10) }];
+    setCompletedSets((prev) => ({ ...prev, [key]: newSets }));
 
     const restSecs = currentExercise.rest_seconds || 90;
+    setRestTotal(restSecs);
     setRestRemaining(restSecs);
     setRestActive(true);
     setReps('');
 
-    if (newCount >= currentExercise.target_sets) {
-      // Move to next after rest (handled by next button)
-    } else {
+    if (newSets.length < currentExercise.target_sets) {
       setSetIndex((i) => i + 1);
     }
   };
@@ -135,8 +158,14 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
     navigation.replace('WorkoutComplete', { sessionId: 'session-1' });
   };
 
-  const completedCount = completedSets[currentExercise.id] ?? 0;
+  const adjustWeight = (delta: number) =>
+    setWeight((w) => String(Math.max(0, Math.round(((parseFloat(w) || 0) + delta) * 10) / 10)));
+  const adjustReps = (delta: number) =>
+    setReps((r) => String(Math.max(0, (parseInt(r, 10) || 0) + delta)));
+
   const exerciseProgress = `${currentExerciseIndex + 1}/${workout.exercises.length}`;
+  const restPct = restTotal > 0 ? Math.min(1, restRemaining / restTotal) : 0;
+  const restClock = `${Math.floor(restRemaining / 60)}:${String(restRemaining % 60).padStart(2, '0')}`;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
@@ -152,168 +181,183 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
       <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24 }} keyboardShouldPersistTaps="handled">
         {/* Exercise header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <Text style={{ color: Colors.muted, fontSize: 13, fontWeight: '600' }}>
+          <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>
             EXERCISE {exerciseProgress}
           </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('ExerciseDetail', {
-            exerciseId: currentExercise.exercise.id,
-            workoutId,
-            workoutExerciseId: currentExercise.id,
-          })}>
-            <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '600' }}>View demo →</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ExerciseDetail', {
+              exerciseId: currentExercise.exercise.id,
+              workoutId,
+              workoutExerciseId: currentExercise.id,
+            })}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+          >
+            <Ionicons name="play-circle-outline" size={15} color={Colors.primary} />
+            <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '700' }}>Demo</Text>
           </TouchableOpacity>
         </View>
 
         <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', marginBottom: 4 }}>
           {currentExercise.exercise.name}
         </Text>
-        <Text style={{ color: Colors.textSecondary, fontSize: 16, marginBottom: 24 }}>
+        <Text style={{ color: Colors.textSecondary, fontSize: 16, marginBottom: 20 }}>
           {currentExercise.target_sets} sets × {currentExercise.target_reps}
           {currentExercise.target_rpe > 0 ? ` · RPE ${currentExercise.target_rpe}` : ''}
         </Text>
 
-        {/* Set counter */}
-        <View style={{
-          flexDirection: 'row',
-          gap: 10,
-          marginBottom: 32,
-        }}>
-          {Array.from({ length: currentExercise.target_sets }).map((_, i) => (
-            <View
-              key={i}
-              style={{
-                flex: 1,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: i < completedCount ? Colors.primary : Colors.surface3,
-              }}
-            />
-          ))}
+        {/* Set pills */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
+          {Array.from({ length: currentExercise.target_sets }).map((_, i) => {
+            const done = logged[i];
+            const isCurrent = i === completedCount;
+            return (
+              <View
+                key={i}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  backgroundColor: done ? Colors.primary + '22' : Colors.surface2,
+                  borderColor: done || isCurrent ? Colors.primary : Colors.border,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <Text style={{ color: done ? Colors.primary : isCurrent ? Colors.text : Colors.muted, fontSize: 12, fontWeight: '700' }}>
+                  {done ? `${fmtWeight(done.weightKg, unit)}×${done.reps}` : `SET ${i + 1}`}
+                </Text>
+                {done && <Ionicons name="checkmark" size={12} color={Colors.primary} />}
+              </View>
+            );
+          })}
         </View>
 
-        <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '700', marginBottom: 16 }}>
-          Set {Math.min(completedCount + 1, currentExercise.target_sets)} of {currentExercise.target_sets}
-        </Text>
+        {/* Big-number stage */}
+        <View style={{ backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row' }}>
+            {/* Weight column */}
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>WEIGHT</Text>
+                <View style={{ flexDirection: 'row', backgroundColor: Colors.surface2, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' }}>
+                  {(['kg', 'lbs'] as WeightUnit[]).map((u) => {
+                    const active = unit === u;
+                    return (
+                      <TouchableOpacity
+                        key={u}
+                        onPress={() => {
+                          if (active) return;
+                          const current = parseFloat(weight) || 0;
+                          if (current > 0) setWeight(String(kgToDisplay(displayToKg(current, unit), u)));
+                          setProfile({ weight_unit: u });
+                        }}
+                        style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: active ? Colors.primary : 'transparent' }}
+                      >
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: active ? Colors.onPrimary : Colors.muted }}>{u.toUpperCase()}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity onPress={() => adjustWeight(-2.5)} hitSlop={8} style={stepperStyle}>
+                  <Text style={stepperText}>−</Text>
+                </TouchableOpacity>
+                <TextInput
+                  value={weight}
+                  onChangeText={setWeight}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor={Colors.muted}
+                  style={{ minWidth: 56, color: Colors.text, fontSize: 34, fontWeight: '900', textAlign: 'center' }}
+                />
+                <TouchableOpacity onPress={() => adjustWeight(2.5)} hitSlop={8} style={stepperStyle}>
+                  <Text style={[stepperText, { color: Colors.primary }]}>+</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 6 }}>
+                {last ? `last ${fmtWeight(last.weight_kg, unit)}` : ' '}
+              </Text>
+            </View>
 
-        {/* Weight & reps inputs */}
-        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600' }}>WEIGHT</Text>
-              <View style={{ flexDirection: 'row', backgroundColor: Colors.surface2, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' }}>
-                {(['kg', 'lbs'] as WeightUnit[]).map((unit) => {
-                  const active = (profile?.weight_unit ?? 'lbs') === unit;
-                  return (
-                    <TouchableOpacity
-                      key={unit}
-                      onPress={() => {
-                        if (active) return;
-                        const current = parseFloat(weight) || 0;
-                        if (current > 0) {
-                          const inKg = displayToKg(current, profile?.weight_unit ?? 'lbs');
-                          setWeight(String(kgToDisplay(inKg, unit)));
-                        }
-                        setProfile({ weight_unit: unit });
-                      }}
-                      style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: active ? Colors.primary : 'transparent' }}
-                    >
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: active ? '#000' : Colors.muted }}>{unit.toUpperCase()}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
+            {/* Divider */}
+            <View style={{ width: 1, backgroundColor: Colors.border, marginHorizontal: 6 }} />
+
+            {/* Reps column */}
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 8, marginTop: 4 }}>REPS</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity onPress={() => adjustReps(-1)} hitSlop={8} style={stepperStyle}>
+                  <Text style={stepperText}>−</Text>
+                </TouchableOpacity>
+                <TextInput
+                  value={reps}
+                  onChangeText={setReps}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={Colors.muted}
+                  style={{ minWidth: 48, color: Colors.text, fontSize: 34, fontWeight: '900', textAlign: 'center' }}
+                />
+                <TouchableOpacity onPress={() => adjustReps(1)} hitSlop={8} style={stepperStyle}>
+                  <Text style={[stepperText, { color: Colors.primary }]}>+</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 6 }}>
+                {last ? `last ${last.reps}` : ' '}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Inline rest bar */}
+        {restActive && (
+          <View style={{ backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, padding: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Ionicons name="hourglass-outline" size={20} color={Colors.primary} />
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>REST</Text>
+                <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: '800' }}>{restClock}</Text>
+              </View>
+              <View style={{ height: 4, backgroundColor: Colors.surface3, borderRadius: 2 }}>
+                <View style={{ height: 4, width: `${restPct * 100}%`, backgroundColor: Colors.primary, borderRadius: 2 }} />
               </View>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <TouchableOpacity
-                onPress={() => setWeight((w) => String(Math.max(0, (parseFloat(w) || 0) - 2.5)))}
-                style={{ width: 44, height: 52, backgroundColor: Colors.surface2, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border }}
-              >
-                <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '700' }}>−</Text>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <TouchableOpacity onPress={() => setRestRemaining((r) => Math.max(0, r - 15))} style={restBtn}>
+                <Text style={restBtnText}>−15</Text>
               </TouchableOpacity>
-              <TextInput
-                value={weight}
-                onChangeText={setWeight}
-                keyboardType="decimal-pad"
-                placeholder="0"
-                placeholderTextColor={Colors.muted}
-                style={{ flex: 1, backgroundColor: Colors.surface2, borderRadius: 10, padding: 14, color: Colors.text, fontSize: 20, fontWeight: '700', textAlign: 'center', borderWidth: 1, borderColor: Colors.border }}
-              />
-              <TouchableOpacity
-                onPress={() => setWeight((w) => String((parseFloat(w) || 0) + 2.5))}
-                style={{ width: 44, height: 52, backgroundColor: Colors.surface2, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border }}
-              >
-                <Text style={{ color: Colors.primary, fontSize: 22, fontWeight: '700' }}>+</Text>
+              <TouchableOpacity onPress={() => { setRestActive(false); if (timerRef.current) clearInterval(timerRef.current); }} style={restBtn}>
+                <Text style={restBtnText}>Skip</Text>
               </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>REPS</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <TouchableOpacity
-                onPress={() => setReps((r) => String(Math.max(0, (parseInt(r, 10) || 0) - 1)))}
-                style={{ width: 44, height: 52, backgroundColor: Colors.surface2, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border }}
-              >
-                <Text style={{ color: Colors.text, fontSize: 22, fontWeight: '700' }}>−</Text>
-              </TouchableOpacity>
-              <TextInput
-                value={reps}
-                onChangeText={setReps}
-                keyboardType="number-pad"
-                placeholder="0"
-                placeholderTextColor={Colors.muted}
-                style={{ flex: 1, backgroundColor: Colors.surface2, borderRadius: 10, padding: 14, color: Colors.text, fontSize: 20, fontWeight: '700', textAlign: 'center', borderWidth: 1, borderColor: Colors.border }}
-              />
-              <TouchableOpacity
-                onPress={() => setReps((r) => String((parseInt(r, 10) || 0) + 1))}
-                style={{ width: 44, height: 52, backgroundColor: Colors.surface2, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border }}
-              >
-                <Text style={{ color: Colors.primary, fontSize: 22, fontWeight: '700' }}>+</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* Rest timer overlay */}
-        {restActive && (
-          <View style={{
-            backgroundColor: Colors.surface2,
-            borderRadius: 16,
-            padding: 20,
-            marginBottom: 20,
-            alignItems: 'center',
-            borderWidth: 1,
-            borderColor: Colors.border,
-          }}>
-            <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '600', letterSpacing: 1 }}>REST</Text>
-            <Text style={{ color: Colors.primary, fontSize: 52, fontWeight: '900' }}>
-              {restRemaining}s
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-              <TouchableOpacity
-                onPress={() => setRestRemaining((r) => Math.max(0, r - 15))}
-                style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: Colors.surface3, borderRadius: 8 }}
-              >
-                <Text style={{ color: Colors.text, fontWeight: '600' }}>−15s</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => { setRestActive(false); if (timerRef.current) clearInterval(timerRef.current); }}
-                style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: Colors.surface3, borderRadius: 8 }}
-              >
-                <Text style={{ color: Colors.text, fontWeight: '600' }}>Skip</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setRestRemaining((r) => r + 15)}
-                style={{ paddingHorizontal: 14, paddingVertical: 8, backgroundColor: Colors.surface3, borderRadius: 8 }}
-              >
-                <Text style={{ color: Colors.text, fontWeight: '600' }}>+15s</Text>
+              <TouchableOpacity onPress={() => setRestRemaining((r) => r + 15)} style={restBtn}>
+                <Text style={restBtnText}>+15</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
 
-        {/* Action buttons */}
-        <Button title="Log Set" onPress={handleLogSet} size="lg" disabled={!reps} style={{ marginBottom: 12 }} />
+        {/* Log set */}
+        <GradientButton title="Log Set" icon="flash" onPress={handleLogSet} disabled={!reps} style={{ marginBottom: prDeltaKg > 0 ? 8 : 12 }} />
+        {prDeltaKg > 0 && (
+          <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600', textAlign: 'center', marginBottom: 12 }}>
+            🔥 {fmtWeight(prDeltaKg, unit)} {unit} over your best — PR pace
+          </Text>
+        )}
+
+        {/* Completed-set ledger */}
+        {logged.length > 0 && (
+          <View style={{ gap: 6, marginBottom: 12 }}>
+            {logged.map((s, i) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, opacity: 0.7 }}>
+                <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600' }}>Set {i + 1}</Text>
+                <Text style={{ color: Colors.text, fontSize: 14 }}>{fmtWeight(s.weightKg, unit)} {unit} × {s.reps}</Text>
+                <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Form coach (premium) */}
         <TouchableOpacity
@@ -360,13 +404,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
         {/* Next exercise / Finish */}
         {completedCount >= currentExercise.target_sets && (
           isLastExercise ? (
-            <Button
-              title="Finish Workout"
-              onPress={handleFinish}
-              variant="primary"
-              size="lg"
-              style={{ marginTop: 8 }}
-            />
+            <GradientButton title="Finish Workout" icon="trophy" onPress={handleFinish} style={{ marginTop: 8 }} />
           ) : (
             <Button
               title={`Next: ${workout.exercises[currentExerciseIndex + 1]?.exercise.name}`}
@@ -381,3 +419,25 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
     </SafeAreaView>
   );
 }
+
+const stepperStyle = {
+  width: 40,
+  height: 48,
+  backgroundColor: Colors.surface2,
+  borderRadius: 10,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  borderWidth: 1,
+  borderColor: Colors.border,
+};
+
+const stepperText = { color: Colors.text, fontSize: 24, fontWeight: '700' as const };
+
+const restBtn = {
+  paddingHorizontal: 10,
+  paddingVertical: 8,
+  backgroundColor: Colors.surface3,
+  borderRadius: 8,
+};
+
+const restBtnText = { color: Colors.text, fontWeight: '600' as const, fontSize: 12 };
