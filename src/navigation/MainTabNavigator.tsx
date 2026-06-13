@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { MainTabParamList } from '../types';
 import { TodayNavigator } from './TodayNavigator';
 import { ProgressScreen } from '../screens/progress/ProgressScreen';
-// Social tab hidden until user base grows — re-add SocialScreen here when ready
+// Social removed in 1.0.8 — to be rebuilt as a richer experience once the user base grows
 import { StoreScreen } from '../screens/store/StoreScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { Colors } from '../constants/theme';

@@ -42,9 +42,8 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   { q: 'How do I regenerate my workout plan?', a: 'On the Today tab, tap "Regenerate today\'s workout" (Premium required). A new AI-generated plan based on your current profile is ready in about 10 seconds.' },
   { q: 'How do I substitute an exercise?', a: 'During a workout session, tap the swap icon next to any exercise name to choose an alternative from the library or the ExerciseDB database.' },
   { q: 'How do I change my units to lbs?', a: 'Go to the Profile tab → Edit Profile and toggle between kg and lbs. All weight displays and logging update immediately.' },
-  { q: 'How do I join a challenge?', a: 'Go to the Social tab and tap "Challenges" to see active community challenges. Tap any challenge to join and track your rank on the leaderboard.' },
   { q: 'What does my streak count?', a: 'Your streak counts consecutive calendar days you complete a workout. Finishing any session keeps it alive. Missing a full day resets it to zero.' },
-  { q: 'What\'s free vs. Premium?', a: 'Free: manual workout logging, exercise library, basic stats, social feed, challenges, gear shop, and FAQ.\n\nPremium adds: AI Coach Chat, Form Coach, AI-generated plans, advanced progress charts, and unlimited plan regeneration.' },
+  { q: 'What\'s free vs. Premium?', a: 'Free: manual workout logging, exercise library, basic stats, gear shop, and FAQ.\n\nPremium adds: AI Coach Chat, Form Coach, AI-generated plans, advanced progress charts, and unlimited plan regeneration.' },
   { q: 'How do I cancel my subscription?', a: 'Subscriptions are managed by the App Store (iOS) or Google Play (Android). Go to your device Settings → Subscriptions to manage or cancel at any time.' },
   { q: 'How do I contact support?', a: 'Email us at support@ryzrapp.com — we typically respond within 24 hours.' },
 ];

@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../types';
 import { Button } from '../../components/ui/Button';
+import { GradientButton } from '../../components/ui/GradientButton';
 import { Colors } from '../../constants/theme';
 
 type Props = {
@@ -110,10 +111,9 @@ export function WelcomeScreen({ navigation }: Props) {
         </View>
 
         <View style={{ gap: 12 }}>
-          <Button
+          <GradientButton
             title="Get Started"
             onPress={() => navigation.navigate('SignUp')}
-            size="lg"
           />
           <Button
             title="I already have an account"

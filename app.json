@@ -6,6 +6,7 @@
     "name": "RYZR",
     "slug": "ryzrapp",
     "version": "1.0.7",
+    "scheme": "ryzr",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",

@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../types';
-import { Button } from '../../components/ui/Button';
+import { GradientButton } from '../../components/ui/GradientButton';
 import { Input } from '../../components/ui/Input';
 import { useAuthStore } from '../../store/authStore';
 import { Colors } from '../../constants/theme';
@@ -94,11 +94,10 @@ export function SignUpScreen({ navigation }: Props) {
           />
 
           <View style={{ marginTop: 8 }}>
-            <Button
+            <GradientButton
               title="Create Account"
               onPress={handleSignUp}
               loading={loading}
-              size="lg"
             />
           </View>
 

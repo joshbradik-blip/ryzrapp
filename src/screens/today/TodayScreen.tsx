@@ -15,13 +15,14 @@ import { TodayStackParamList } from '../../types';
 import { useProfileStore } from '../../store/profileStore';
 import { useWorkoutStore } from '../../store/workoutStore';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
+import { useHistoryStore } from '../../store/historyStore';
+import { useAuthStore } from '../../store/authStore';
 import { Ionicons } from '@expo/vector-icons';
-import { Button } from '../../components/ui/Button';
-import { ExerciseCard } from '../../components/workout/ExerciseCard';
+import { GradientButton } from '../../components/ui/GradientButton';
+import { StatTile } from '../../components/ui/StatTile';
 import { Colors } from '../../constants/theme';
 import { CoachChatSheet } from './CoachChatSheet';
 import { PremiumModal } from '../../components/ui/PremiumModal';
-import { scheduleAffirmationIfNeeded } from '../../lib/notifications';
 import { generateWorkoutPlan, generatePreWorkoutChallenge, generateDailyCoachMessage } from '../../lib/anthropic';
 
 export function TodayScreen() {
@@ -34,6 +35,8 @@ export function TodayScreen() {
     lastCoachMessageDate, setLastCoachMessageDate,
   } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
+  const userId = useAuthStore((s) => s.session?.user?.id);
+  const { currentStreak, longestStreak, totalSessions, thisWeekSessions, fetchHistory } = useHistoryStore();
   const [chatOpen, setChatOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [premiumFeatureTitle, setPremiumFeatureTitle] = useState<string | undefined>();
@@ -74,12 +77,6 @@ export function TodayScreen() {
     ]);
   };
 
-  useEffect(() => {
-    if (profile?.name) {
-      scheduleAffirmationIfNeeded(profile.name, todayWorkout?.name);
-    }
-  }, [profile?.name, todayWorkout?.name]);
-
   // Generate daily encouragement + pre-workout challenge once per calendar day.
   // Messages queue as a badge on the Ask Me button — fallback for users without notifications.
   useEffect(() => {
@@ -110,11 +107,14 @@ export function TodayScreen() {
     generate();
   }, [profile?.name, todayWorkout?.id]);
 
+  useEffect(() => {
+    if (userId) fetchHistory(userId);
+  }, [userId]);
+
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
-  const streak = 0;
-  const weekCompleted = workouts.filter((w) => w.week_number === 1).length;
+  const streak = currentStreak;
   const weekPlanned = workouts.length;
 
   // Upcoming workouts in plan order, starting after the current one and
@@ -170,7 +170,7 @@ export function TodayScreen() {
               borderColor: Colors.border,
               overflow: 'hidden',
             }}>
-              {/* Green accent bar */}
+              {/* Ember accent bar */}
               <View style={{ height: 4, backgroundColor: Colors.primary }} />
 
               <View style={{ padding: 20 }}>
@@ -208,10 +208,10 @@ export function TodayScreen() {
                   )}
                 </View>
 
-                <Button
+                <GradientButton
                   title="Start Workout"
+                  icon="flash"
                   onPress={() => navigation.navigate('WorkoutSession', { workoutId: todayWorkout.id })}
-                  size="lg"
                 />
               </View>
             </View>
@@ -235,25 +235,10 @@ export function TodayScreen() {
         )}
 
         {/* Quick stats */}
-        <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 24, marginTop: 20 }}>
-          {[
-            { label: 'This week', value: `${weekCompleted}/${weekPlanned}`, sub: 'workouts' },
-            { label: 'Longest streak', value: '0', sub: 'days' },
-            { label: 'Total sessions', value: '0', sub: 'all time' },
-          ].map((stat) => (
-            <View key={stat.label} style={{
-              flex: 1,
-              backgroundColor: Colors.surface,
-              borderRadius: 14,
-              padding: 14,
-              borderWidth: 1,
-              borderColor: Colors.border,
-            }}>
-              <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '600', letterSpacing: 0.5 }}>{stat.label.toUpperCase()}</Text>
-              <Text style={{ color: Colors.primary, fontSize: 22, fontWeight: '900', marginTop: 4 }}>{stat.value}</Text>
-              <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>{stat.sub}</Text>
-            </View>
-          ))}
+        <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 24, marginTop: 20 }}>
+          <StatTile label="This week" value={`${thisWeekSessions}/${weekPlanned}`} sub="workouts" icon="checkmark-circle" />
+          <StatTile label="Longest streak" value={String(longestStreak)} sub="days" icon="flame" />
+          <StatTile label="Total sessions" value={String(totalSessions)} sub="all time" icon="stats-chart" />
         </View>
 
         {/* Regenerate workout */}
@@ -299,11 +284,11 @@ export function TodayScreen() {
             }}
             onPress={() => openPremium()}
           >
-            <Ionicons name="flash" size={28} color={Colors.primary} />
+            <Ionicons name="scan-outline" size={28} color={Colors.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: Colors.primary, fontWeight: '800', fontSize: 14 }}>Upgrade to Premium</Text>
+              <Text style={{ color: Colors.primary, fontWeight: '800', fontSize: 14 }}>Unlock AI Form Coach</Text>
               <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-                Form Coach · AI Coach · 8 & 12-week plans
+                Real-time camera analysis — upgrade to Premium
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
@@ -352,7 +337,7 @@ export function TodayScreen() {
     >
       {!isPremium && <Ionicons name="lock-closed" size={14} color="#000" />}
       <Ionicons name="chatbubble-ellipses" size={20} color="#000" />
-      <Text style={styles.coachFabLabel}>Ask me</Text>
+      <Text style={styles.coachFabLabel}>Ask Coach</Text>
       {pendingCoachMessages.length > 0 && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{pendingCoachMessages.length}</Text>

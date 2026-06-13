@@ -8,9 +8,11 @@ export const REVENUECAT_API_KEY_ANDROID = 'goog_SqmsQvDGeXhkJJrdDoFDeQAiyeP';
 
 export const ENTITLEMENT_PREMIUM = 'premium';
 
-// Apple reviewer test account only. Other beta testers should use RevenueCat promotional entitlements.
+// Apple reviewer test account + RYZR owner accounts. Other beta testers should use RevenueCat promotional entitlements.
 export const BETA_TESTERS: string[] = [
   'test@ryzr.com',
+  'joshbradik@gmail.com',
+  'sendtojoshperry@gmail.com',
 ];
 
 // Pricing constants — update RevenueCat dashboard to match
