@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Image, TouchableOpacity } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
@@ -7,6 +8,7 @@ import { Colors } from '../../constants/theme';
 interface Props {
   name: string;
   mediaUrl: string;
+  videoUrl?: string;
   muscles: string[];
   cues: string[];
 }
@@ -14,8 +16,9 @@ interface Props {
 const HERO_HEIGHT = 260;
 const STEP_MS = 2500;
 
-export function ExerciseHero({ name, mediaUrl, muscles, cues }: Props) {
+export function ExerciseHero({ name, mediaUrl, videoUrl, muscles, cues }: Props) {
   const [failed, setFailed] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
   const [walkthrough, setWalkthrough] = useState(false);
   const [cueIndex, setCueIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -45,11 +48,23 @@ export function ExerciseHero({ name, mediaUrl, muscles, cues }: Props) {
     if (timer.current) clearInterval(timer.current);
   };
 
-  const showImage = !failed && !!mediaUrl;
+  // Resolve media: looping clip → still image → branded fallback.
+  const showVideo = !!videoUrl && !videoFailed;
+  const showImage = !showVideo && !failed && !!mediaUrl;
 
   return (
     <View style={{ height: HERO_HEIGHT, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
-      {showImage ? (
+      {showVideo ? (
+        <Video
+          source={{ uri: videoUrl! }}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode={ResizeMode.COVER}
+          shouldPlay
+          isLooping
+          isMuted
+          onError={() => setVideoFailed(true)}
+        />
+      ) : showImage ? (
         <Image
           source={{ uri: mediaUrl }}
           style={{ width: '100%', height: '100%' }}
@@ -84,8 +99,8 @@ export function ExerciseHero({ name, mediaUrl, muscles, cues }: Props) {
         pointerEvents="none"
       />
 
-      {/* Play button — starts the cue walkthrough */}
-      {!walkthrough && hasCues && (
+      {/* Play button — starts the cue walkthrough (hidden when a clip is already playing) */}
+      {!walkthrough && !showVideo && hasCues && (
         <TouchableOpacity
           onPress={startWalkthrough}
           activeOpacity={0.85}
