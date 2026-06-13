@@ -4,9 +4,10 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  TextInput,
+  Modal,
   Dimensions,
   Alert,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,10 +16,12 @@ import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useProfileStore } from '../../store/profileStore';
 import { useHistoryStore } from '../../store/historyStore';
 import { useAuthStore } from '../../store/authStore';
-import { startBodyScan } from '../../modules/PrismModule';
-import { kgToDisplay, weightLabel } from '../../lib/units';
+import { useBodyStore } from '../../store/bodyStore';
+import { kgToDisplay, displayToKg, weightLabel } from '../../lib/units';
+import { navyBodyFat, cmToIn, inToCm } from '../../lib/bodyComposition';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { MuscleHeatmap } from '../../components/progress/MuscleHeatmap';
+import { GradientButton } from '../../components/ui/GradientButton';
 
 const { width } = Dimensions.get('window');
 
@@ -59,25 +62,25 @@ function HeatmapCalendar() {
   );
 }
 
-const MEASUREMENT_ROWS: { label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { label: 'Waist',     icon: 'resize-outline' },
-  { label: 'Hips',      icon: 'ellipse-outline' },
-  { label: 'Chest',     icon: 'body-outline' },
-  { label: 'Shoulders', icon: 'trending-up-outline' },
-  { label: 'Body Fat',  icon: 'water-outline' },
-  { label: 'Lean Mass', icon: 'barbell-outline' },
-];
-
 export function ProgressScreen() {
   const { isPremium } = useSubscriptionStore();
   const { profile } = useProfileStore();
   const userId = useAuthStore((s) => s.session?.user?.id);
   const { volumeByWeek, muscleHeatMap, fetchHistory } = useHistoryStore();
+  const { latest, previous, fetchMeasurements, logMeasurement } = useBodyStore();
   const [activeChart, setActiveChart] = useState('Back Squat');
-  const [scanning, setScanning] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
+  const [mNeck, setMNeck] = useState('');
+  const [mWaist, setMWaist] = useState('');
+  const [mHip, setMHip] = useState('');
+  const [mWeight, setMWeight] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (userId) fetchHistory(userId);
+    if (userId) {
+      fetchHistory(userId);
+      fetchMeasurements(userId);
+    }
   }, [userId]);
 
   const unit = profile?.weight_unit ?? 'kg';
@@ -88,25 +91,45 @@ export function ProgressScreen() {
   const volumeDeltaPct = prior4 > 0 ? Math.round(((last4 - prior4) / prior4) * 100) : null;
   const maxWeekVolume = Math.max(1, ...volumeByWeek.map((w) => w.volumeKg));
 
-  const handleScan = async () => {
-    if (!isPremium) {
-      Alert.alert('Premium Feature', 'Upgrade to RYZR Premium to use Body Scan.');
+  const lengthUnit: 'in' | 'cm' = profile?.weight_unit === 'lbs' ? 'in' : 'cm';
+  const isFemale = profile?.sex === 'female';
+  const bfDelta = latest?.body_fat_pct != null && previous?.body_fat_pct != null
+    ? Math.round((latest.body_fat_pct - previous.body_fat_pct) * 10) / 10
+    : null;
+
+  const dispLen = (cm: number | null) =>
+    cm == null ? '—' : `${lengthUnit === 'in' ? cmToIn(cm) : cm} ${lengthUnit}`;
+
+  const handleSaveMeasurement = async () => {
+    if (!userId || !profile) return;
+    const toCm = (v: string) => {
+      const n = parseFloat(v);
+      if (!n) return null;
+      return lengthUnit === 'in' ? inToCm(n) : n;
+    };
+    const neck_cm = toCm(mNeck);
+    const waist_cm = toCm(mWaist);
+    const hip_cm = isFemale ? toCm(mHip) : null;
+    const weight_kg = mWeight ? displayToKg(parseFloat(mWeight), profile.weight_unit ?? 'kg') : null;
+    if (!neck_cm || !waist_cm || (isFemale && !hip_cm)) {
+      Alert.alert('Missing measurements', `Enter your neck, waist${isFemale ? ', and hips' : ''} to estimate body fat.`);
       return;
     }
-    if (Platform.OS !== 'android') {
-      Alert.alert('Coming Soon', 'Body Scan on iOS is coming soon. Stay tuned!');
-      return;
-    }
-    setScanning(true);
-    try {
-      const completed = await startBodyScan();
-      if (completed) {
-        Alert.alert('Scan Complete!', 'Your body measurements are being processed. Results will appear here shortly.');
-      }
-    } catch {
-      Alert.alert('Error', 'Could not start body scan. Make sure you have a development build installed.');
-    } finally {
-      setScanning(false);
+    const body_fat_pct = navyBodyFat({
+      sex: profile.sex,
+      heightCm: profile.height_cm,
+      neckCm: neck_cm,
+      waistCm: waist_cm,
+      hipCm: hip_cm,
+    });
+    setSaving(true);
+    const ok = await logMeasurement(userId, { weight_kg, neck_cm, waist_cm, hip_cm, body_fat_pct });
+    setSaving(false);
+    if (ok) {
+      setLogOpen(false);
+      setMNeck(''); setMWaist(''); setMHip(''); setMWeight('');
+    } else {
+      Alert.alert('Could not save', 'Please try again.');
     }
   };
 
@@ -233,119 +256,99 @@ export function ProgressScreen() {
           </View>
         </View>
 
-        {/* Body Scan */}
-        <View style={{ marginHorizontal: 24, marginBottom: 8 }}>
-          <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 12 }}>BODY COMPOSITION</Text>
+        {/* Body composition (free — US Navy tape-measure method) */}
+        <View style={{ marginHorizontal: 24, marginBottom: 8, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <SectionLabel>Body Composition</SectionLabel>
+            <TouchableOpacity onPress={() => setLogOpen(true)} style={{ backgroundColor: Colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border }}>
+              <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 13 }}>+ Log</Text>
+            </TouchableOpacity>
+          </View>
 
-          {/* Scan CTA card */}
-          <TouchableOpacity
-            onPress={handleScan}
-            disabled={scanning}
-            activeOpacity={0.85}
-            style={{
-              backgroundColor: Colors.surface,
-              borderRadius: 16,
-              borderWidth: 1.5,
-              borderColor: isPremium ? Colors.primary + '66' : Colors.border,
-              overflow: 'hidden',
-              marginBottom: 12,
-            }}
-          >
-            {/* Green gradient bar */}
-            <View style={{ height: 3, backgroundColor: Colors.primary, opacity: isPremium ? 1 : 0.3 }} />
-
-            <View style={{ padding: 20, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-              <View style={{
-                width: 56, height: 56, borderRadius: 28,
-                backgroundColor: isPremium ? Colors.primary + '22' : Colors.surface2,
-                alignItems: 'center', justifyContent: 'center',
-                borderWidth: 1.5,
-                borderColor: isPremium ? Colors.primary + '55' : Colors.border,
-              }}>
-                <Ionicons name="scan-outline" size={28} color={isPremium ? Colors.primary : Colors.muted} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                  <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800' }}>Body Scan</Text>
-                  <View style={{ backgroundColor: Colors.primary + '22', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: Colors.primary + '55' }}>
-                    <Text style={{ color: Colors.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>PRISM</Text>
-                  </View>
-                </View>
-                <Text style={{ color: Colors.textSecondary, fontSize: 13, lineHeight: 18 }}>
-                  {scanning ? 'Starting scan…' : 'Full-body measurements in 60 seconds'}
+          {latest?.body_fat_pct != null ? (
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginBottom: 12 }}>
+              <Text style={{ color: Colors.text, fontSize: 34, fontWeight: '900' }}>{latest.body_fat_pct}%</Text>
+              <Text style={{ color: Colors.textSecondary, fontSize: 13, marginBottom: 8 }}>body fat</Text>
+              {bfDelta !== null && (
+                <Text style={{ color: Colors.muted, fontSize: 13, fontWeight: '700', marginBottom: 8 }}>
+                  {bfDelta > 0 ? '+' : ''}{bfDelta}% since last
                 </Text>
-                <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 4 }}>
-                  Last scan: Never
-                </Text>
-              </View>
-              <View style={{
-                backgroundColor: isPremium ? Colors.primary : Colors.surface2,
-                borderRadius: 12,
-                paddingHorizontal: 14,
-                paddingVertical: 10,
-                borderWidth: 1,
-                borderColor: isPremium ? Colors.primary : Colors.border,
-              }}>
-                <Text style={{ color: isPremium ? Colors.background : Colors.muted, fontSize: 13, fontWeight: '800' }}>
-                  {scanning ? '…' : 'SCAN'}
-                </Text>
-              </View>
+              )}
             </View>
-          </TouchableOpacity>
+          ) : (
+            <Text style={{ color: Colors.textSecondary, fontSize: 14, marginBottom: 12, lineHeight: 20 }}>
+              Log a few tape measurements and we'll estimate your body fat with the US Navy method — free, no scanner needed.
+            </Text>
+          )}
 
-          {/* Measurements placeholder */}
-          <View style={{
-            backgroundColor: Colors.surface,
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: Colors.border,
-            overflow: 'hidden',
-          }}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }}>Measurements</Text>
-              <Text style={{ color: Colors.muted, fontSize: 12 }}>No scan yet</Text>
-            </View>
-            <View style={{ padding: 4 }}>
-              {MEASUREMENT_ROWS.map((row, i) => (
-                <View
-                  key={row.label}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingHorizontal: 12,
-                    paddingVertical: 13,
-                    borderBottomWidth: i < MEASUREMENT_ROWS.length - 1 ? 1 : 0,
-                    borderBottomColor: Colors.border,
-                    gap: 12,
-                  }}
-                >
-                  <Ionicons name={row.icon} size={18} color={Colors.muted} />
-                  <Text style={{ color: Colors.textSecondary, fontSize: 14, flex: 1 }}>{row.label}</Text>
-                  <View style={{ width: 48, height: 12, backgroundColor: Colors.surface3, borderRadius: 6, opacity: 0.6 }} />
-                  <Text style={{ color: Colors.muted, fontSize: 14, width: 32, textAlign: 'right' }}>—</Text>
+          {latest && (
+            <View>
+              {([
+                ['Neck', latest.neck_cm],
+                ['Waist', latest.waist_cm],
+                ...(isFemale ? [['Hips', latest.hip_cm] as [string, number | null]] : []),
+              ] as [string, number | null][]).map(([label, cm], i, arr) => (
+                <View key={label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 11, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: Colors.border }}>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>{label}</Text>
+                  <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '600' }}>{dispLen(cm)}</Text>
                 </View>
               ))}
             </View>
+          )}
 
-            {/* Overlay nudge */}
-            <View style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0,
-              paddingVertical: 14, paddingHorizontal: 16,
-              backgroundColor: Colors.background + 'DD',
-              alignItems: 'center',
-              borderTopWidth: 1, borderTopColor: Colors.border,
-            }}>
-              <Text style={{ color: Colors.textSecondary, fontSize: 13 }}>
-                Complete a scan to see your measurements
-              </Text>
-            </View>
-          </View>
-
-          {/* Powered by */}
-          <Text style={{ color: Colors.muted, fontSize: 11, textAlign: 'center', marginTop: 12 }}>
-            3D body mapping powered by Prism Labs
+          <Text style={{ color: Colors.muted, fontSize: 11, marginTop: 12 }}>
+            Estimate via the US Navy tape-measure method.
           </Text>
         </View>
+
+        {/* Log measurement modal */}
+        <Modal visible={logOpen} animationType="slide" transparent onRequestClose={() => setLogOpen(false)}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0A0A0Acc' }}>
+            <View style={{ backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36, borderWidth: 1, borderColor: Colors.border }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Log measurements</Text>
+                <TouchableOpacity onPress={() => setLogOpen(false)}>
+                  <Ionicons name="close" size={24} color={Colors.muted} />
+                </TouchableOpacity>
+              </View>
+              <Text style={{ color: Colors.textSecondary, fontSize: 13, marginBottom: 16 }}>
+                Measure in {lengthUnit === 'in' ? 'inches' : 'centimeters'}. We use these to estimate your body fat.
+              </Text>
+
+              {([
+                ['Neck', mNeck, setMNeck],
+                ['Waist', mWaist, setMWaist],
+                ...(isFemale ? [['Hips', mHip, setMHip] as [string, string, (v: string) => void]] : []),
+              ] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
+                <View key={label} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 15, width: 70 }}>{label}</Text>
+                  <TextInput
+                    value={val}
+                    onChangeText={setter}
+                    keyboardType="decimal-pad"
+                    placeholder={`0 ${lengthUnit}`}
+                    placeholderTextColor={Colors.muted}
+                    style={{ flex: 1, backgroundColor: Colors.surface2, borderRadius: 10, padding: 12, color: Colors.text, fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: Colors.border }}
+                  />
+                </View>
+              ))}
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                <Text style={{ color: Colors.textSecondary, fontSize: 15, width: 70 }}>Weight</Text>
+                <TextInput
+                  value={mWeight}
+                  onChangeText={setMWeight}
+                  keyboardType="decimal-pad"
+                  placeholder={`optional ${weightLabel(profile?.weight_unit ?? 'kg')}`}
+                  placeholderTextColor={Colors.muted}
+                  style={{ flex: 1, backgroundColor: Colors.surface2, borderRadius: 10, padding: 12, color: Colors.text, fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: Colors.border }}
+                />
+              </View>
+
+              <GradientButton title="Save measurements" onPress={handleSaveMeasurement} loading={saving} />
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </SafeAreaView>
   );

@@ -393,10 +393,22 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
         {completedCount < currentExercise.target_sets && !isLastExercise && (
           <TouchableOpacity
             onPress={handleSkipRemainingSets}
-            style={{ alignItems: 'center', paddingVertical: 10, marginBottom: 4 }}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              paddingVertical: 13,
+              marginBottom: 8,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: Colors.border,
+              backgroundColor: Colors.surface2,
+            }}
           >
-            <Text style={{ color: Colors.muted, fontSize: 13, fontWeight: '600' }}>
-              Skip to next exercise →
+            <Ionicons name="play-skip-forward-outline" size={17} color={Colors.textSecondary} />
+            <Text style={{ color: Colors.textSecondary, fontSize: 15, fontWeight: '700' }}>
+              Skip to next exercise
             </Text>
           </TouchableOpacity>
         )}

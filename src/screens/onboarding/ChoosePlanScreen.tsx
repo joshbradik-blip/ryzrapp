@@ -252,14 +252,25 @@ export function ChoosePlanScreen({ navigation }: Props) {
           </View>
         )}
 
-        {/* Start free */}
+        {/* Start free — presented as a full plan option, not a footnote */}
         <TouchableOpacity
           onPress={proceed}
           disabled={loading}
-          style={{ alignItems: 'center', paddingVertical: 14 }}
+          style={{
+            backgroundColor: Colors.surface,
+            borderRadius: 16,
+            padding: 16,
+            alignItems: 'center',
+            borderWidth: 1,
+            borderColor: Colors.border,
+            marginBottom: 16,
+          }}
         >
-          <Text style={{ color: Colors.muted, fontSize: 14, fontWeight: '600' }}>
-            Start free — upgrade anytime
+          <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>
+            Start Free
+          </Text>
+          <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+            AI plan + logging · upgrade anytime
           </Text>
         </TouchableOpacity>
 
