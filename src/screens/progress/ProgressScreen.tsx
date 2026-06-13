@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useProfileStore } from '../../store/profileStore';
+import { useHistoryStore } from '../../store/historyStore';
+import { useAuthStore } from '../../store/authStore';
 import { startBodyScan } from '../../modules/PrismModule';
 import { kgToDisplay, weightLabel } from '../../lib/units';
+import { SectionLabel } from '../../components/ui/SectionLabel';
+import { MuscleHeatmap } from '../../components/progress/MuscleHeatmap';
 
 const { width } = Dimensions.get('window');
 
@@ -67,8 +71,22 @@ const MEASUREMENT_ROWS: { label: string; icon: keyof typeof Ionicons.glyphMap }[
 export function ProgressScreen() {
   const { isPremium } = useSubscriptionStore();
   const { profile } = useProfileStore();
+  const userId = useAuthStore((s) => s.session?.user?.id);
+  const { volumeByWeek, muscleHeatMap, fetchHistory } = useHistoryStore();
   const [activeChart, setActiveChart] = useState('Back Squat');
   const [scanning, setScanning] = useState(false);
+
+  useEffect(() => {
+    if (userId) fetchHistory(userId);
+  }, [userId]);
+
+  const unit = profile?.weight_unit ?? 'kg';
+  const totalVolumeKg = volumeByWeek.reduce((sum, w) => sum + w.volumeKg, 0);
+  const totalVolumeDisplay = Math.round(kgToDisplay(totalVolumeKg, unit));
+  const last4 = volumeByWeek.slice(4).reduce((s, w) => s + w.volumeKg, 0);
+  const prior4 = volumeByWeek.slice(0, 4).reduce((s, w) => s + w.volumeKg, 0);
+  const volumeDeltaPct = prior4 > 0 ? Math.round(((last4 - prior4) / prior4) * 100) : null;
+  const maxWeekVolume = Math.max(1, ...volumeByWeek.map((w) => w.volumeKg));
 
   const handleScan = async () => {
     if (!isPremium) {
@@ -101,6 +119,43 @@ export function ProgressScreen() {
           <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 2 }}>
             Last 90 days
           </Text>
+        </View>
+
+        {/* Training volume */}
+        <View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+          <SectionLabel style={{ marginBottom: 8 }}>Training Volume</SectionLabel>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 16 }}>
+            <Text style={{ color: Colors.text, fontSize: 30, fontWeight: '900' }}>
+              {totalVolumeDisplay.toLocaleString()} <Text style={{ fontSize: 16, color: Colors.textSecondary }}>{weightLabel(unit)}</Text>
+            </Text>
+            {volumeDeltaPct !== null && (
+              <Text style={{ color: volumeDeltaPct >= 0 ? Colors.primary : Colors.muted, fontSize: 13, fontWeight: '700', marginBottom: 6 }}>
+                {volumeDeltaPct >= 0 ? '+' : ''}{volumeDeltaPct}% vs last 4 weeks
+              </Text>
+            )}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 100 }}>
+            {volumeByWeek.map((w, i) => {
+              const isLatest = i === volumeByWeek.length - 1;
+              return (
+                <View key={i} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+                  <View style={{
+                    width: '62%',
+                    height: Math.max(2, Math.round(80 * (w.volumeKg / maxWeekVolume))),
+                    backgroundColor: isLatest ? Colors.primary : Colors.primary + '99',
+                    borderRadius: 3,
+                  }} />
+                  <Text style={{ color: Colors.muted, fontSize: 9 }}>{w.label}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Muscle groups heatmap */}
+        <View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+          <SectionLabel style={{ marginBottom: 12 }}>Muscle Groups</SectionLabel>
+          <MuscleHeatmap heat={muscleHeatMap} />
         </View>
 
         {/* Streak calendar heatmap */}
