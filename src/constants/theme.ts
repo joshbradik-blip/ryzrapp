@@ -6,12 +6,21 @@ export const Colors = {
   border: '#3A3A3A',
   primary: '#FF6B22',
   primaryDark: '#E8550A',
+  flame: '#FF8C42',
+  onPrimary: '#2A1004',
   text: '#FFFFFF',
   textSecondary: '#AAAAAA',
   muted: '#666666',
   danger: '#FF4444',
   warning: '#FFB344',
+  success: '#3DDC84',
   info: '#44AAFF',
+};
+
+// Ember gradient pairs for CTAs and accents.
+export const Gradients = {
+  primary: ['#FF8C42', '#E8550A'] as const,
+  ember: ['#FF6B22', '#CC3A00'] as const,
 };
 
 export const Spacing = {
