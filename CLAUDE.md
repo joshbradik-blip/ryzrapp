@@ -20,7 +20,7 @@ RYZR is a React Native + Expo workout app with AI-generated training plans, a re
 - Color tokens in `src/constants/theme.ts` — always use `Colors.*`/`Gradients.*`, never hardcode hex values
 - Shared UI primitives in `src/components/ui/`: `GradientButton` (primary CTAs), `StatTile`, `SectionLabel` (ember uppercase headers). Compose these on new screens for consistency.
 - Exercise library in `src/constants/exercises.ts` — 30 exercises, add more here
-- Exercise demo art: stylized PNGs in the Supabase `exercise-media` bucket, resolved by convention `exercise-media/{id}.png` (see `src/lib/exerciseMedia.ts`); branded fallback when missing. Generation prompts in `docs/exercise-image-prompts.md`.
+- Exercise demo art: in the public Supabase `exercise-media` bucket, resolved by convention — looping clip `exercise-media/{id}.mp4` → still `exercise-media/{id}.png` → branded fallback (see `src/lib/exerciseMedia.ts` + `ExerciseHero`). All optional; missing media degrades gracefully. Generation prompts in `docs/exercise-image-prompts.md`.
 - Never hardcode API keys — use `process.env.EXPO_PUBLIC_*` and `.env` (see `.env.example`)
 
 ## Premium vs free
