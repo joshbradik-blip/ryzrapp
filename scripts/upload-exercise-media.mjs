@@ -1,8 +1,8 @@
 // Bulk-download Higgsfield demo media and upload to the Supabase `exercise-media` bucket.
 //
-// Usage (PowerShell):
-//   $env:SUPABASE_URL="https://fuyzcssdryngvxmmjkvn.supabase.co"
-//   $env:SUPABASE_SERVICE_ROLE_KEY="<service role key from Supabase dashboard → Settings → API>"
+// Setup: add ONE line to .env (get it from Supabase dashboard → Settings → API → "service_role" secret):
+//   SUPABASE_SERVICE_ROLE_KEY=eyJ...
+// Then run:
 //   node scripts/upload-exercise-media.mjs
 //
 // Reads scripts/exercise-media.json:
@@ -13,11 +13,20 @@
 
 import fs from 'node:fs';
 
+// Load .env (simple parser — no dependency).
+try {
+  const env = fs.readFileSync(new URL('../.env', import.meta.url), 'utf8');
+  for (const line of env.split('\n')) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+} catch {}
+
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !KEY) {
-  console.error('Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars first.');
+  console.error('Missing SUPABASE_SERVICE_ROLE_KEY. Add it to .env (Supabase dashboard → Settings → API → service_role).');
   process.exit(1);
 }
 
