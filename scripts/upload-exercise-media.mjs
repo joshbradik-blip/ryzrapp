@@ -44,7 +44,7 @@ async function uploadOne(id, kind, url) {
     const buf = Buffer.from(await res.arrayBuffer());
     const up = await fetch(`${SUPABASE_URL}/storage/v1/object/exercise-media/${id}.${ext}`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': contentType, 'x-upsert': 'true' },
+      headers: { Authorization: `Bearer ${KEY}`, apikey: KEY, 'Content-Type': contentType, 'x-upsert': 'true' },
       body: buf,
     });
     console.log(`  ${up.ok ? 'OK ' : 'ERR'} ${id}.${ext}${up.ok ? '' : ' — ' + (await up.text())}`);
