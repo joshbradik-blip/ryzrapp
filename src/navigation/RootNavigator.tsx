@@ -9,15 +9,16 @@ import { useProfileStore } from '../store/profileStore';
 import { useIntroStore } from '../store/introStore';
 import { useSubscriptionStore } from '../store/subscriptionStore';
 import { supabase } from '../lib/supabase';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Linking } from 'react-native';
 import { Colors } from '../constants/theme';
 import * as SecureStore from 'expo-secure-store';
 import IntroScreen from '../screens/intro/IntroScreen';
+import { ResetPasswordScreen } from '../screens/auth/ResetPasswordScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { session, setSession, setInitialized, initialized } = useAuthStore();
+  const { session, setSession, setInitialized, initialized, passwordRecovery } = useAuthStore();
   const { profile } = useProfileStore();
   const { seen: introSeen, initSeen } = useIntroStore();
   const { initialize } = useSubscriptionStore();
@@ -35,11 +36,43 @@ export function RootNavigator() {
       setInitialized();
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
+      if (event === 'PASSWORD_RECOVERY') useAuthStore.getState().setPasswordRecovery(true);
     });
 
-    return () => subscription.unsubscribe();
+    // Handle password-recovery deep links (ryzr://reset-password?code=… or #access_token=…)
+    const handleUrl = async (url: string | null) => {
+      if (!url || !url.includes('reset-password')) return;
+      try {
+        const queryStr = url.includes('?') ? url.split('?')[1].split('#')[0] : '';
+        const hashStr = url.includes('#') ? url.split('#')[1] : '';
+        const query = new URLSearchParams(queryStr);
+        const hash = new URLSearchParams(hashStr);
+        const code = query.get('code');
+        const access_token = hash.get('access_token') ?? query.get('access_token');
+        const refresh_token = hash.get('refresh_token') ?? query.get('refresh_token');
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) return;
+        } else if (access_token && refresh_token) {
+          const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+          if (error) return;
+        } else {
+          return;
+        }
+        useAuthStore.getState().setPasswordRecovery(true);
+      } catch {
+        // invalid/expired link — login screen stays reachable for a resend
+      }
+    };
+    Linking.getInitialURL().then(handleUrl);
+    const urlSub = Linking.addEventListener('url', (e) => handleUrl(e.url));
+
+    return () => {
+      subscription.unsubscribe();
+      urlSub.remove();
+    };
   }, []);
 
   // Run initialize whenever the signed-in user changes
@@ -61,6 +94,8 @@ export function RootNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
       {!introSeen ? (
         <Stack.Screen name="Intro" component={IntroScreen} />
+      ) : passwordRecovery && session ? (
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       ) : !session ? (
         <Stack.Screen name="Auth" component={AuthNavigator} />
       ) : showOnboarding ? (

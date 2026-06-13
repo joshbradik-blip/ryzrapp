@@ -33,8 +33,14 @@ export function LoginScreen({ navigation }: Props) {
       Alert.alert('Enter your email', 'Please enter your email address first.');
       return;
     }
-    await supabase.auth.resetPasswordForEmail(email.trim());
-    Alert.alert('Check your email', 'We sent a password reset link to ' + email.trim());
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: 'ryzr://reset-password',
+    });
+    if (error) {
+      Alert.alert('Something went wrong', 'Could not send the reset email. Check your connection and try again.');
+      return;
+    }
+    Alert.alert('Check your email', `If an account exists for ${email.trim()}, a password reset link is on its way.`);
   };
 
   const validate = () => {

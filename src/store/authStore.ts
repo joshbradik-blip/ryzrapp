@@ -8,12 +8,14 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   initialized: boolean;
+  passwordRecovery: boolean;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   setSession: (session: Session | null) => void;
   setInitialized: () => void;
+  setPasswordRecovery: (v: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -21,11 +23,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: false,
   initialized: false,
+  passwordRecovery: false,
 
   setSession: (session) =>
     set({ session, user: session?.user ?? null }),
 
   setInitialized: () => set({ initialized: true }),
+
+  setPasswordRecovery: (v) => set({ passwordRecovery: v }),
 
   signUp: async (email, password, name) => {
     set({ loading: true });

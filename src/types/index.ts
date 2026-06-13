@@ -101,6 +101,7 @@ export interface Session {
 export type RootStackParamList = {
   Intro: undefined;
   Auth: undefined;
+  ResetPassword: undefined;
   Onboarding: undefined;
   Main: undefined;
 };
