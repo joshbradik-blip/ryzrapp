@@ -99,6 +99,16 @@ export interface Session {
   sets: SessionSet[];
 }
 
+export interface BodyMeasurement {
+  id: string;
+  recorded_at: string;
+  weight_kg: number | null;
+  neck_cm: number | null;
+  waist_cm: number | null;
+  hip_cm: number | null;
+  body_fat_pct: number | null;
+}
+
 export type RootStackParamList = {
   Intro: undefined;
   Auth: undefined;
