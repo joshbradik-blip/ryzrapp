@@ -54,6 +54,7 @@ export interface Exercise {
   execution_cues: string[];
   common_mistakes: string[];
   video_url?: string;
+  media_url?: string;
   contraindications: string[];
 }
 
@@ -149,6 +150,7 @@ export interface ExerciseDBExercise {
   description: string;
   difficulty: string;
   category: string;
+  gifUrl?: string;
 }
 
 export type SubstituteSource = 'local' | 'exercisedb';

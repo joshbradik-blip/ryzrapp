@@ -83,6 +83,7 @@ function buildReplacementExercise(
     setup_cues: db.instructions.slice(0, 2),
     execution_cues: db.instructions.slice(2),
     common_mistakes: [],
+    media_url: db.gifUrl,
     contraindications: [],
   };
 }
