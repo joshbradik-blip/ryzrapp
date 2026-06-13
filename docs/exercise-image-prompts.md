@@ -1,0 +1,109 @@
+# RYZR Exercise Demo Image Prompts
+
+These prompts generate the stylized hero images shown on the Exercise Detail screen.
+
+## Workflow
+
+1. Generate each image with your image tool (Higgsfield Soul, OpenAI gpt-image-1, etc.) using the prompt below.
+2. Export as **PNG**, square (1:1).
+3. Rename the file to the exercise's id, e.g. `squat.png`, `goblet_squat.png` (the filename is listed with each prompt).
+4. Upload to the Supabase Storage bucket **`exercise-media`** (dashboard → Storage → exercise-media → Upload). Public read is already enabled.
+
+The app resolves images by convention at `exercise-media/{id}.png`. Until an image exists, the screen shows a branded fallback (exercise initial + muscle chips) — so you can upload them in any order, any time, with no app release.
+
+## Shared style block
+
+Prepend or include this in every prompt so all 29 images look like one set:
+
+> **STYLE:** Stylized dark 3D render of a single muscular athletic figure, matte charcoal-black body with subtle ember-orange rim lighting from the right, pure black background, dramatic studio lighting, photoreal materials, centered composition, square 1:1 crop, no text, no watermark, no logos.
+
+---
+
+## Prompts
+
+### Back Squat → `squat.png`
+STYLE, performing a barbell back squat at the bottom position: bar racked across upper traps, thighs at parallel, chest tall, knees tracking over toes.
+
+### Goblet Squat → `goblet_squat.png`
+STYLE, performing a goblet squat: holding a single dumbbell vertically at chest height, deep squat with elbows inside the knees, torso upright.
+
+### Conventional Deadlift → `deadlift.png`
+STYLE, at the lockout of a conventional barbell deadlift: standing tall, shoulders back, barbell at hip height, neutral spine.
+
+### Romanian Deadlift → `rdl.png`
+STYLE, mid Romanian deadlift: slight knee bend, hips pushed back, barbell sliding down the thighs to mid-shin, flat back, hamstrings loaded.
+
+### Barbell Bench Press → `bench_press.png`
+STYLE, lying on a flat bench pressing a barbell: arms near full extension above the chest, feet planted, slight arch.
+
+### Push-Up → `push_up.png`
+STYLE, in the bottom of a push-up: rigid plank line head to heels, elbows at ~45 degrees, chest just above the floor.
+
+### Overhead Press → `overhead_press.png`
+STYLE, standing overhead press at lockout: barbell pressed directly overhead, biceps by the ears, braced core, glutes tight.
+
+### Pull-Up → `pull_up.png`
+STYLE, at the top of a pull-up: chin over a fixed bar, lats engaged, body hanging tall from an overhand grip.
+
+### Barbell Bent-Over Row → `bent_over_row.png`
+STYLE, mid barbell bent-over row: hinged torso near 45 degrees, flat back, barbell pulled to the lower ribs, elbows driving back.
+
+### Single-Arm Dumbbell Row → `dumbbell_row.png`
+STYLE, single-arm dumbbell row: one knee and hand on a bench, opposite arm rowing a dumbbell to the hip, flat back.
+
+### Walking Lunge → `lunge.png`
+STYLE, mid walking lunge: long stride, front thigh parallel to the floor, back knee hovering just above the ground, upright torso.
+
+### Hip Thrust → `hip_thrust.png`
+STYLE, at the top of a barbell hip thrust: upper back on a bench, barbell across the hips, full hip extension, ribs down.
+
+### Glute Bridge → `glute_bridge.png`
+STYLE, at the top of a floor glute bridge: shoulders on the ground, hips driven up to a straight line knees-to-shoulders.
+
+### Plank → `plank.png`
+STYLE, holding a forearm plank: forearms and toes on the ground, perfectly straight body line, braced core.
+
+### Dead Bug → `deadbug.png`
+STYLE, performing a dead bug: lying on back, one arm overhead and opposite leg extended, low back pressed to the floor.
+
+### Pallof Press → `pallof_press.png`
+STYLE, performing a Pallof press: standing side-on to a cable, arms pressing a handle straight out from the chest, braced anti-rotation core.
+
+### Face Pull → `face_pull.png`
+STYLE, mid face pull: pulling a rope attachment toward the face at eye level, elbows high and wide, rear delts engaged.
+
+### Bulgarian Split Squat → `bulgarian_split_squat.png`
+STYLE, bottom of a Bulgarian split squat: rear foot elevated on a bench, front thigh parallel to the floor, upright torso.
+
+### Lat Pulldown → `lat_pulldown.png`
+STYLE, mid lat pulldown: seated, pulling a wide bar down to the upper chest, elbows driving down, slight backward lean.
+
+### Tricep Dip → `tricep_dip.png`
+STYLE, bottom of a tricep dip on parallel bars: elbows bent to ~90 degrees, torso upright, shoulders above the hands.
+
+### Dumbbell Bicep Curl → `bicep_curl.png`
+STYLE, top of a standing dumbbell bicep curl: dumbbells curled to shoulder height, elbows pinned to the sides, controlled squeeze.
+
+### Lateral Raise → `lateral_raise.png`
+STYLE, top of a dumbbell lateral raise: arms raised out to the sides to shoulder height, slight elbow bend, side delts engaged.
+
+### Calf Raise → `calf_raise.png`
+STYLE, top of a standing calf raise: up on the balls of the feet, heels lifted high, tall posture.
+
+### Mountain Climber → `mountain_climber.png`
+STYLE, mid mountain climber: high plank position, one knee driven toward the chest, the other leg extended, athletic tension.
+
+### Jumping Jack → `jumping_jack.png`
+STYLE, mid jumping jack: airborne with arms overhead and legs spread wide, dynamic energetic pose.
+
+### Box Jump → `box_jump.png`
+STYLE, landing on top of a plyo box: athletic two-foot landing in a quarter squat, arms swinging down, explosive posture.
+
+### Rowing Machine → `row_machine.png`
+STYLE, mid stroke on an indoor rowing machine: legs driving, torso leaning back slightly, handle pulled to the lower ribs.
+
+### Band Pull-Apart → `band_pull_apart.png`
+STYLE, mid band pull-apart: arms extended at shoulder height, pulling a resistance band apart across the chest, rear delts engaged.
+
+### Kettlebell Swing → `kb_swing.png`
+STYLE, top of a kettlebell swing: kettlebell floating at chest height, hips fully extended, arms straight, athletic standing posture.
