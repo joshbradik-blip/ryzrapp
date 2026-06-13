@@ -11,6 +11,17 @@ These prompts generate the stylized hero images shown on the Exercise Detail scr
 
 The app resolves images by convention at `exercise-media/{id}.png`. Until an image exists, the screen shows a branded fallback (exercise initial + muscle chips) — so you can upload them in any order, any time, with no app release.
 
+## Demo clips (motion)
+
+The hero also plays a short looping video when one exists, resolved at `exercise-media/{id}.mp4` (preferred over the still). Workflow:
+
+1. Generate the still (prompt below).
+2. Animate it into a **short looping clip** (2–4s) with an image-to-video tool — Higgsfield (Soul/image-to-video) or Google **Veo** (via the Gemini API / AI Studio). Prompt the motion to match the exercise (e.g. "smooth looping squat, descend and stand").
+3. Export **H.264 MP4**, small resolution (e.g. 720×720), short — keep file size low for streaming.
+4. Name it `{id}.mp4` and upload to the same `exercise-media` bucket.
+
+The app resolves **clip → still → branded fallback**, so clips are entirely optional and can be added later, per exercise, with no app release.
+
 ## Shared style block
 
 Prepend or include this in every prompt so all 29 images look like one set:
