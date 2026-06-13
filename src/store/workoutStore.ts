@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Workout, WorkoutExercise, Session, SessionSet, Exercise, ExerciseDBExercise } from '../types';
 import { EXERCISES } from '../constants/exercises';
 import { supabase } from '../lib/supabase';
+import { useHistoryStore } from './historyStore';
 
 interface ActiveSet {
   workoutExerciseId: string;
@@ -229,6 +230,9 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
           sets,
         },
       });
+      // Refresh history-derived metrics (streaks, ghost values, volume, heat).
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) useHistoryStore.getState().fetchHistory(user.id).catch(() => {});
     } catch (e) {
       console.error('[workoutStore] saveSession failed:', e);
     }
