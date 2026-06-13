@@ -98,43 +98,6 @@ export interface Session {
   sets: SessionSet[];
 }
 
-export interface SocialPost {
-  id: string;
-  user_id: string;
-  user_name: string;
-  user_avatar?: string;
-  session_id: string;
-  workout_name: string;
-  duration_min: number;
-  exercise_count: number;
-  felt_rating: FeltRating;
-  caption?: string;
-  likes: number;
-  liked_by_me: boolean;
-  created_at: string;
-}
-
-export interface Challenge {
-  id: string;
-  name: string;
-  description: string;
-  ends_at: string;
-  participants: number;
-  my_rank?: number;
-  my_progress: number;
-  target: number;
-}
-
-export interface StoreProduct {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  type: 'program' | 'subscription_monthly' | 'subscription_yearly';
-  duration_label?: string;
-  tag?: string;
-}
-
 export type RootStackParamList = {
   Intro: undefined;
   Auth: undefined;
@@ -161,7 +124,6 @@ export type OnboardingStackParamList = {
 export type MainTabParamList = {
   Today: undefined;
   Progress: undefined;
-  Social: undefined;
   Store: undefined;
   Profile: undefined;
 };
