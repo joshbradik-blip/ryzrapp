@@ -5,15 +5,17 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { WebView } from 'react-native-webview';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TodayStackParamList } from '../../types';
 import { getExerciseById } from '../../constants/exercises';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
+import { useWorkoutStore } from '../../store/workoutStore';
+import { exerciseImageUrl } from '../../lib/exerciseMedia';
+import { ExerciseHero } from '../../components/workout/ExerciseHero';
+import { SectionLabel } from '../../components/ui/SectionLabel';
 import { Colors } from '../../constants/theme';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'ExerciseDetail'>;
@@ -34,10 +36,15 @@ const MUSCLE_COLORS: Record<string, string> = {
 
 export function ExerciseDetailScreen({ navigation, route }: Props) {
   const { exerciseId, workoutId, workoutExerciseId } = route.params;
-  const exercise = getExerciseById(exerciseId);
+  // getExerciseById only knows the curated 30. Swapped-in ExerciseDB exercises
+  // live in the active plan, so fall back to searching the workout store.
+  const swapped = useWorkoutStore((s) =>
+    [...s.workouts.flatMap((w) => w.exercises), ...(s.todayWorkout?.exercises ?? [])]
+      .find((we) => we.exercise.id === exerciseId)?.exercise
+  );
+  const exercise = getExerciseById(exerciseId) ?? swapped;
   const { isPremium } = useSubscriptionStore();
   const [activeTab, setActiveTab] = useState<typeof TABS[number]>('Setup');
-  const [videoLoading, setVideoLoading] = useState(true);
 
   if (!exercise) {
     return (
@@ -48,8 +55,6 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
   }
 
   const canSwap = !!(workoutId && workoutExerciseId);
-  const videoQuery = encodeURIComponent(`${exercise.name} proper form tutorial`);
-  const embedUrl = `https://m.youtube.com/results?search_query=${videoQuery}`;
 
   const handleSwap = () => {
     if (!canSwap) {
@@ -78,22 +83,12 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Embedded demo video */}
-        <View style={{ height: 220, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
-          {videoLoading && (
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
-              <ActivityIndicator color={Colors.primary} size="large" />
-            </View>
-          )}
-          <WebView
-            source={{ uri: embedUrl }}
-            style={{ flex: 1, backgroundColor: Colors.surface }}
-            onLoad={() => setVideoLoading(false)}
-            allowsInlineMediaPlayback
-            mediaPlaybackRequiresUserAction={false}
-            javaScriptEnabled
-          />
-        </View>
+        <ExerciseHero
+          name={exercise.name}
+          mediaUrl={exercise.media_url ?? exerciseImageUrl(exercise.id)}
+          muscles={exercise.muscles_primary}
+          cues={[...exercise.setup_cues, ...exercise.execution_cues]}
+        />
 
         <View style={{ padding: 24 }}>
           {/* Name & difficulty */}
@@ -119,9 +114,7 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
           </View>
 
           {/* Muscles */}
-          <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5, marginBottom: 10 }}>
-            MUSCLES WORKED
-          </Text>
+          <SectionLabel style={{ marginBottom: 10 }}>Muscles Worked</SectionLabel>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
             {exercise.muscles_primary.map((m) => (
               <View key={m} style={{
