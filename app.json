@@ -29,7 +29,7 @@
     },
     "android": {
       "package": "com.ryzr.app",
-      "versionCode": 18,
+      "versionCode": 19,
       "minSdkVersion": 28,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
