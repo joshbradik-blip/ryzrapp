@@ -30,8 +30,8 @@ const all = args.includes('--all');
 const li = args.indexOf('--limit');
 const limit = all ? Infinity : (li >= 0 ? parseInt(args[li + 1], 10) : 5);
 
-const STYLE = 'Minimal clean line-art figure demonstrating a fitness exercise, thin ember-orange (#FF6B22) lines on a solid near-black charcoal background, instructional diagram style, single centered figure, no text, no watermark';
-const MODEL = 'imagen-4.0-fast-generate-001';
+const STYLE = 'Minimal clean line-art diagram of ONE single person in the key working position of a fitness exercise, exactly one anatomically correct figure with two arms and two legs, thin ember-orange (#FF6B22) lines on a solid near-black charcoal background, side profile, clean instructional style, no extra limbs, no duplicate figures, no text, no labels, no watermark';
+const MODEL = 'imagen-4.0-generate-001';
 const IMAGEN_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:predict`;
 
 async function fetchExercises() {
@@ -52,7 +52,8 @@ async function fetchExercises() {
 
 async function genAndUpload(ex) {
   const id = `edb_${ex.id}`;
-  const prompt = `${STYLE}, demonstrating the "${ex.name}" exercise: ${(ex.instructions?.[0] ?? ex.name)}`;
+  const how = (ex.instructions ?? []).slice(0, 2).join(' ') || ex.name;
+  const prompt = `${STYLE}. The exercise is "${ex.name}". Show the single figure in the main working position. Context: ${how}`;
   const gen = await fetch(IMAGEN_URL, {
     method: 'POST',
     headers: { 'x-goog-api-key': GEMINI_KEY, 'Content-Type': 'application/json' },
