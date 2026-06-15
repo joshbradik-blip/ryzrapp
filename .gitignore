@@ -47,6 +47,9 @@ yarn-error.*
 # Supabase temp
 supabase/.temp/
 
+# generated exercise catalog cache (scripts/generate-stick-figures.mjs)
+scripts/exercisedb-list.json
+
 # typescript
 *.tsbuildinfo
 
