@@ -6,13 +6,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types';
 import { Colors } from '../../constants/theme';
+import { SubscriptionTerms } from '../../components/ui/SubscriptionTerms';
 import {
   useSubscriptionStore,
   PRICE_MONTHLY,
@@ -57,6 +57,14 @@ export function ChoosePlanScreen({ navigation }: Props) {
   const monthlyPkg = packages.find((p) => p.packageType === 'MONTHLY');
   const annualPkg = packages.find((p) => p.packageType === 'ANNUAL');
   const lifetimePkg = packages.find((p) => p.packageType === 'LIFETIME');
+
+  // Prefer the live, localized RevenueCat price so the displayed price always
+  // matches what Apple charges; fall back to constants only until offerings load.
+  const monthlyPrice = monthlyPkg?.product.priceString ?? `$${PRICE_MONTHLY}`;
+  const annualPrice = annualPkg?.product.priceString ?? `$${PRICE_ANNUAL}`;
+  const annualPerMonth = annualPkg
+    ? annualPkg.product.priceString.replace(/[\d.,]+/, (annualPkg.product.price / 12).toFixed(2))
+    : `$${(PRICE_ANNUAL / 12).toFixed(2)}`;
   const lifetimePrice = lifetimePkg?.product.priceString ?? `$${PRICE_LIFETIME}`;
 
   const offeringsLoading = loading && packages.length === 0;
@@ -199,7 +207,8 @@ export function ChoosePlanScreen({ navigation }: Props) {
               >
                 {loading ? <ActivityIndicator color="#000" /> : (
                   <>
-                    <Text style={{ color: '#000', fontWeight: '900', fontSize: 17 }}>
+                    <Text style={{ color: '#00000099', fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>ONE-TIME PURCHASE · NO AUTO-RENEWAL</Text>
+                    <Text style={{ color: '#000', fontWeight: '900', fontSize: 17, marginTop: 3 }}>
                       🏆 Founding Member — {lifetimePrice} Lifetime
                     </Text>
                     <Text style={{ color: '#00000077', fontSize: 12, marginTop: 3 }}>
@@ -223,11 +232,12 @@ export function ChoosePlanScreen({ navigation }: Props) {
                 borderColor: slotsGone ? Colors.primary : Colors.border,
               }}
             >
-              <Text style={{ color: slotsGone ? '#000' : Colors.text, fontWeight: '800', fontSize: 16 }}>
-                Annual — ${PRICE_ANNUAL}/yr
+              <Text style={{ color: slotsGone ? '#00000099' : Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>AUTO-RENEWING SUBSCRIPTION</Text>
+              <Text style={{ color: slotsGone ? '#000' : Colors.text, fontWeight: '800', fontSize: 16, marginTop: 3 }}>
+                Annual — {annualPrice}/yr
               </Text>
               <Text style={{ color: slotsGone ? '#00000088' : Colors.muted, fontSize: 12, marginTop: 2 }}>
-                ${(PRICE_ANNUAL / 12).toFixed(2)}/mo · Best value
+                {annualPerMonth}/mo · billed yearly, auto-renews
               </Text>
             </TouchableOpacity>
 
@@ -244,10 +254,11 @@ export function ChoosePlanScreen({ navigation }: Props) {
                 borderColor: Colors.border,
               }}
             >
-              <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>
-                Monthly — ${PRICE_MONTHLY}/mo
+              <Text style={{ color: Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>AUTO-RENEWING SUBSCRIPTION</Text>
+              <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16, marginTop: 3 }}>
+                Monthly — {monthlyPrice}/mo
               </Text>
-              <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 2 }}>Cancel anytime</Text>
+              <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 2 }}>Billed monthly, auto-renews · cancel anytime</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -283,12 +294,7 @@ export function ChoosePlanScreen({ navigation }: Props) {
           <Text style={{ color: Colors.muted, fontSize: 13 }}>Restore purchases</Text>
         </TouchableOpacity>
 
-        <Text style={{ color: Colors.muted, fontSize: 11, textAlign: 'center', lineHeight: 16 }}>
-          Subscriptions auto-renew. Cancel anytime in your App Store account settings.{'\n'}
-          <Text style={{ color: Colors.muted, fontSize: 11, textDecorationLine: 'underline' }} onPress={() => Linking.openURL('https://joshbradik-blip.github.io/ryzr-privacy/privacy-policy.html')}>Privacy Policy</Text>
-          {'  '}
-          <Text style={{ color: Colors.muted, fontSize: 11, textDecorationLine: 'underline' }} onPress={() => Linking.openURL('https://joshbradik-blip.github.io/ryzr-privacy/terms-of-service.html')}>Terms of Service</Text>
-        </Text>
+        <SubscriptionTerms />
       </ScrollView>
     </SafeAreaView>
   );

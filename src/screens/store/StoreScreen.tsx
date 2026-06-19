@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
+import { SubscriptionTerms } from '../../components/ui/SubscriptionTerms';
 import {
   useSubscriptionStore,
   PRICE_MONTHLY,
@@ -276,7 +277,8 @@ export function StoreScreen() {
                       </View>
                       {loading ? <ActivityIndicator color="#000" /> : (
                         <>
-                          <Text style={{ color: '#000', fontSize: 20, fontWeight: '900' }}>Founding Member</Text>
+                          <Text style={{ color: '#00000099', fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>ONE-TIME PURCHASE · NO AUTO-RENEWAL</Text>
+                          <Text style={{ color: '#000', fontSize: 20, fontWeight: '900', marginTop: 4 }}>Founding Member</Text>
                           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
                             <Text style={{ color: '#000', fontSize: 32, fontWeight: '900' }}>{lifetimePrice}</Text>
                             <Text style={{ color: '#00000099', fontSize: 14 }}>one-time</Text>
@@ -305,12 +307,13 @@ export function StoreScreen() {
                         <Text style={{ color: '#000', fontSize: 11, fontWeight: '800' }}>BEST VALUE — SAVE 50%</Text>
                       </View>
                     )}
-                    <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Annual Plan</Text>
+                    <Text style={{ color: Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>AUTO-RENEWING SUBSCRIPTION</Text>
+                    <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900', marginTop: 4 }}>Annual Plan</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
                       <Text style={{ color: slotsGone ? Colors.primary : Colors.text, fontSize: 32, fontWeight: '900' }}>{annualPrice}</Text>
                       <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>/ year</Text>
                     </View>
-                    <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 2 }}>{annualPerMonth}/month billed annually</Text>
+                    <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 2 }}>{annualPerMonth}/month · billed annually, auto-renews</Text>
                   </TouchableOpacity>
 
                   {/* Monthly */}
@@ -325,12 +328,13 @@ export function StoreScreen() {
                       borderColor: Colors.border,
                     }}
                   >
-                    <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Monthly Plan</Text>
+                    <Text style={{ color: Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>AUTO-RENEWING SUBSCRIPTION</Text>
+                    <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900', marginTop: 4 }}>Monthly Plan</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
                       <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900' }}>{monthlyPrice}</Text>
                       <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>/ month</Text>
                     </View>
-                    <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 2 }}>Cancel anytime</Text>
+                    <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 2 }}>Billed monthly, auto-renews · cancel anytime</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -338,17 +342,7 @@ export function StoreScreen() {
                   <Text style={{ color: Colors.muted, fontSize: 13 }}>Restore purchases</Text>
                 </TouchableOpacity>
 
-                <Text style={{ color: Colors.muted, fontSize: 11, textAlign: 'center', lineHeight: 16, marginTop: 4 }}>
-                  Subscriptions auto-renew. Cancel anytime in your App Store account settings.
-                </Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 10 }}>
-                  <TouchableOpacity onPress={() => Linking.openURL('https://joshbradik-blip.github.io/ryzr-privacy/privacy-policy.html')}>
-                    <Text style={{ color: Colors.muted, fontSize: 11, textDecorationLine: 'underline' }}>Privacy Policy</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => Linking.openURL('https://joshbradik-blip.github.io/ryzr-privacy/terms-of-service.html')}>
-                    <Text style={{ color: Colors.muted, fontSize: 11, textDecorationLine: 'underline' }}>Terms of Service</Text>
-                  </TouchableOpacity>
-                </View>
+                <SubscriptionTerms />
               </>
             )}
           </View>

@@ -7,10 +7,10 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
+import { SubscriptionTerms } from './SubscriptionTerms';
 import {
   useSubscriptionStore,
   PRICE_MONTHLY,
@@ -196,7 +196,8 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
                       <ActivityIndicator color="#000" />
                     ) : (
                       <>
-                        <Text style={{ color: '#000', fontWeight: '900', fontSize: 16 }}>
+                        <Text style={{ color: '#00000099', fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>ONE-TIME PURCHASE · NO AUTO-RENEWAL</Text>
+                        <Text style={{ color: '#000', fontWeight: '900', fontSize: 16, marginTop: 3 }}>
                           Founding Member — {lifetimePrice} Lifetime
                         </Text>
                         <Text style={{ color: '#00000088', fontSize: 12, marginTop: 2 }}>
@@ -220,11 +221,12 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
                     borderColor: slotsGone ? Colors.primary : Colors.border,
                   }}
                 >
-                  <Text style={{ color: slotsGone ? '#000' : Colors.text, fontWeight: '800', fontSize: 15 }}>
+                  <Text style={{ color: slotsGone ? '#00000099' : Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>AUTO-RENEWING SUBSCRIPTION</Text>
+                  <Text style={{ color: slotsGone ? '#000' : Colors.text, fontWeight: '800', fontSize: 15, marginTop: 3 }}>
                     Annual — {annualPrice}/yr
                   </Text>
                   <Text style={{ color: slotsGone ? '#00000099' : Colors.muted, fontSize: 12, marginTop: 2 }}>
-                    {annualPerMonth}/mo · Save 50%
+                    {annualPerMonth}/mo · billed yearly, auto-renews
                   </Text>
                 </TouchableOpacity>
 
@@ -241,10 +243,11 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
                     borderColor: Colors.border,
                   }}
                 >
-                  <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>
+                  <Text style={{ color: Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>AUTO-RENEWING SUBSCRIPTION</Text>
+                  <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15, marginTop: 3 }}>
                     Monthly — {monthlyPrice}/mo
                   </Text>
-                  <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 2 }}>Cancel anytime</Text>
+                  <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 2 }}>Billed monthly, auto-renews · cancel anytime</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -253,17 +256,7 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
               <Text style={{ color: Colors.muted, fontSize: 13 }}>Restore purchases</Text>
             </TouchableOpacity>
 
-            <Text style={{ color: Colors.muted, fontSize: 11, textAlign: 'center', lineHeight: 16 }}>
-              Subscriptions auto-renew. Cancel anytime in your App Store account settings.
-            </Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 10 }}>
-              <TouchableOpacity onPress={() => Linking.openURL('https://joshbradik-blip.github.io/ryzr-privacy/privacy-policy.html')}>
-                <Text style={{ color: Colors.muted, fontSize: 11, textDecorationLine: 'underline' }}>Privacy Policy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => Linking.openURL('https://joshbradik-blip.github.io/ryzr-privacy/terms-of-service.html')}>
-                <Text style={{ color: Colors.muted, fontSize: 11, textDecorationLine: 'underline' }}>Terms of Service</Text>
-              </TouchableOpacity>
-            </View>
+            <SubscriptionTerms />
           </ScrollView>
         </View>
       </View>
