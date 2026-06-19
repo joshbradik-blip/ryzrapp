@@ -140,6 +140,11 @@ export type MainTabParamList = {
   Profile: undefined;
 };
 
+export type ProfileStackParamList = {
+  ProfileHome: undefined;
+  Wearables: undefined;
+};
+
 export type TodayStackParamList = {
   TodayHome: undefined;
   WorkoutSession: { workoutId: string };

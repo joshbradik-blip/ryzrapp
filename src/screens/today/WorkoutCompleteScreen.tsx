@@ -7,7 +7,7 @@ import { TodayStackParamList } from '../../types';
 import { useWorkoutStore } from '../../store/workoutStore';
 import { useProfileStore } from '../../store/profileStore';
 import { Colors } from '../../constants/theme';
-import * as Haptics from 'expo-haptics';
+import { haptic } from '../../lib/feedback';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutComplete'>;
 
@@ -24,7 +24,7 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
     : 0;
 
   useEffect(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    haptic.success();
     Animated.parallel([
       Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 60, friction: 5 }),
       Animated.timing(opacityAnim, { toValue: 1, duration: 400, useNativeDriver: true }),

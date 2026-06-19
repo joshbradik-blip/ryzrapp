@@ -11,6 +11,8 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store/authStore';
@@ -18,9 +20,12 @@ import { useProfileStore } from '../../store/profileStore';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useWorkoutStore } from '../../store/workoutStore';
 import { useHistoryStore } from '../../store/historyStore';
+import { useWearablesStore } from '../../store/wearablesStore';
+import { useSettingsStore } from '../../store/settingsStore';
+import { PremiumModal } from '../../components/ui/PremiumModal';
 import { generateWorkoutPlan } from '../../lib/anthropic';
 import { kgToDisplay, displayToKg, weightLabel } from '../../lib/units';
-import { InjurySeverity } from '../../types';
+import { InjurySeverity, GoalCategory, ProfileStackParamList } from '../../types';
 
 const BODY_PARTS = ['lower_back','knees','left_shoulder','right_shoulder','wrists','elbows','neck','hips','ankles'];
 const PART_LABELS: Record<string, string> = {
@@ -93,11 +98,15 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 export function ProfileScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<ProfileStackParamList>>();
   const { signOut, deleteAccount, session } = useAuthStore();
   const { profile, injuries, disabilities, schedulePrefs, goals, equipment, setEquipment, setDisabilities, setProfile } = useProfileStore();
   const { isPremium } = useSubscriptionStore();
   const { setWorkouts, setTodayWorkout } = useWorkoutStore();
   const { totalSessions, currentStreak, bestWeights, fetchHistory } = useHistoryStore();
+  const connectedWearables = useWearablesStore((s) => s.connected);
+
+  const [premiumOpen, setPremiumOpen] = useState(false);
 
   const userId = session?.user?.id;
   useEffect(() => {
@@ -108,8 +117,7 @@ export function ProfileScreen() {
     (b) => Date.now() - new Date(b.at).getTime() < 30 * 86400000
   ).length;
 
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [hapticsEnabled, setHapticsEnabled] = useState(true);
+  const { voiceEnabled, hapticsEnabled, setVoiceEnabled, setHapticsEnabled } = useSettingsStore();
   const units: 'imperial' | 'metric' = profile?.weight_unit === 'lbs' ? 'imperial' : 'metric';
   const setUnits = (u: 'imperial' | 'metric') =>
     setProfile({ weight_unit: u === 'imperial' ? 'lbs' : 'kg' });
@@ -199,7 +207,7 @@ export function ProfileScreen() {
     setDraftInjuries((prev) => {
       const existing = prev.find((i) => i.body_part === part);
       if (existing) return prev.filter((i) => i.body_part !== part);
-      return [...prev, { body_part: part, severity: 'cautious' as InjurySeverity }];
+      return [...prev, { id: Math.random().toString(36).slice(2), body_part: part, severity: 'cautious' as InjurySeverity }];
     });
   };
 
@@ -218,7 +226,13 @@ export function ProfileScreen() {
   };
 
   const saveGoals = () => {
-    useProfileStore.getState().setGoals([{ category: draftGoalCategory as any }]);
+    const existing = goals[0];
+    useProfileStore.getState().setGoals([{
+      id: existing?.id ?? Math.random().toString(36).slice(2),
+      category: draftGoalCategory as GoalCategory,
+      specific_activity: existing?.specific_activity,
+      target_weeks: existing?.target_weeks ?? 4,
+    }]);
     setGoalsModalVisible(false);
   };
 
@@ -262,7 +276,7 @@ export function ProfileScreen() {
       return;
     }
     if (!isPremium) {
-      Alert.alert('Premium Feature', 'Upgrade to RYZR Premium to regenerate your plan with the AI.');
+      setPremiumOpen(true);
       return;
     }
     Alert.alert('Regenerate Plan?', 'This will build you a fresh AI-powered workout plan based on your current profile.', [
@@ -383,6 +397,17 @@ export function ProfileScreen() {
             onPress={openEquipmentModal}
           />
           <SettingRow icon="flag-outline" label="Goals" value={goals[0]?.category?.replace(/_/g, ' ') ?? '—'} onPress={openGoalsModal} />
+        </View>
+
+        {/* Devices */}
+        <SectionHeader title="DEVICES" />
+        <View style={{ backgroundColor: Colors.surface, marginHorizontal: 16, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border }}>
+          <SettingRow
+            icon="watch-outline"
+            label="Wearables"
+            value={connectedWearables.length === 0 ? 'Add' : `${connectedWearables.length} connected`}
+            onPress={() => navigation.navigate('Wearables')}
+          />
         </View>
 
         {/* App preferences */}
@@ -708,6 +733,9 @@ export function ProfileScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Upgrade sheet */}
+      <PremiumModal visible={premiumOpen} onClose={() => setPremiumOpen(false)} />
     </SafeAreaView>
   );
 }

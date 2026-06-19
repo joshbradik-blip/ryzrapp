@@ -6,7 +6,7 @@ import { TodayNavigator } from './TodayNavigator';
 import { ProgressScreen } from '../screens/progress/ProgressScreen';
 // Social removed in 1.0.8 — to be rebuilt as a richer experience once the user base grows
 import { StoreScreen } from '../screens/store/StoreScreen';
-import { ProfileScreen } from '../screens/profile/ProfileScreen';
+import { ProfileNavigator } from './ProfileNavigator';
 import { Colors } from '../constants/theme';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -54,7 +54,7 @@ export function MainTabNavigator() {
       <Tab.Screen name="Today" component={TodayNavigator} />
       <Tab.Screen name="Progress" component={ProgressScreen} />
       <Tab.Screen name="Store" component={StoreScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Profile" component={ProfileNavigator} />
     </Tab.Navigator>
   );
 }

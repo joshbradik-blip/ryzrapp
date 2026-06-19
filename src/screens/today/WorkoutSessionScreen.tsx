@@ -19,7 +19,7 @@ import { kgToDisplay, displayToKg, WeightUnit } from '../../lib/units';
 import { Button } from '../../components/ui/Button';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { Colors } from '../../constants/theme';
-import * as Haptics from 'expo-haptics';
+import { haptic } from '../../lib/feedback';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutSession'>;
 
@@ -65,10 +65,10 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
           if (r <= 1) {
             clearInterval(timerRef.current!);
             setRestActive(false);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            haptic.success();
             return 0;
           }
-          if (r <= 4) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          if (r <= 4) haptic.impact('light');
           return r - 1;
         });
       }, 1000);
@@ -96,7 +96,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
 
   const handleLogSet = () => {
     if (!reps) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    haptic.impact('medium');
     const weightKg = displayToKg(parseFloat(weight) || 0, unit);
     logSet({
       workoutExerciseId: currentExercise.id,

@@ -14,7 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TodayStackParamList } from '../../types';
 import { Colors } from '../../constants/theme';
-import * as Haptics from 'expo-haptics';
+import { haptic } from '../../lib/feedback';
+import { useSettingsStore } from '../../store/settingsStore';
 import * as Speech from 'expo-speech';
 import { Camera, useCameraDevice, useCameraFormat } from 'react-native-vision-camera';
 import { analyzePoseSnapshot, PoseSnapshot } from '../../lib/anthropic';
@@ -78,7 +79,8 @@ export function FormCoachScreen({ navigation, route }: Props) {
   // Session state
   const [isActive, setIsActive] = useState(false);
   const [repCount, setRepCount] = useState(0);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  // Seed from the global Voice setting; the in-session toggle below can override it.
+  const [voiceEnabled, setVoiceEnabled] = useState(useSettingsStore.getState().voiceEnabled);
   const [showSummary, setShowSummary] = useState(false);
 
   // Live coach state
@@ -208,7 +210,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
         setRepCount(next);
         setRepFormScores(p => [...p, result.score]);
         if (result.formIssue) setAllFormIssues(p => [...p, result.formIssue!]);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+        haptic.impact('medium');
         if (voiceEnabled) {
           Speech.stop();
           Speech.speak(String(next), { rate: 1.0, pitch: 1.05 });
@@ -265,7 +267,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
   };
 
   const addManualRep = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    haptic.impact('light');
     const next = repCountRef.current + 1;
     repCountRef.current = next;
     setRepCount(next);
