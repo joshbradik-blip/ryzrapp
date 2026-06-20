@@ -4,8 +4,10 @@ import {
   HistorySession,
   HistorySet,
   HeatLevel,
+  LastSessionPerf,
   computeStreaks,
   lastSetByExercise,
+  lastSessionByExercise,
   bestWeightByExercise,
   weeklyVolume,
   muscleHeat,
@@ -25,6 +27,7 @@ interface HistoryState {
   totalSessions: number;
   thisWeekSessions: number;
   lastSets: Record<string, { weight_kg: number; reps: number }>;
+  lastSessionPerf: Record<string, LastSessionPerf>;
   bestWeights: Record<string, { weight_kg: number; at: string }>;
   volumeByWeek: { label: string; volumeKg: number }[];
   muscleHeatMap: Record<string, HeatLevel>;
@@ -52,6 +55,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   totalSessions: 0,
   thisWeekSessions: 0,
   lastSets: {},
+  lastSessionPerf: {},
   bestWeights: {},
   volumeByWeek: [],
   muscleHeatMap: {},
@@ -91,6 +95,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         totalSessions: sessions.length,
         thisWeekSessions: sessions.filter((s) => new Date(s.started_at).getTime() >= ws).length,
         lastSets: lastSetByExercise(sets),
+        lastSessionPerf: lastSessionByExercise(sets),
         bestWeights: bestWeightByExercise(sets),
         volumeByWeek: weeklyVolume(sessions, 8),
         muscleHeatMap: muscleHeat(sets, muscleLookup),
