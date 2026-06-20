@@ -427,3 +427,64 @@ Analyze this image and return ONLY valid JSON, no explanation or markdown:
     return { score: 75, isGoodForm: true, primaryIssue: null, cue: 'Keep going — good effort.' };
   }
 }
+
+export interface ChallengeInput {
+  exerciseId: string;
+  name: string;
+  lastSession: { weight: number; reps: number }[] | null; // DISPLAY unit
+  best: number | null;                                     // DISPLAY unit
+  targetSets: number;
+  targetReps: string;
+}
+
+// One batched call -> { exerciseId: challenge text }. Recall is built client-side
+// (deterministic); the model writes ONLY the challenge.
+export async function generateExerciseChallenges(
+  inputs: ChallengeInput[],
+  ctx: { name: string; unit: 'kg' | 'lbs' },
+): Promise<Record<string, string>> {
+  if (inputs.length === 0) return {};
+
+  const lines = inputs.map((e) => {
+    const last = e.lastSession && e.lastSession.length > 0
+      ? e.lastSession.map((s) => `${s.weight}${ctx.unit}x${s.reps}`).join(', ')
+      : 'no previous record (first time)';
+    const best = e.best != null ? `${e.best}${ctx.unit}` : 'n/a';
+    return `- id "${e.exerciseId}" | ${e.name} | last time: ${last} | best: ${best} | today's target: ${e.targetSets}x${e.targetReps}`;
+  }).join('\n');
+
+  const prompt = `You are RYZR's strength coach writing a punchy progressive-overload challenge for ${ctx.name}'s workout today.
+
+For EACH exercise below, write ONE short challenge (max 18 words) that:
+- starts with an action verb
+- references their actual numbers in ${ctx.unit}
+- pushes a sensible progression (add a rep, add weight, tighter tempo, or match a PR)
+- for first-time exercises, gives a smart baseline-setting challenge
+
+EXERCISES:
+${lines}
+
+Return ONLY valid JSON, no markdown, mapping each exercise id to its challenge string:
+{ ${inputs.map((e) => `"${e.exerciseId}": "..."`).join(', ')} }`;
+
+  try {
+    const data = await callAnthropic({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: Math.min(1024, 40 + 40 * inputs.length),
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const text: string = data.content?.[0]?.text ?? '{}';
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1 || end === -1) return {};
+    const parsed = JSON.parse(text.slice(start, end + 1));
+    const out: Record<string, string> = {};
+    for (const e of inputs) {
+      const v = parsed[e.exerciseId];
+      if (typeof v === 'string' && v.trim()) out[e.exerciseId] = v.trim();
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
