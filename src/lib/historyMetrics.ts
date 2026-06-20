@@ -65,6 +65,34 @@ export function lastSetByExercise(sets: HistorySet[]): Record<string, { weight_k
   return out;
 }
 
+export interface LastSessionPerf {
+  sets: { weight_kg: number; reps: number }[];
+  at: string; // date of that session (latest set's created_at)
+}
+
+// Sets from the most recent session each exercise appeared in, ordered by set_number.
+export function lastSessionByExercise(sets: HistorySet[]): Record<string, LastSessionPerf> {
+  // Find, per exercise, the session of its most recent set.
+  const latest: Record<string, { sessionId: string; at: string }> = {};
+  for (const s of sets) {
+    if (!s.exercise_id) continue;
+    const cur = latest[s.exercise_id];
+    if (!cur || s.created_at > cur.at) {
+      latest[s.exercise_id] = { sessionId: s.session_id, at: s.created_at };
+    }
+  }
+
+  const out: Record<string, LastSessionPerf> = {};
+  for (const [exId, { sessionId, at }] of Object.entries(latest)) {
+    const sessionSets = sets
+      .filter((s) => s.exercise_id === exId && s.session_id === sessionId)
+      .sort((a, b) => a.set_number - b.set_number)
+      .map((s) => ({ weight_kg: s.weight_kg, reps: s.reps }));
+    out[exId] = { sets: sessionSets, at };
+  }
+  return out;
+}
+
 // All-time best weight per exercise (for the PR nudge): { exercise_id: { weight_kg, at } }
 export function bestWeightByExercise(sets: HistorySet[]): Record<string, { weight_kg: number; at: string }> {
   const out: Record<string, { weight_kg: number; at: string }> = {};
