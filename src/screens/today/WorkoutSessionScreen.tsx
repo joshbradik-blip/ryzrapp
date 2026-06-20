@@ -15,6 +15,8 @@ import { useWorkoutStore } from '../../store/workoutStore';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useProfileStore } from '../../store/profileStore';
 import { useHistoryStore } from '../../store/historyStore';
+import { useAuthStore } from '../../store/authStore';
+import { ChallengeInput } from '../../lib/anthropic';
 import { kgToDisplay, displayToKg, WeightUnit } from '../../lib/units';
 import { Button } from '../../components/ui/Button';
 import { GradientButton } from '../../components/ui/GradientButton';
@@ -35,10 +37,11 @@ function fmtWeight(kg: number, unit: WeightUnit): string {
 
 export function WorkoutSessionScreen({ navigation, route }: Props) {
   const { workoutId } = route.params;
-  const { workouts, todayWorkout, startSession, logSet, nextExercise, currentExerciseIndex, completeSession } = useWorkoutStore();
+  const { workouts, todayWorkout, startSession, logSet, nextExercise, currentExerciseIndex, completeSession, exerciseChallenges, challengesLoading, loadChallenges } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
   const { profile, setProfile } = useProfileStore();
-  const { lastSets, bestWeights } = useHistoryStore();
+  const { lastSets, bestWeights, lastSessionPerf } = useHistoryStore();
+  const userId = useAuthStore((s) => s.session?.user?.id);
 
   const workout = workouts.find((w) => w.id === workoutId) ?? todayWorkout;
 
@@ -55,7 +58,30 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
   const isLastExercise = workout && currentExerciseIndex >= workout.exercises.length - 1;
 
   useEffect(() => {
-    if (workout) startSession(workout.id);
+    if (!workout) return;
+    startSession(workout.id);
+    if (!isPremium) return;
+
+    (async () => {
+      const hist = useHistoryStore.getState();
+      if (!hist.loaded && userId) await hist.fetchHistory(userId);
+      const fresh = useHistoryStore.getState();
+      const u = useProfileStore.getState().profile?.weight_unit ?? 'lbs';
+      const inputs: ChallengeInput[] = workout.exercises.map((we) => {
+        const id = we.exercise.id;
+        const ls = fresh.lastSessionPerf[id];
+        const b = fresh.bestWeights[id];
+        return {
+          exerciseId: id,
+          name: we.exercise.name,
+          lastSession: ls ? ls.sets.map((s) => ({ weight: kgToDisplay(s.weight_kg, u), reps: s.reps })) : null,
+          best: b ? kgToDisplay(b.weight_kg, u) : null,
+          targetSets: we.target_sets,
+          targetReps: we.target_reps,
+        };
+      });
+      loadChallenges(inputs, { name: useProfileStore.getState().profile?.name ?? 'Athlete', unit: u });
+    })();
   }, []);
 
   useEffect(() => {
@@ -93,6 +119,12 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
   const best = bestWeights[exId];
   const enteredKg = displayToKg(parseFloat(weight) || 0, unit);
   const prDeltaKg = best && enteredKg > best.weight_kg ? enteredKg - best.weight_kg : 0;
+
+  const lastSession = lastSessionPerf[exId];
+  const recallText = lastSession && lastSession.sets.length > 0
+    ? lastSession.sets.map((s) => `${fmtWeight(s.weight_kg, unit)}×${s.reps}`).join(', ')
+    : null;
+  const challengeText = exerciseChallenges[exId];
 
   const handleLogSet = () => {
     if (!reps) return;
@@ -204,6 +236,38 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
           {currentExercise.target_sets} sets × {currentExercise.target_reps}
           {currentExercise.target_rpe > 0 ? ` · RPE ${currentExercise.target_rpe}` : ''}
         </Text>
+
+        {/* COACH card */}
+        {isPremium ? (
+          <View style={{ backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.primary + '33', padding: 14, marginBottom: 20 }}>
+            <Text style={{ color: Colors.primary, fontSize: 11, fontWeight: '800', letterSpacing: 1.5, marginBottom: 8 }}>COACH</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: (challengeText || challengesLoading) ? 8 : 0 }}>
+              <Ionicons name="time-outline" size={15} color={Colors.textSecondary} />
+              <Text style={{ color: Colors.textSecondary, fontSize: 13, flex: 1 }}>
+                {recallText ? `Last time: ${recallText}` : 'First time — set your baseline.'}
+              </Text>
+            </View>
+            {challengesLoading && !challengeText ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="barbell-outline" size={15} color={Colors.muted} />
+                <Text style={{ color: Colors.muted, fontSize: 13, fontStyle: 'italic', flex: 1 }}>Coach is reviewing your last session…</Text>
+              </View>
+            ) : challengeText ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="flame" size={15} color={Colors.primary} />
+                <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700', flex: 1 }}>{challengeText}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <TouchableOpacity
+            onPress={() => Alert.alert('Premium Feature', 'Upgrade to RYZR Premium to unlock AI challenges that push you past last time.')}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: Colors.primary + '44', padding: 12, marginBottom: 20 }}
+          >
+            <Ionicons name="lock-closed-outline" size={16} color={Colors.primary} />
+            <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '700' }}>Unlock AI challenges with Premium</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Set pills */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
