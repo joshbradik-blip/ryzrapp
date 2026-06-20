@@ -5,6 +5,7 @@ import { Workout, WorkoutExercise, Session, SessionSet, Exercise, ExerciseDBExer
 import { EXERCISES } from '../constants/exercises';
 import { supabase } from '../lib/supabase';
 import { useHistoryStore } from './historyStore';
+import { generateExerciseChallenges, ChallengeInput } from '../lib/anthropic';
 
 interface ActiveSet {
   workoutExerciseId: string;
@@ -25,6 +26,9 @@ interface WorkoutState {
   restSecondsRemaining: number;
   pendingCoachMessages: string[];
   lastCoachMessageDate: string | null;
+  exerciseChallenges: Record<string, string>;
+  challengesLoading: boolean;
+  challengesSessionId: string | null;
 
   setWorkouts: (workouts: Workout[]) => void;
   setTodayWorkout: (workout: Workout | null) => void;
@@ -42,6 +46,10 @@ interface WorkoutState {
   clearPendingCoachMessages: () => void;
   setLastCoachMessageDate: (date: string) => void;
   saveSession: (weightUnit: 'kg' | 'lbs') => Promise<void>;
+  loadChallenges: (
+    inputs: ChallengeInput[],
+    ctx: { name: string; unit: 'kg' | 'lbs' },
+  ) => Promise<void>;
 
   // Swap for current session only (in-memory)
   swapForSession: (
@@ -113,6 +121,9 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
   restSecondsRemaining: 0,
   pendingCoachMessages: [],
   lastCoachMessageDate: null,
+  exerciseChallenges: {},
+  challengesLoading: false,
+  challengesSessionId: null,
 
   setWorkouts: (workouts) => set({ workouts, currentWorkoutIndex: 0 }),
 
@@ -184,6 +195,9 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
       currentSetIndex: 0,
       restTimerActive: false,
       restSecondsRemaining: 0,
+      exerciseChallenges: {},
+      challengesLoading: false,
+      challengesSessionId: null,
     }),
 
   addPendingCoachMessage: (msg) =>
@@ -236,6 +250,23 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
       if (user) useHistoryStore.getState().fetchHistory(user.id).catch(() => {});
     } catch (e) {
       console.error('[workoutStore] saveSession failed:', e);
+    }
+  },
+
+  loadChallenges: async (inputs, ctx) => {
+    const { activeSession, challengesSessionId, challengesLoading } = get();
+    if (!activeSession) return;
+    if (challengesLoading || challengesSessionId === activeSession.id) return;
+    set({ challengesLoading: true });
+    try {
+      const result = await generateExerciseChallenges(inputs, ctx);
+      set({
+        exerciseChallenges: result,
+        challengesSessionId: activeSession.id,
+        challengesLoading: false,
+      });
+    } catch {
+      set({ challengesLoading: false });
     }
   },
 
