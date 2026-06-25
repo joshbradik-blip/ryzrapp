@@ -1,7 +1,15 @@
 # Health integration (Apple Health / Health Connect)
 
-Status: **ENABLED in JS/config — pending a native rebuild + on-device test.**
+Status: **DISABLED on iOS (App Store rejection, Guideline 2.5.1, build 1.0.9/22) — Android Health Connect still enabled.**
 Reads **step count + body weight** only.
+
+Apple rejected the binary because it contained the HealthKit entitlement/framework
+but the feature was never verified working on-device (the UI still showed "SOON").
+Per Apple's guidance, references to a framework that isn't actually used should be
+removed from the binary rather than just hidden in the UI. The `@kingstinct/react-native-healthkit`
+plugin was removed from `app.json` and the `enableHealthSync()` call is now skipped
+on iOS (see `App.tsx`) until this is rebuilt, tested on a real device, and re-enabled
+deliberately for a future release.
 
 ## What's already done (this repo)
 - `@kingstinct/react-native-healthkit` + `react-native-health-connect` installed

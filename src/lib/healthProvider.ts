@@ -1,8 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// NATIVE HEALTH PROVIDER — Apple HealthKit (iOS) + Health Connect (Android).
+// NATIVE HEALTH PROVIDER — Health Connect (Android).
+//
+// iOS HealthKit support was removed (App Store rejection, Guideline 2.5.1 —
+// see docs/health-integration.md) and is pending a verified on-device rebuild
+// before it's reintroduced. `enableHealthSync()` is a no-op on iOS (App.tsx).
 //
 // Enabled by calling `enableHealthSync()` once at startup (App.tsx). The native
-// modules are loaded lazily via require() *inside* the factories and wrapped in
+// module is loaded lazily via require() *inside* the factory and wrapped in
 // try/catch, so importing this file is side-effect free and merely calling
 // enableHealthSync() before a native rebuild can't crash the app — it just
 // leaves the no-op provider in place. `import type` is erased at compile time,
@@ -12,57 +16,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { Platform } from 'react-native';
 import { HealthProvider, WeightSample, setHealthProvider } from './health';
-import type * as HealthKit from '@kingstinct/react-native-healthkit';
 import type * as HealthConnect from 'react-native-health-connect';
 
 function startOfToday(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
-}
-
-// ── iOS: Apple HealthKit via @kingstinct/react-native-healthkit ──────────────
-function createHealthKitProvider(): HealthProvider {
-  const HK = require('@kingstinct/react-native-healthkit') as typeof HealthKit;
-
-  return {
-    isAvailable: () => {
-      try { return HK.isHealthDataAvailable(); } catch { return false; }
-    },
-    requestPermissions: async () => {
-      try {
-        // HealthKit never reveals read-grant status (privacy); resolves true once
-        // the sheet completes. We surface "no data" downstream if reads come back empty.
-        return await HK.requestAuthorization({
-          toRead: ['HKQuantityTypeIdentifierStepCount', 'HKQuantityTypeIdentifierBodyMass'],
-        });
-      } catch {
-        return false;
-      }
-    },
-    getTodaySteps: async () => {
-      try {
-        const res = await HK.queryStatisticsForQuantity(
-          'HKQuantityTypeIdentifierStepCount',
-          ['cumulativeSum'],
-          { filter: { date: { startDate: startOfToday(), endDate: new Date() } } },
-        );
-        const sum = res.sumQuantity?.quantity;
-        return typeof sum === 'number' ? Math.round(sum) : null;
-      } catch {
-        return null;
-      }
-    },
-    getLatestWeightKg: async () => {
-      try {
-        const s = await HK.getMostRecentQuantitySample('HKQuantityTypeIdentifierBodyMass', 'kg');
-        if (!s) return null;
-        return { kg: s.quantity, date: s.endDate.toISOString() } as WeightSample;
-      } catch {
-        return null;
-      }
-    },
-  };
 }
 
 // ── Android: Health Connect via react-native-health-connect ──────────────────
@@ -123,10 +82,11 @@ function createHealthConnectProvider(): HealthProvider {
   };
 }
 
-/** Call once at app startup (after the native modules are installed + prebuilt). */
+/** Call once at app startup (after the native module is installed + prebuilt). Android only. */
 export function enableHealthSync(): void {
+  if (Platform.OS === 'ios') return;
   try {
-    setHealthProvider(Platform.OS === 'ios' ? createHealthKitProvider() : createHealthConnectProvider());
+    setHealthProvider(createHealthConnectProvider());
   } catch {
     // Native module not present (e.g. not prebuilt yet) — keep the no-op provider.
   }

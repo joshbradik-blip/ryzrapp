@@ -25,7 +25,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ryzr.app",
-      "buildNumber": "22",
+      "buildNumber": "23",
       "infoPlist": {
         "NSCameraUsageDescription": "RYZR uses your camera to analyze your workout form in real-time.",
         "NSMicrophoneUsageDescription": "RYZR uses audio for voice coaching feedback.",
@@ -84,14 +84,6 @@
         }
       ],
       "expo-web-browser",
-      [
-        "@kingstinct/react-native-healthkit",
-        {
-          "NSHealthShareUsageDescription": "RYZR reads your steps and body weight to personalize your training and track your progress.",
-          "NSHealthUpdateUsageDescription": "RYZR only reads your steps and body weight from Apple Health; it does not write or modify any Health data.",
-          "background": false
-        }
-      ],
       "react-native-health-connect"
     ],
     "extra": {
