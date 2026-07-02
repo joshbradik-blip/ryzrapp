@@ -93,13 +93,20 @@ export function lastSessionByExercise(sets: HistorySet[]): Record<string, LastSe
   return out;
 }
 
-// All-time best weight per exercise (for the PR nudge): { exercise_id: { weight_kg, at } }
-export function bestWeightByExercise(sets: HistorySet[]): Record<string, { weight_kg: number; at: string }> {
-  const out: Record<string, { weight_kg: number; at: string }> = {};
+export interface BestWeight {
+  weight_kg: number;
+  reps: number;
+  name: string;
+  at: string;
+}
+
+// All-time best weight per exercise (PR nudge + Personal Records list).
+export function bestWeightByExercise(sets: HistorySet[]): Record<string, BestWeight> {
+  const out: Record<string, BestWeight> = {};
   for (const s of sets) {
     if (!s.exercise_id || s.weight_kg <= 0) continue;
     if (!out[s.exercise_id] || s.weight_kg > out[s.exercise_id].weight_kg) {
-      out[s.exercise_id] = { weight_kg: s.weight_kg, at: s.created_at };
+      out[s.exercise_id] = { weight_kg: s.weight_kg, reps: s.reps, name: s.exercise_name, at: s.created_at };
     }
   }
   return out;
