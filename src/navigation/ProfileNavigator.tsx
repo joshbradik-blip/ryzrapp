@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ProfileStackParamList } from '../types';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { WearablesScreen } from '../screens/profile/WearablesScreen';
+import { ReferralScreen } from '../screens/profile/ReferralScreen';
 import { Colors } from '../constants/theme';
 
 const Stack = createNativeStackNavigator<ProfileStackParamList>();
@@ -23,6 +24,7 @@ export function ProfileNavigator() {
         component={WearablesScreen}
         options={{ title: 'Wearables', headerBackTitle: '' }}
       />
+      <Stack.Screen name="Referral" component={ReferralScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

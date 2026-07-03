@@ -143,6 +143,7 @@ export type MainTabParamList = {
 export type ProfileStackParamList = {
   ProfileHome: undefined;
   Wearables: undefined;
+  Referral: undefined;
 };
 
 export type TodayStackParamList = {

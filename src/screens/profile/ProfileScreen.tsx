@@ -378,6 +378,32 @@ export function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Refer a friend */}
+        <View style={{ marginHorizontal: 16, marginBottom: 8 }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Referral')}
+            style={{
+              backgroundColor: Colors.surface,
+              borderRadius: 14,
+              padding: 18,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 14,
+              borderWidth: 1,
+              borderColor: Colors.border,
+            }}
+          >
+            <Ionicons name="gift-outline" size={26} color={Colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15 }}>Refer a friend</Text>
+              <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+                Give a month, get a month of RYZR Pro
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={Colors.muted} />
+          </TouchableOpacity>
+        </View>
+
         {/* Profile settings */}
         <SectionHeader title="MY PROFILE" />
         <View style={{ backgroundColor: Colors.surface, marginHorizontal: 16, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border }}>

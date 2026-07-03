@@ -1,0 +1,2 @@
+﻿-- Placeholder for a migration applied directly via the Supabase dashboard.
+-- Kept so local and remote migration histories match; do not add SQL here.

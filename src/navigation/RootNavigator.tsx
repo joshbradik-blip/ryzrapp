@@ -9,6 +9,7 @@ import { useProfileStore } from '../store/profileStore';
 import { useIntroStore } from '../store/introStore';
 import { useSubscriptionStore } from '../store/subscriptionStore';
 import { supabase } from '../lib/supabase';
+import { redeemPendingReferralCode } from '../lib/referrals';
 import { View, ActivityIndicator, Linking } from 'react-native';
 import { Colors } from '../constants/theme';
 import * as SecureStore from 'expo-secure-store';
@@ -77,7 +78,11 @@ export function RootNavigator() {
 
   // Run initialize whenever the signed-in user changes
   useEffect(() => {
-    if (session?.user?.id) initialize(session.user.id);
+    if (session?.user?.id) {
+      initialize(session.user.id);
+      // Attach a sign-up invite code to its referrer (no-op when none pending)
+      redeemPendingReferralCode().catch(() => {});
+    }
   }, [session?.user?.id]);
 
   if (!initialized || introSeen === null) {

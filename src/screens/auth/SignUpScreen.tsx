@@ -14,6 +14,7 @@ import { AuthStackParamList } from '../../types';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { Input } from '../../components/ui/Input';
 import { useAuthStore } from '../../store/authStore';
+import { setPendingReferralCode } from '../../lib/referrals';
 import { Colors } from '../../constants/theme';
 
 type Props = {
@@ -24,6 +25,7 @@ export function SignUpScreen({ navigation }: Props) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { signUp, loading } = useAuthStore();
@@ -40,6 +42,7 @@ export function SignUpScreen({ navigation }: Props) {
   const handleSignUp = async () => {
     if (!validate()) return;
     try {
+      if (inviteCode.trim()) await setPendingReferralCode(inviteCode);
       await signUp(email.trim(), password, name.trim());
     } catch (e: any) {
       Alert.alert('Sign Up Failed', e.message ?? 'Please try again.');
@@ -91,6 +94,14 @@ export function SignUpScreen({ navigation }: Props) {
             placeholder="8+ characters"
             secureToggle
             error={errors.password}
+          />
+          <Input
+            label="Invite code (optional)"
+            value={inviteCode}
+            onChangeText={(t) => setInviteCode(t.toUpperCase())}
+            placeholder="From a friend"
+            autoCapitalize="characters"
+            autoCorrect={false}
           />
 
           <View style={{ marginTop: 8 }}>
