@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import {
+  BestWeight,
   HistorySession,
   HistorySet,
   HeatLevel,
@@ -28,7 +29,7 @@ interface HistoryState {
   thisWeekSessions: number;
   lastSets: Record<string, { weight_kg: number; reps: number }>;
   lastSessionPerf: Record<string, LastSessionPerf>;
-  bestWeights: Record<string, { weight_kg: number; at: string }>;
+  bestWeights: Record<string, BestWeight>;
   volumeByWeek: { label: string; volumeKg: number }[];
   muscleHeatMap: Record<string, HeatLevel>;
 }

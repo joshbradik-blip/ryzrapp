@@ -8,6 +8,10 @@ interface NewMeasurement {
   waist_cm: number | null;
   hip_cm: number | null;
   body_fat_pct: number | null;
+  /** Smart-scale lean mass (wearable sync only — manual logs omit it). */
+  lean_mass_kg?: number | null;
+  /** 'manual' (default) | 'apple_health' | 'health_connect' */
+  source?: string;
 }
 
 interface BodyState {
@@ -29,7 +33,7 @@ export const useBodyStore = create<BodyState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('body_measurements')
-        .select('id, recorded_at, weight_kg, neck_cm, waist_cm, hip_cm, body_fat_pct')
+        .select('id, recorded_at, weight_kg, neck_cm, waist_cm, hip_cm, body_fat_pct, lean_mass_kg, source')
         .eq('user_id', userId)
         .order('recorded_at', { ascending: false })
         .limit(2);

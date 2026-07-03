@@ -17,6 +17,8 @@ import { useProfileStore } from '../../store/profileStore';
 import { useHistoryStore } from '../../store/historyStore';
 import { useAuthStore } from '../../store/authStore';
 import { useBodyStore } from '../../store/bodyStore';
+import { useWearablesStore } from '../../store/wearablesStore';
+import { Health } from '../../lib/health';
 import { kgToDisplay, displayToKg, weightLabel } from '../../lib/units';
 import { navyBodyFat, cmToIn, inToCm } from '../../lib/bodyComposition';
 import { SectionLabel } from '../../components/ui/SectionLabel';
@@ -62,12 +64,25 @@ function HeatmapCalendar() {
   );
 }
 
+function shortDate(iso: string): string {
+  const d = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function formatSleep(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return `${h}h ${m}m`;
+}
+
 export function ProgressScreen() {
   const { isPremium } = useSubscriptionStore();
   const { profile } = useProfileStore();
   const userId = useAuthStore((s) => s.session?.user?.id);
-  const { volumeByWeek, muscleHeatMap, fetchHistory } = useHistoryStore();
+  const { volumeByWeek, muscleHeatMap, bestWeights, fetchHistory } = useHistoryStore();
   const { latest, previous, fetchMeasurements, logMeasurement } = useBodyStore();
+  const wearableRecords = useWearablesStore((s) => s.records);
+  const wearablesConnected = useWearablesStore((s) => s.connected);
   const [activeChart, setActiveChart] = useState('Back Squat');
   const [logOpen, setLogOpen] = useState(false);
   const [mNeck, setMNeck] = useState('');
@@ -80,6 +95,12 @@ export function ProgressScreen() {
     if (userId) {
       fetchHistory(userId);
       fetchMeasurements(userId);
+      // Wearable records: always load synced history; silently re-sync fresh
+      // data when the OS health hub is connected in this build.
+      useWearablesStore.getState().loadHistory(userId);
+      if (Health.isAvailable() && wearablesConnected.length > 0) {
+        useWearablesStore.getState().sync(userId);
+      }
     }
   }, [userId]);
 
@@ -99,6 +120,27 @@ export function ProgressScreen() {
 
   const dispLen = (cm: number | null) =>
     cm == null ? '—' : `${lengthUnit === 'in' ? cmToIn(cm) : cm} ${lengthUnit}`;
+
+  // Strength PRs — heaviest set ever logged per exercise, top 5 by weight.
+  const strengthPRs = Object.values(bestWeights)
+    .sort((a, b) => b.weight_kg - a.weight_kg)
+    .slice(0, 5);
+
+  // Wearable activity records — best days from synced health data.
+  const distanceUnit = unit === 'lbs' ? 'mi' : 'km';
+  const dispDistance = (m: number) =>
+    unit === 'lbs' ? (m / 1609.34).toFixed(1) : (m / 1000).toFixed(1);
+  const activityRecords: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; date: string }[] = [];
+  if (wearableRecords.bestSteps)
+    activityRecords.push({ icon: 'footsteps', label: 'Best step day', value: wearableRecords.bestSteps.value.toLocaleString(), date: wearableRecords.bestSteps.date });
+  if (wearableRecords.bestActiveCalories)
+    activityRecords.push({ icon: 'flame', label: 'Most active calories', value: `${wearableRecords.bestActiveCalories.value.toLocaleString()} kcal`, date: wearableRecords.bestActiveCalories.date });
+  if (wearableRecords.bestDistanceMeters)
+    activityRecords.push({ icon: 'walk', label: 'Longest distance day', value: `${dispDistance(wearableRecords.bestDistanceMeters.value)} ${distanceUnit}`, date: wearableRecords.bestDistanceMeters.date });
+  if (wearableRecords.longestSleepMinutes)
+    activityRecords.push({ icon: 'moon', label: 'Longest sleep', value: formatSleep(wearableRecords.longestSleepMinutes.value), date: wearableRecords.longestSleepMinutes.date });
+  if (wearableRecords.lowestRestingHr)
+    activityRecords.push({ icon: 'heart', label: 'Lowest resting HR', value: `${wearableRecords.lowestRestingHr.value} bpm`, date: wearableRecords.lowestRestingHr.date });
 
   const handleSaveMeasurement = async () => {
     if (!userId || !profile) return;
@@ -224,16 +266,64 @@ export function ProgressScreen() {
           </View>
         </View>
 
-        {/* PRs */}
+        {/* PRs — strength records from logged sets + activity records from wearables */}
         <View style={{ marginHorizontal: 24, marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>Personal Records</Text>
             <Ionicons name="trophy" size={20} color={Colors.primary} />
           </View>
-          <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 24, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' }}>
-            <Ionicons name="trophy-outline" size={32} color={Colors.muted} style={{ marginBottom: 8 }} />
-            <Text style={{ color: Colors.textSecondary, fontSize: 14, textAlign: 'center' }}>No PRs yet — complete workouts to set your first records</Text>
-          </View>
+
+          {strengthPRs.length === 0 && activityRecords.length === 0 ? (
+            <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 24, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' }}>
+              <Ionicons name="trophy-outline" size={32} color={Colors.muted} style={{ marginBottom: 8 }} />
+              <Text style={{ color: Colors.textSecondary, fontSize: 14, textAlign: 'center' }}>
+                No PRs yet — complete workouts to set your first records, or connect a wearable in Profile → Wearables
+              </Text>
+            </View>
+          ) : (
+            <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+              {strengthPRs.length > 0 && (
+                <>
+                  <SectionLabel style={{ marginBottom: 4 }}>Strength</SectionLabel>
+                  {strengthPRs.map((pr, i) => (
+                    <View key={pr.name + pr.at} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 11, borderBottomWidth: i < strengthPRs.length - 1 || activityRecords.length > 0 ? 1 : 0, borderBottomColor: Colors.border }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                        <Ionicons name="barbell" size={16} color={Colors.primary} />
+                        <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{pr.name}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>
+                          {kgToDisplay(pr.weight_kg, unit)} {weightLabel(unit)} × {pr.reps}
+                        </Text>
+                        <Text style={{ color: Colors.muted, fontSize: 11 }}>{shortDate(pr.at)}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </>
+              )}
+
+              {activityRecords.length > 0 && (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: strengthPRs.length > 0 ? 14 : 0, marginBottom: 4 }}>
+                    <SectionLabel>Activity</SectionLabel>
+                    <Ionicons name="watch-outline" size={13} color={Colors.primary} />
+                  </View>
+                  {activityRecords.map((rec, i) => (
+                    <View key={rec.label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 11, borderBottomWidth: i < activityRecords.length - 1 ? 1 : 0, borderBottomColor: Colors.border }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                        <Ionicons name={rec.icon} size={16} color={Colors.primary} />
+                        <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{rec.label}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>{rec.value}</Text>
+                        <Text style={{ color: Colors.muted, fontSize: 11 }}>{shortDate(rec.date)}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Body weight log */}
@@ -284,20 +374,25 @@ export function ProgressScreen() {
           {latest && (
             <View>
               {([
-                ['Neck', latest.neck_cm],
-                ['Waist', latest.waist_cm],
-                ...(isFemale ? [['Hips', latest.hip_cm] as [string, number | null]] : []),
-              ] as [string, number | null][]).map(([label, cm], i, arr) => (
+                ...(latest.lean_mass_kg != null
+                  ? [['Lean mass', `${kgToDisplay(latest.lean_mass_kg, unit)} ${weightLabel(unit)}`] as [string, string]]
+                  : []),
+                ['Neck', dispLen(latest.neck_cm)],
+                ['Waist', dispLen(latest.waist_cm)],
+                ...(isFemale ? [['Hips', dispLen(latest.hip_cm)] as [string, string]] : []),
+              ] as [string, string][]).map(([label, value], i, arr) => (
                 <View key={label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 11, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: Colors.border }}>
                   <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>{label}</Text>
-                  <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '600' }}>{dispLen(cm)}</Text>
+                  <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '600' }}>{value}</Text>
                 </View>
               ))}
             </View>
           )}
 
           <Text style={{ color: Colors.muted, fontSize: 11, marginTop: 12 }}>
-            Estimate via the US Navy tape-measure method.
+            {latest?.source && latest.source !== 'manual'
+              ? 'Latest reading synced from your smart scale via your health app.'
+              : 'Estimate via the US Navy tape-measure method.'}
           </Text>
         </View>
 

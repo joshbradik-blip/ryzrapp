@@ -8,22 +8,107 @@
 // leaves the no-op provider in place. `import type` is erased at compile time,
 // so it adds no runtime import while still giving full type-checking.
 //
-// Reads only: step count + body mass. See docs/health-integration.md.
+// Reads only. Metrics: steps, body mass, body fat %, lean mass, resting HR,
+// HRV, sleep, active calories, distance, exercise minutes.
+// See docs/health-integration.md.
 // ─────────────────────────────────────────────────────────────────────────────
 import { Platform } from 'react-native';
-import { HealthProvider, WeightSample, setHealthProvider } from './health';
+import {
+  BodyComposition,
+  DailyHealthMetrics,
+  HealthProvider,
+  WeightSample,
+  setHealthProvider,
+} from './health';
 import type * as HealthKit from '@kingstinct/react-native-healthkit';
 import type * as HealthConnect from 'react-native-health-connect';
 
-function startOfToday(): Date {
+function startOfDay(daysAgo: number): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - daysAgo);
   return d;
+}
+
+function localDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function emptyDay(date: string): DailyHealthMetrics {
+  return {
+    date,
+    steps: null,
+    restingHr: null,
+    hrvMs: null,
+    sleepMinutes: null,
+    activeCalories: null,
+    distanceMeters: null,
+    exerciseMinutes: null,
+  };
 }
 
 // ── iOS: Apple HealthKit via @kingstinct/react-native-healthkit ──────────────
 function createHealthKitProvider(): HealthProvider {
   const HK = require('@kingstinct/react-native-healthkit') as typeof HealthKit;
+
+  const daySum = async (
+    id: Parameters<typeof HK.queryStatisticsForQuantity>[0],
+    unit: string,
+    start: Date,
+    end: Date,
+  ): Promise<number | null> => {
+    try {
+      const res = await HK.queryStatisticsForQuantity(id, ['cumulativeSum'], {
+        filter: { date: { startDate: start, endDate: end } },
+        unit,
+      });
+      const sum = res.sumQuantity?.quantity;
+      return typeof sum === 'number' ? sum : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const dayAvg = async (
+    id: Parameters<typeof HK.queryStatisticsForQuantity>[0],
+    unit: string,
+    start: Date,
+    end: Date,
+  ): Promise<number | null> => {
+    try {
+      const res = await HK.queryStatisticsForQuantity(id, ['discreteAverage'], {
+        filter: { date: { startDate: start, endDate: end } },
+        unit,
+      });
+      const avg = res.averageQuantity?.quantity;
+      return typeof avg === 'number' ? avg : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Minutes asleep for samples overlapping [start, end). inBed (0) and awake (2)
+  // don't count; asleep/core/deep/REM do.
+  const sleepMinutes = async (start: Date, end: Date): Promise<number | null> => {
+    try {
+      const samples = await HK.queryCategorySamples('HKCategoryTypeIdentifierSleepAnalysis', {
+        filter: { date: { startDate: start, endDate: end } },
+        limit: 0,
+      });
+      let ms = 0;
+      for (const s of samples) {
+        const v = s.value as number;
+        if (v === 0 || v === 2) continue;
+        ms += new Date(s.endDate).getTime() - new Date(s.startDate).getTime();
+      }
+      return samples.length > 0 ? Math.round(ms / 60000) : null;
+    } catch {
+      return null;
+    }
+  };
 
   return {
     isAvailable: () => {
@@ -34,24 +119,26 @@ function createHealthKitProvider(): HealthProvider {
         // HealthKit never reveals read-grant status (privacy); resolves true once
         // the sheet completes. We surface "no data" downstream if reads come back empty.
         return await HK.requestAuthorization({
-          toRead: ['HKQuantityTypeIdentifierStepCount', 'HKQuantityTypeIdentifierBodyMass'],
+          toRead: [
+            'HKQuantityTypeIdentifierStepCount',
+            'HKQuantityTypeIdentifierBodyMass',
+            'HKQuantityTypeIdentifierBodyFatPercentage',
+            'HKQuantityTypeIdentifierLeanBodyMass',
+            'HKQuantityTypeIdentifierRestingHeartRate',
+            'HKQuantityTypeIdentifierHeartRateVariabilitySDNN',
+            'HKQuantityTypeIdentifierActiveEnergyBurned',
+            'HKQuantityTypeIdentifierDistanceWalkingRunning',
+            'HKQuantityTypeIdentifierAppleExerciseTime',
+            'HKCategoryTypeIdentifierSleepAnalysis',
+          ],
         });
       } catch {
         return false;
       }
     },
     getTodaySteps: async () => {
-      try {
-        const res = await HK.queryStatisticsForQuantity(
-          'HKQuantityTypeIdentifierStepCount',
-          ['cumulativeSum'],
-          { filter: { date: { startDate: startOfToday(), endDate: new Date() } } },
-        );
-        const sum = res.sumQuantity?.quantity;
-        return typeof sum === 'number' ? Math.round(sum) : null;
-      } catch {
-        return null;
-      }
+      const sum = await daySum('HKQuantityTypeIdentifierStepCount', 'count', startOfDay(0), new Date());
+      return sum != null ? Math.round(sum) : null;
     },
     getLatestWeightKg: async () => {
       try {
@@ -61,6 +148,48 @@ function createHealthKitProvider(): HealthProvider {
       } catch {
         return null;
       }
+    },
+    getLatestBodyComposition: async () => {
+      const out: BodyComposition = { bodyFatPct: null, leanMassKg: null };
+      try {
+        const bf = await HK.getMostRecentQuantitySample('HKQuantityTypeIdentifierBodyFatPercentage', '%');
+        if (bf) {
+          // HealthKit percent unit is a 0–1 fraction.
+          const pct = bf.quantity <= 1 ? bf.quantity * 100 : bf.quantity;
+          out.bodyFatPct = { value: Math.round(pct * 10) / 10, date: bf.endDate.toISOString() };
+        }
+      } catch {}
+      try {
+        const lm = await HK.getMostRecentQuantitySample('HKQuantityTypeIdentifierLeanBodyMass', 'kg');
+        if (lm) out.leanMassKg = { value: Math.round(lm.quantity * 10) / 10, date: lm.endDate.toISOString() };
+      } catch {}
+      return out;
+    },
+    getDailyMetrics: async (days: number) => {
+      const out: DailyHealthMetrics[] = [];
+      for (let i = days - 1; i >= 0; i--) {
+        const start = startOfDay(i);
+        const end = i === 0 ? new Date() : startOfDay(i - 1);
+        const day = emptyDay(localDateKey(start));
+        const [steps, activeCal, distance, exercise, restingHr, hrv, sleep] = await Promise.all([
+          daySum('HKQuantityTypeIdentifierStepCount', 'count', start, end),
+          daySum('HKQuantityTypeIdentifierActiveEnergyBurned', 'kcal', start, end),
+          daySum('HKQuantityTypeIdentifierDistanceWalkingRunning', 'm', start, end),
+          daySum('HKQuantityTypeIdentifierAppleExerciseTime', 'min', start, end),
+          dayAvg('HKQuantityTypeIdentifierRestingHeartRate', 'count/min', start, end),
+          dayAvg('HKQuantityTypeIdentifierHeartRateVariabilitySDNN', 'ms', start, end),
+          sleepMinutes(start, end),
+        ]);
+        day.steps = steps != null ? Math.round(steps) : null;
+        day.activeCalories = activeCal != null ? Math.round(activeCal) : null;
+        day.distanceMeters = distance != null ? Math.round(distance) : null;
+        day.exerciseMinutes = exercise != null ? Math.round(exercise) : null;
+        day.restingHr = restingHr != null ? Math.round(restingHr) : null;
+        day.hrvMs = hrv != null ? Math.round(hrv * 10) / 10 : null;
+        day.sleepMinutes = sleep;
+        out.push(day);
+      }
+      return out;
     },
   };
 }
@@ -74,16 +203,49 @@ function createHealthConnectProvider(): HealthProvider {
     return ready;
   };
 
+  const readRange = async <T extends Parameters<typeof HC.readRecords>[0]>(
+    recordType: T,
+    start: Date,
+    end: Date,
+  ) => {
+    const { records } = await HC.readRecords(recordType, {
+      timeRangeFilter: {
+        operator: 'between',
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+      },
+    });
+    return records;
+  };
+
   return {
     isAvailable: () => true, // confirmed for real once initialize() runs
     requestPermissions: async () => {
       try {
         await ensureInit();
-        const granted = await HC.requestPermission([
+        const wanted = [
+          { accessType: 'read', recordType: 'Steps' },
+          { accessType: 'read', recordType: 'Weight' },
+          { accessType: 'read', recordType: 'BodyFat' },
+          { accessType: 'read', recordType: 'LeanBodyMass' },
+          { accessType: 'read', recordType: 'RestingHeartRate' },
+          { accessType: 'read', recordType: 'HeartRateVariabilityRmssd' },
+          { accessType: 'read', recordType: 'SleepSession' },
+          { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
+          { accessType: 'read', recordType: 'Distance' },
+          { accessType: 'read', recordType: 'ExerciseSession' },
+        ] as const;
+        try {
+          const granted = await HC.requestPermission([...wanted]);
+          if (granted.length > 0) return true;
+        } catch {}
+        // Older Health Connect builds can reject unknown record types — fall back
+        // to the original minimal set so steps + weight keep working.
+        const basic = await HC.requestPermission([
           { accessType: 'read', recordType: 'Steps' },
           { accessType: 'read', recordType: 'Weight' },
         ]);
-        return granted.length > 0;
+        return basic.length > 0;
       } catch {
         return false;
       }
@@ -91,13 +253,7 @@ function createHealthConnectProvider(): HealthProvider {
     getTodaySteps: async () => {
       try {
         await ensureInit();
-        const { records } = await HC.readRecords('Steps', {
-          timeRangeFilter: {
-            operator: 'between',
-            startTime: startOfToday().toISOString(),
-            endTime: new Date().toISOString(),
-          },
-        });
+        const records = await readRange('Steps', startOfDay(0), new Date());
         return records.reduce((sum, r) => sum + r.count, 0);
       } catch {
         return null;
@@ -106,19 +262,115 @@ function createHealthConnectProvider(): HealthProvider {
     getLatestWeightKg: async () => {
       try {
         await ensureInit();
-        const { records } = await HC.readRecords('Weight', {
-          timeRangeFilter: {
-            operator: 'between',
-            startTime: new Date(Date.now() - 365 * 86400000).toISOString(),
-            endTime: new Date().toISOString(),
-          },
-        });
+        const records = await readRange('Weight', new Date(Date.now() - 365 * 86400000), new Date());
         const last = records[records.length - 1];
         if (!last) return null;
         return { kg: last.weight.inKilograms, date: last.time } as WeightSample;
       } catch {
         return null;
       }
+    },
+    getLatestBodyComposition: async () => {
+      const out: BodyComposition = { bodyFatPct: null, leanMassKg: null };
+      const yearAgo = new Date(Date.now() - 365 * 86400000);
+      try {
+        await ensureInit();
+        const bf = await readRange('BodyFat', yearAgo, new Date());
+        const lastBf = bf[bf.length - 1];
+        if (lastBf) out.bodyFatPct = { value: Math.round(lastBf.percentage * 10) / 10, date: lastBf.time };
+      } catch {}
+      try {
+        const lm = await readRange('LeanBodyMass', yearAgo, new Date());
+        const lastLm = lm[lm.length - 1];
+        if (lastLm) out.leanMassKg = { value: Math.round(lastLm.mass.inKilograms * 10) / 10, date: lastLm.time };
+      } catch {}
+      return out;
+    },
+    getDailyMetrics: async (days: number) => {
+      const byDate = new Map<string, DailyHealthMetrics>();
+      for (let i = days - 1; i >= 0; i--) {
+        const key = localDateKey(startOfDay(i));
+        byDate.set(key, emptyDay(key));
+      }
+      const start = startOfDay(days - 1);
+      const end = new Date();
+      const dayOf = (iso: string) => byDate.get(localDateKey(new Date(iso)));
+
+      try {
+        await ensureInit();
+      } catch {
+        return [...byDate.values()];
+      }
+
+      // Each record type degrades independently — a denied permission or missing
+      // data source must not blank out the other metrics.
+      try {
+        for (const r of await readRange('Steps', start, end)) {
+          const d = dayOf(r.startTime);
+          if (d) d.steps = (d.steps ?? 0) + r.count;
+        }
+      } catch {}
+      try {
+        for (const r of await readRange('ActiveCaloriesBurned', start, end)) {
+          const d = dayOf(r.startTime);
+          if (d) d.activeCalories = (d.activeCalories ?? 0) + r.energy.inKilocalories;
+        }
+      } catch {}
+      try {
+        for (const r of await readRange('Distance', start, end)) {
+          const d = dayOf(r.startTime);
+          if (d) d.distanceMeters = (d.distanceMeters ?? 0) + r.distance.inMeters;
+        }
+      } catch {}
+      try {
+        for (const r of await readRange('ExerciseSession', start, end)) {
+          const d = dayOf(r.startTime);
+          if (!d) continue;
+          const mins = (new Date(r.endTime).getTime() - new Date(r.startTime).getTime()) / 60000;
+          d.exerciseMinutes = (d.exerciseMinutes ?? 0) + mins;
+        }
+      } catch {}
+      try {
+        // Attribute a sleep session to the day it ended (the "night of" that morning).
+        for (const r of await readRange('SleepSession', start, end)) {
+          const d = dayOf(r.endTime);
+          if (!d) continue;
+          const mins = (new Date(r.endTime).getTime() - new Date(r.startTime).getTime()) / 60000;
+          d.sleepMinutes = (d.sleepMinutes ?? 0) + mins;
+        }
+      } catch {}
+      try {
+        const rhrAgg = new Map<string, { sum: number; n: number }>();
+        for (const r of await readRange('RestingHeartRate', start, end)) {
+          const key = localDateKey(new Date(r.time));
+          const cur = rhrAgg.get(key) ?? { sum: 0, n: 0 };
+          rhrAgg.set(key, { sum: cur.sum + r.beatsPerMinute, n: cur.n + 1 });
+        }
+        for (const [key, { sum, n }] of rhrAgg) {
+          const d = byDate.get(key);
+          if (d) d.restingHr = Math.round(sum / n);
+        }
+      } catch {}
+      try {
+        const hrvAgg = new Map<string, { sum: number; n: number }>();
+        for (const r of await readRange('HeartRateVariabilityRmssd', start, end)) {
+          const key = localDateKey(new Date(r.time));
+          const cur = hrvAgg.get(key) ?? { sum: 0, n: 0 };
+          hrvAgg.set(key, { sum: cur.sum + r.heartRateVariabilityMillis, n: cur.n + 1 });
+        }
+        for (const [key, { sum, n }] of hrvAgg) {
+          const d = byDate.get(key);
+          if (d) d.hrvMs = Math.round((sum / n) * 10) / 10;
+        }
+      } catch {}
+
+      return [...byDate.values()].map((d) => ({
+        ...d,
+        activeCalories: d.activeCalories != null ? Math.round(d.activeCalories) : null,
+        distanceMeters: d.distanceMeters != null ? Math.round(d.distanceMeters) : null,
+        exerciseMinutes: d.exerciseMinutes != null ? Math.round(d.exerciseMinutes) : null,
+        sleepMinutes: d.sleepMinutes != null ? Math.round(d.sleepMinutes) : null,
+      }));
     },
   };
 }
