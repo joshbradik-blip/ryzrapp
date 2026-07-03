@@ -10,6 +10,7 @@ import {
   healthSource,
   syncHealthToCloud,
 } from '../lib/healthSync';
+import { ReadinessResult, computeReadiness } from '../lib/readiness';
 import { useBodyStore } from './bodyStore';
 
 const EMPTY_RECORDS: WearableRecords = {
@@ -30,6 +31,7 @@ interface WearablesState {
   bodyComp: BodyComposition | null;
   history: HealthDailyRow[];
   records: WearableRecords;
+  readiness: ReadinessResult | null;
   lastSyncedAt: string | null;
   syncing: boolean;
 
@@ -65,6 +67,7 @@ export const useWearablesStore = create<WearablesState>()(
       bodyComp: null,
       history: [],
       records: EMPTY_RECORDS,
+      readiness: null,
       lastSyncedAt: null,
       syncing: false,
 
@@ -104,6 +107,7 @@ export const useWearablesStore = create<WearablesState>()(
             bodyComp,
             history,
             records: deriveWearableRecords(merged),
+            readiness: computeReadiness(merged),
             lastSyncedAt: new Date().toISOString(),
             syncing: false,
           });
@@ -115,7 +119,11 @@ export const useWearablesStore = create<WearablesState>()(
       loadHistory: async (userId: string) => {
         if (!userId) return;
         const history = await fetchHealthHistory(userId);
-        set({ history, records: deriveWearableRecords(history) });
+        set({
+          history,
+          records: deriveWearableRecords(history),
+          readiness: computeReadiness(history),
+        });
       },
 
       clearLive: () => set({ today: null, bodyComp: null }),

@@ -23,6 +23,9 @@ import { StatTile } from '../../components/ui/StatTile';
 import { Colors } from '../../constants/theme';
 import { CoachChatSheet } from './CoachChatSheet';
 import { PremiumModal } from '../../components/ui/PremiumModal';
+import { ReadinessCard } from '../../components/today/ReadinessCard';
+import { useWearablesStore } from '../../store/wearablesStore';
+import { Health } from '../../lib/health';
 import { generateWorkoutPlan, generatePreWorkoutChallenge, generateDailyCoachMessage } from '../../lib/anthropic';
 
 export function TodayScreen() {
@@ -37,6 +40,7 @@ export function TodayScreen() {
   const { isPremium } = useSubscriptionStore();
   const userId = useAuthStore((s) => s.session?.user?.id);
   const { currentStreak, longestStreak, totalSessions, thisWeekSessions, fetchHistory } = useHistoryStore();
+  const readiness = useWearablesStore((s) => s.readiness);
   const [chatOpen, setChatOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [premiumFeatureTitle, setPremiumFeatureTitle] = useState<string | undefined>();
@@ -63,7 +67,10 @@ export function TodayScreen() {
         onPress: async () => {
           setRegenerating(true);
           try {
-            const newWorkouts = await generateWorkoutPlan({ profile, injuries, disabilities, schedule: schedulePrefs, goals, equipment });
+            const newWorkouts = await generateWorkoutPlan({
+              profile, injuries, disabilities, schedule: schedulePrefs, goals, equipment,
+              readiness: useWearablesStore.getState().readiness,
+            });
             setWorkouts(newWorkouts);
             if (newWorkouts.length > 0) setTodayWorkout(newWorkouts[0]);
             Alert.alert('Done!', 'Your new workout plan is ready.');
@@ -108,7 +115,15 @@ export function TodayScreen() {
   }, [profile?.name, todayWorkout?.id]);
 
   useEffect(() => {
-    if (userId) fetchHistory(userId);
+    if (userId) {
+      fetchHistory(userId);
+      // Readiness: load synced history, then refresh from the OS hub if connected.
+      const wearables = useWearablesStore.getState();
+      wearables.loadHistory(userId);
+      if (Health.isAvailable() && wearables.connected.length > 0) {
+        wearables.sync(userId);
+      }
+    }
   }, [userId]);
 
   const hour = new Date().getHours();
@@ -159,6 +174,9 @@ export function TodayScreen() {
             </View>
           </View>
         </View>
+
+        {/* Recovery readiness (shows once wearable data has synced) */}
+        {readiness && <ReadinessCard readiness={readiness} isPremium={isPremium} />}
 
         {/* Today's workout hero card */}
         {todayWorkout ? (

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { UserProfile, Injury, SchedulePrefs, Goal, Workout } from '../types';
 import { EXERCISES } from '../constants/exercises';
+import { ReadinessResult, readinessPromptContext } from './readiness';
 
 async function callAnthropic(body: object): Promise<any> {
   console.log('[Anthropic] invoking edge function...');
@@ -39,10 +40,12 @@ interface GeneratePlanParams {
   schedule: SchedulePrefs;
   goals: Goal[];
   equipment: string[];
+  /** Wearable recovery state — when present the plan adapts to it. */
+  readiness?: ReadinessResult | null;
 }
 
 export async function generateWorkoutPlan(params: GeneratePlanParams): Promise<Workout[]> {
-  const { profile, injuries, disabilities, schedule, goals, equipment } = params;
+  const { profile, injuries, disabilities, schedule, goals, equipment, readiness } = params;
 
   const exerciseList = EXERCISES
     .filter((e) =>
@@ -69,6 +72,15 @@ export async function generateWorkoutPlan(params: GeneratePlanParams): Promise<W
 
   const systemPrompt = `You are an expert strength and conditioning coach. Generate a personalized training plan as valid JSON only — no explanation, no markdown, just JSON.`;
 
+  const readinessCtx = readinessPromptContext(readiness ?? null);
+  const readinessSection = readinessCtx
+    ? `\nRECOVERY STATUS (from the user's wearable):\n${readinessCtx}\n`
+    : '';
+  const readinessRule = readinessCtx
+    ? `\n- Apply the recovery status to WORKOUT 1 (the next session): if readiness is low, cut its volume ~20% and cap target_rpe at 7; if high, it may start assertively. Later workouts assume normal recovery.
+- Mention the recovery adjustment in the affected workout's exercise notes so the user knows why.`
+    : '';
+
   const userPrompt = `Generate a ${schedule.days_per_week * 2}-workout (2-week) training plan.
 
 USER PROFILE:
@@ -79,7 +91,7 @@ USER PROFILE:
 - Days/week: ${schedule.days_per_week}, Minutes/session: ${schedule.minutes_per_session}
 - Goals: ${goalDesc}
 - Equipment: ${equipment.join(', ') || 'bodyweight only'}
-
+${readinessSection}
 AVAILABLE EXERCISES:
 ${exerciseList}
 
@@ -116,7 +128,7 @@ RULES:
 - CRITICAL: exercise_id must be EXACTLY one of the quoted names from the available list above — copy-paste the name, do not modify it in any way. Wrong: "Seated Overhead Press". Right: "Overhead Press".
 - Only use exercises from the available list
 - Keep sessions within the time limit
-- Apply progressive overload across the 2 weeks`;
+- Apply progressive overload across the 2 weeks${readinessRule}`;
 
   const data = await callAnthropic({
     model: 'claude-sonnet-4-6',
@@ -157,7 +169,7 @@ function mapPlanToWorkouts(plan: any): Workout[] {
     exercises: (w.exercises ?? [])
       .map((e: any) => {
         const id = (e.exercise_id ?? '').toLowerCase().trim();
-        const idWords = new Set(id.split(/\s+/).filter((w) => w.length > 2));
+        const idWords = new Set(id.split(/\s+/).filter((w: string) => w.length > 2));
         const exercise =
           EXERCISES.find((ex) => ex.name.toLowerCase() === id) ??
           EXERCISES.find((ex) => ex.name.toLowerCase().includes(id)) ??
@@ -441,9 +453,12 @@ export interface ChallengeInput {
 // (deterministic); the model writes ONLY the challenge.
 export async function generateExerciseChallenges(
   inputs: ChallengeInput[],
-  ctx: { name: string; unit: 'kg' | 'lbs' },
+  ctx: { name: string; unit: 'kg' | 'lbs'; readiness?: ReadinessResult | null },
 ): Promise<Record<string, string>> {
   if (inputs.length === 0) return {};
+
+  const readinessCtx = readinessPromptContext(ctx.readiness ?? null);
+  const readinessNote = readinessCtx ? `\nRECOVERY STATUS: ${readinessCtx}\n` : '';
 
   const lines = inputs.map((e) => {
     const last = e.lastSession && e.lastSession.length > 0
@@ -460,7 +475,8 @@ For EACH exercise below, write ONE short challenge (max 18 words) that:
 - references their actual numbers in ${ctx.unit}
 - pushes a sensible progression (add a rep, add weight, tighter tempo, or match a PR)
 - for first-time exercises, gives a smart baseline-setting challenge
-
+- respects the recovery status below if present — under-recovered means NO new-weight or PR challenges
+${readinessNote}
 EXERCISES:
 ${lines}
 

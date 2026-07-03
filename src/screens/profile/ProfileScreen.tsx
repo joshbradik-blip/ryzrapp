@@ -286,7 +286,10 @@ export function ProfileScreen() {
         onPress: async () => {
           setRegenerating(true);
           try {
-            const workouts = await generateWorkoutPlan({ profile, injuries, disabilities, schedule: schedulePrefs, goals, equipment });
+            const workouts = await generateWorkoutPlan({
+              profile, injuries, disabilities, schedule: schedulePrefs, goals, equipment,
+              readiness: useWearablesStore.getState().readiness,
+            });
             setWorkouts(workouts);
             if (workouts.length > 0) setTodayWorkout(workouts[0]);
             Alert.alert('Plan updated!', 'Your new workout plan is ready.');

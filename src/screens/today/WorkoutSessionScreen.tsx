@@ -16,6 +16,7 @@ import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useProfileStore } from '../../store/profileStore';
 import { useHistoryStore } from '../../store/historyStore';
 import { useAuthStore } from '../../store/authStore';
+import { useWearablesStore } from '../../store/wearablesStore';
 import { ChallengeInput } from '../../lib/anthropic';
 import { kgToDisplay, displayToKg, WeightUnit } from '../../lib/units';
 import { Button } from '../../components/ui/Button';
@@ -80,7 +81,11 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
           targetReps: we.target_reps,
         };
       });
-      loadChallenges(inputs, { name: useProfileStore.getState().profile?.name ?? 'Athlete', unit: u });
+      loadChallenges(inputs, {
+        name: useProfileStore.getState().profile?.name ?? 'Athlete',
+        unit: u,
+        readiness: useWearablesStore.getState().readiness,
+      });
     })();
   }, []);
 

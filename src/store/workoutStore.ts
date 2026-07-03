@@ -6,6 +6,7 @@ import { EXERCISES } from '../constants/exercises';
 import { supabase } from '../lib/supabase';
 import { useHistoryStore } from './historyStore';
 import { generateExerciseChallenges, ChallengeInput } from '../lib/anthropic';
+import type { ReadinessResult } from '../lib/readiness';
 
 interface ActiveSet {
   workoutExerciseId: string;
@@ -48,7 +49,7 @@ interface WorkoutState {
   saveSession: (weightUnit: 'kg' | 'lbs') => Promise<void>;
   loadChallenges: (
     inputs: ChallengeInput[],
-    ctx: { name: string; unit: 'kg' | 'lbs' },
+    ctx: { name: string; unit: 'kg' | 'lbs'; readiness?: ReadinessResult | null },
   ) => Promise<void>;
 
   // Swap for current session only (in-memory)
