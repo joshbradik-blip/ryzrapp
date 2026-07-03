@@ -43,7 +43,7 @@ RYZR is a React Native + Expo workout app with AI-generated training plans, a re
 - All screens built and wired up
 - Auth flow: Welcome → Sign Up / Login
 - Onboarding: 5-step flow → AI plan generation → Main tabs
-- Today tab: streak badge, workout card, real stat tiles, session tracking, rest timer, form coach
+- Today tab: streak badge, recovery-readiness card (wearable HRV/RHR/sleep → `src/lib/readiness.ts`), workout card, real stat tiles, session tracking, rest timer, form coach
 - Progress tab: training volume card, muscle-group heatmap, calendar heatmap, strength chart, PRs, body weight
 - Store tab: Premium subscription cards + Amazon gear storefront
 - Profile tab: real stats, settings, regenerate plan, sign out

@@ -85,9 +85,27 @@ Remove the `enableHealthSync()` call in `App.tsx` (the no-op provider takes over
 or fully revert by removing the two plugins + permissions from `app.json`,
 uninstalling the packages, and prebuilding again.
 
+## Readiness-aware training (built)
+
+`src/lib/readiness.ts` scores recovery 0–100 each morning against the user's own
+trailing baseline: HRV vs baseline (weight 0.4), resting HR vs baseline (0.3),
+sleep vs 8h target + baseline (0.3). Metrics renormalize over what the user
+actually tracks; each needs ≥3 baseline days; null when there's no signal.
+Levels: ≥70 high · 45–69 moderate · <45 low.
+
+Where it flows:
+- **Today tab** — `ReadinessCard` (score ring, level, factor chips) renders once
+  wearable data exists. Free users see the score; the card notes AI adaptation
+  is Premium.
+- **Plan generation/regeneration** (`generateWorkoutPlan`) — the prompt gets a
+  RECOVERY STATUS section; low readiness cuts workout 1's volume ~20% and caps
+  RPE at 7, high readiness green-lights an assertive start.
+- **In-workout challenges** (`generateExerciseChallenges`) — under-recovered
+  days never get PR/new-weight challenges; technique + tempo instead.
+- The `workout-coach` edge function (daily encouragement) lives server-side and
+  doesn't receive readiness yet — candidate for a later pass.
+
 ## Good next features once data flows
-- **Readiness-aware training**: feed resting HR + HRV + sleep into the AI plan
-  prompt so hard days land when the user is recovered (premium).
 - **Live heart rate + zones** during a workout session (Apple Watch / HC exercise route).
 - **Auto-import outside workouts** (runs/rides from Strava, Garmin) into streak + volume.
 - **Steps/activity goal tile** on the Today tab with a daily target.
