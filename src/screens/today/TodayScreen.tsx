@@ -27,6 +27,13 @@ import { ReadinessCard } from '../../components/today/ReadinessCard';
 import { useWearablesStore } from '../../store/wearablesStore';
 import { Health } from '../../lib/health';
 import { readinessPromptContext } from '../../lib/readiness';
+import {
+  ensureNotificationPermissions,
+  preferredTimeToClock,
+  scheduleDailyCoachNotification,
+  scheduleStreakNudge,
+  cancelStreakNudge,
+} from '../../lib/notifications';
 import { generateWorkoutPlan, generatePreWorkoutChallenge, generateDailyCoachMessage } from '../../lib/anthropic';
 
 export function TodayScreen() {
@@ -40,7 +47,7 @@ export function TodayScreen() {
   } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
   const userId = useAuthStore((s) => s.session?.user?.id);
-  const { currentStreak, longestStreak, totalSessions, thisWeekSessions, fetchHistory } = useHistoryStore();
+  const { currentStreak, longestStreak, totalSessions, thisWeekSessions, sessions, loaded, fetchHistory } = useHistoryStore();
   const readiness = useWearablesStore((s) => s.readiness);
   const [chatOpen, setChatOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
@@ -109,6 +116,14 @@ export function TodayScreen() {
         if (daily) addPendingCoachMessage(daily);
         if (challenge) addPendingCoachMessage(challenge);
         setLastCoachMessageDate(today);
+        // Push the coach message at the user's preferred training time too —
+        // in-app badges only reach people who already opened the app.
+        if (daily && (await ensureNotificationPermissions())) {
+          const { hour, minute } = preferredTimeToClock(
+            useProfileStore.getState().schedulePrefs?.preferred_time
+          );
+          scheduleDailyCoachNotification(hour, minute, daily);
+        }
       } catch {
         // Silently ignore — non-critical background call
       }
@@ -128,6 +143,21 @@ export function TodayScreen() {
       }
     }
   }, [userId]);
+
+  // Streak protection: evening nudge unless today's session is already logged.
+  useEffect(() => {
+    if (!loaded) return;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const trainedToday = sessions.some((s) => new Date(s.started_at) >= todayStart);
+    if (trainedToday) {
+      cancelStreakNudge();
+    } else {
+      ensureNotificationPermissions().then((ok) => {
+        if (ok) scheduleStreakNudge(currentStreak);
+      });
+    }
+  }, [loaded, sessions, currentStreak]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';

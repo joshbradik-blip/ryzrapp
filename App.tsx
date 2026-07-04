@@ -1,6 +1,6 @@
 import './global.css';
 import React from 'react';
-import { cancelLegacyScheduledNotifications } from './src/lib/notifications';
+import { initNotifications } from './src/lib/notifications';
 import { enableHealthSync } from './src/lib/healthProvider';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
@@ -10,7 +10,7 @@ import { Colors } from './src/constants/theme';
 
 export default function App() {
   React.useEffect(() => {
-    cancelLegacyScheduledNotifications();
+    initNotifications();
     enableHealthSync();
   }, []);
 
