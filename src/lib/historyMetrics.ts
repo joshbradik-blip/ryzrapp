@@ -142,6 +142,65 @@ export function weeklyVolume(sessions: HistorySession[], weeks: number): { label
   }));
 }
 
+// Sessions per calendar day for the trailing `days` days, oldest first.
+// Feeds the Progress training heatmap (index 0 = days-1 days ago).
+export function dailyActivityCounts(
+  sessions: HistorySession[],
+  days: number
+): { index: number; count: number }[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const startMs = today.getTime() - (days - 1) * DAY_MS;
+
+  const counts = new Array(days).fill(0);
+  for (const s of sessions) {
+    const idx = Math.floor((dayStart(s.started_at) - startMs) / DAY_MS);
+    if (idx >= 0 && idx < days) counts[idx] += 1;
+  }
+  return counts.map((count, index) => ({ index, count }));
+}
+
+// Exercise names the user actually trains, ranked by logged set count.
+export function topExercisesBySets(sets: HistorySet[], n: number): string[] {
+  const counts = new Map<string, { name: string; count: number }>();
+  for (const s of sets) {
+    if (s.weight_kg <= 0) continue;
+    const key = s.exercise_name.toLowerCase();
+    const cur = counts.get(key);
+    if (cur) cur.count += 1;
+    else counts.set(key, { name: s.exercise_name, count: 1 });
+  }
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, n)
+    .map((e) => e.name);
+}
+
+// Best (heaviest) set per session for one exercise, oldest first, capped to
+// the trailing `maxPoints` sessions. Feeds the strength-progression chart.
+export function strengthProgression(
+  sets: HistorySet[],
+  exerciseName: string,
+  maxPoints = 12
+): { date: string; weightKg: number }[] {
+  const name = exerciseName.toLowerCase();
+  const bySession = new Map<string, { at: string; weightKg: number }>();
+  for (const s of sets) {
+    if (s.exercise_name.toLowerCase() !== name || s.weight_kg <= 0) continue;
+    const cur = bySession.get(s.session_id);
+    if (!cur) {
+      bySession.set(s.session_id, { at: s.created_at, weightKg: s.weight_kg });
+    } else {
+      if (s.weight_kg > cur.weightKg) cur.weightKg = s.weight_kg;
+      if (s.created_at < cur.at) cur.at = s.created_at;
+    }
+  }
+  return [...bySession.values()]
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .slice(-maxPoints)
+    .map((p) => ({ date: p.at, weightKg: p.weightKg }));
+}
+
 export type HeatLevel = 'high' | 'moderate' | 'low' | 'none';
 
 // Muscle-group heat over the trailing 28 days. Primary muscles get full credit,

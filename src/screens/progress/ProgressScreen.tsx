@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,19 +21,17 @@ import { useWearablesStore } from '../../store/wearablesStore';
 import { Health } from '../../lib/health';
 import { kgToDisplay, displayToKg, weightLabel } from '../../lib/units';
 import { navyBodyFat, cmToIn, inToCm } from '../../lib/bodyComposition';
+import { dailyActivityCounts, strengthProgression, topExercisesBySets } from '../../lib/historyMetrics';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { MuscleHeatmap } from '../../components/progress/MuscleHeatmap';
 import { GradientButton } from '../../components/ui/GradientButton';
 
 const { width } = Dimensions.get('window');
 
-const HEATMAP_DATA = Array.from({ length: 91 }, (_, i) => ({ index: i, count: 0 }));
-
-
-function HeatmapCalendar() {
+function HeatmapCalendar({ data }: { data: { index: number; count: number }[] }) {
   const cellSize = Math.floor((width - 64) / 13) - 2;
   const weeks = Array.from({ length: 13 }, (_, weekIdx) =>
-    HEATMAP_DATA.slice(weekIdx * 7, weekIdx * 7 + 7)
+    data.slice(weekIdx * 7, weekIdx * 7 + 7)
   );
 
   return (
@@ -79,17 +77,20 @@ export function ProgressScreen() {
   const { isPremium } = useSubscriptionStore();
   const { profile } = useProfileStore();
   const userId = useAuthStore((s) => s.session?.user?.id);
-  const { volumeByWeek, muscleHeatMap, bestWeights, fetchHistory } = useHistoryStore();
+  const { volumeByWeek, muscleHeatMap, bestWeights, sessions, sets, fetchHistory } = useHistoryStore();
   const { latest, previous, fetchMeasurements, logMeasurement } = useBodyStore();
   const wearableRecords = useWearablesStore((s) => s.records);
   const wearablesConnected = useWearablesStore((s) => s.connected);
-  const [activeChart, setActiveChart] = useState('Back Squat');
+  const [activeChart, setActiveChart] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [mNeck, setMNeck] = useState('');
   const [mWaist, setMWaist] = useState('');
   const [mHip, setMHip] = useState('');
   const [mWeight, setMWeight] = useState('');
   const [saving, setSaving] = useState(false);
+  const [weightOpen, setWeightOpen] = useState(false);
+  const [wValue, setWValue] = useState('');
+  const [wSaving, setWSaving] = useState(false);
 
   useEffect(() => {
     if (userId) {
@@ -125,6 +126,44 @@ export function ProgressScreen() {
   const strengthPRs = Object.values(bestWeights)
     .sort((a, b) => b.weight_kg - a.weight_kg)
     .slice(0, 5);
+
+  // Real training heatmap + strength progression from logged history.
+  const heatmapData = useMemo(() => dailyActivityCounts(sessions, 91), [sessions]);
+  const chartChips = useMemo(() => {
+    const trained = topExercisesBySets(sets, 6);
+    return trained.length > 0 ? trained : ['Back Squat', 'Bench Press', 'Deadlift', 'Pull-Up'];
+  }, [sets]);
+  const selectedChart = activeChart ?? chartChips[0];
+  const chartPoints = useMemo(
+    () => strengthProgression(sets, selectedChart, 10),
+    [sets, selectedChart]
+  );
+  const chartMax = Math.max(1, ...chartPoints.map((p) => p.weightKg));
+  const chartDeltaKg =
+    chartPoints.length >= 2 ? chartPoints[chartPoints.length - 1].weightKg - chartPoints[0].weightKg : null;
+
+  const handleSaveWeight = async () => {
+    const n = parseFloat(wValue);
+    if (!userId || !n || n <= 0) return;
+    setWSaving(true);
+    const ok = await logMeasurement(userId, {
+      weight_kg: parseFloat(displayToKg(n, unit).toFixed(1)),
+      neck_cm: null, waist_cm: null, hip_cm: null, body_fat_pct: null,
+    });
+    setWSaving(false);
+    if (ok) {
+      setWeightOpen(false);
+      setWValue('');
+    } else {
+      Alert.alert('Could not save', 'Please try again.');
+    }
+  };
+
+  const latestWeightKg = latest?.weight_kg ?? profile?.weight_kg ?? null;
+  const weightDeltaKg =
+    latest?.weight_kg != null && previous?.weight_kg != null
+      ? latest.weight_kg - previous.weight_kg
+      : null;
 
   // Wearable activity records — best days from synced health data.
   const distanceUnit = unit === 'lbs' ? 'mi' : 'km';
@@ -226,7 +265,7 @@ export function ProgressScreen() {
         {/* Streak calendar heatmap */}
         <View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
           <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5, marginBottom: 12 }}>TRAINING HEATMAP</Text>
-          <HeatmapCalendar />
+          <HeatmapCalendar data={heatmapData} />
           <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 12 }}>
             <Text style={{ color: Colors.muted, fontSize: 11 }}>Less</Text>
             {[Colors.surface3, Colors.primary + '55', Colors.primary + 'AA', Colors.primary].map((c, i) => (
@@ -241,7 +280,7 @@ export function ProgressScreen() {
           <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5, marginBottom: 12 }}>STRENGTH PROGRESSION</Text>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-            {['Back Squat', 'Bench Press', 'Deadlift', 'Pull-Up'].map((ex) => (
+            {chartChips.map((ex) => (
               <TouchableOpacity
                 key={ex}
                 onPress={() => setActiveChart(ex)}
@@ -250,20 +289,57 @@ export function ProgressScreen() {
                   paddingVertical: 8,
                   borderRadius: 16,
                   marginRight: 8,
-                  backgroundColor: activeChart === ex ? Colors.primary + '22' : Colors.surface2,
+                  backgroundColor: selectedChart === ex ? Colors.primary + '22' : Colors.surface2,
                   borderWidth: 1,
-                  borderColor: activeChart === ex ? Colors.primary : Colors.border,
+                  borderColor: selectedChart === ex ? Colors.primary : Colors.border,
                 }}
               >
-                <Text style={{ color: activeChart === ex ? Colors.primary : Colors.text, fontWeight: '600', fontSize: 13 }}>{ex}</Text>
+                <Text style={{ color: selectedChart === ex ? Colors.primary : Colors.text, fontWeight: '600', fontSize: 13 }}>{ex}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          <View style={{ height: 100, backgroundColor: Colors.surface2, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 12, borderWidth: 1, borderColor: Colors.border }}>
-            <Ionicons name="barbell-outline" size={24} color={Colors.muted} style={{ marginBottom: 6 }} />
-            <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600' }}>No data yet — log sets to track progress</Text>
-          </View>
+          {chartPoints.length >= 2 ? (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 10 }}>
+                <Text style={{ color: Colors.text, fontSize: 24, fontWeight: '900' }}>
+                  {kgToDisplay(chartPoints[chartPoints.length - 1].weightKg, unit)} <Text style={{ fontSize: 14, color: Colors.textSecondary }}>{weightLabel(unit)}</Text>
+                </Text>
+                {chartDeltaKg !== null && chartDeltaKg !== 0 && (
+                  <Text style={{ color: chartDeltaKg > 0 ? Colors.success : Colors.muted, fontSize: 13, fontWeight: '700', marginBottom: 4 }}>
+                    {chartDeltaKg > 0 ? '+' : ''}{kgToDisplay(chartDeltaKg, unit)} {weightLabel(unit)} since first log
+                  </Text>
+                )}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 110 }}>
+                {chartPoints.map((p, i) => {
+                  const isLatest = i === chartPoints.length - 1;
+                  const d = new Date(p.date);
+                  return (
+                    <View key={p.date + i} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+                      <Text style={{ color: isLatest ? Colors.primary : Colors.muted, fontSize: 9, fontWeight: '700' }}>
+                        {kgToDisplay(p.weightKg, unit)}
+                      </Text>
+                      <View style={{
+                        width: '55%',
+                        height: Math.max(3, Math.round(70 * (p.weightKg / chartMax))),
+                        backgroundColor: isLatest ? Colors.primary : Colors.primary + '88',
+                        borderRadius: 3,
+                      }} />
+                      <Text style={{ color: Colors.muted, fontSize: 8 }}>{d.getMonth() + 1}/{d.getDate()}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </>
+          ) : (
+            <View style={{ height: 100, backgroundColor: Colors.surface2, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 12, borderWidth: 1, borderColor: Colors.border }}>
+              <Ionicons name="barbell-outline" size={24} color={Colors.muted} style={{ marginBottom: 6 }} />
+              <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600', textAlign: 'center', paddingHorizontal: 16 }}>
+                {chartPoints.length === 1 ? 'One session logged — one more to see your trend' : 'No data yet — log sets to track progress'}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* PRs — strength records from logged sets + activity records from wearables */}
@@ -330,15 +406,23 @@ export function ProgressScreen() {
         <View style={{ marginHorizontal: 24, marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>Body Weight</Text>
-            <TouchableOpacity onPress={() => Alert.alert('Coming soon', 'Body weight logging coming in a future update.')} style={{ backgroundColor: Colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border }}>
+            <TouchableOpacity onPress={() => setWeightOpen(true)} style={{ backgroundColor: Colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border }}>
               <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 13 }}>+ Log</Text>
             </TouchableOpacity>
           </View>
           <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' }}>
-            {profile?.weight_kg ? (
+            {latestWeightKg != null ? (
               <>
-                <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900' }}>{kgToDisplay(profile.weight_kg, profile.weight_unit ?? 'kg')} <Text style={{ fontSize: 18, color: Colors.textSecondary }}>{weightLabel(profile.weight_unit ?? 'kg')}</Text></Text>
-                <Text style={{ color: Colors.muted, fontSize: 13 }}>Starting weight — log entries to track change</Text>
+                <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900' }}>{kgToDisplay(latestWeightKg, unit)} <Text style={{ fontSize: 18, color: Colors.textSecondary }}>{weightLabel(unit)}</Text></Text>
+                {weightDeltaKg !== null ? (
+                  <Text style={{ color: weightDeltaKg === 0 ? Colors.muted : weightDeltaKg < 0 ? Colors.success : Colors.textSecondary, fontSize: 13, fontWeight: '600' }}>
+                    {weightDeltaKg === 0 ? 'No change since last log' : `${weightDeltaKg > 0 ? '+' : ''}${kgToDisplay(weightDeltaKg, unit)} ${weightLabel(unit)} since last log`}
+                  </Text>
+                ) : latest?.weight_kg != null ? (
+                  <Text style={{ color: Colors.muted, fontSize: 13 }}>{shortDate(latest.recorded_at)} — keep logging to track change</Text>
+                ) : (
+                  <Text style={{ color: Colors.muted, fontSize: 13 }}>Starting weight — log entries to track change</Text>
+                )}
               </>
             ) : (
               <Text style={{ color: Colors.muted, fontSize: 14 }}>No weight logged yet</Text>
@@ -395,6 +479,33 @@ export function ProgressScreen() {
               : 'Estimate via the US Navy tape-measure method.'}
           </Text>
         </View>
+
+        {/* Log body-weight modal */}
+        <Modal visible={weightOpen} animationType="slide" transparent onRequestClose={() => setWeightOpen(false)}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0A0A0Acc' }}>
+            <View style={{ backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36, borderWidth: 1, borderColor: Colors.border }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Log body weight</Text>
+                <TouchableOpacity onPress={() => setWeightOpen(false)}>
+                  <Ionicons name="close" size={24} color={Colors.muted} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                <Text style={{ color: Colors.textSecondary, fontSize: 15, width: 70 }}>Weight</Text>
+                <TextInput
+                  value={wValue}
+                  onChangeText={setWValue}
+                  keyboardType="decimal-pad"
+                  autoFocus
+                  placeholder={`0 ${weightLabel(unit)}`}
+                  placeholderTextColor={Colors.muted}
+                  style={{ flex: 1, backgroundColor: Colors.surface2, borderRadius: 10, padding: 12, color: Colors.text, fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: Colors.border }}
+                />
+              </View>
+              <GradientButton title="Save weight" onPress={handleSaveWeight} loading={wSaving} />
+            </View>
+          </View>
+        </Modal>
 
         {/* Log measurement modal */}
         <Modal visible={logOpen} animationType="slide" transparent onRequestClose={() => setLogOpen(false)}>
