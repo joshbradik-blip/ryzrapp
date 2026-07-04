@@ -102,8 +102,26 @@ Where it flows:
   RPE at 7, high readiness green-lights an assertive start.
 - **In-workout challenges** (`generateExerciseChallenges`) — under-recovered
   days never get PR/new-weight challenges; technique + tempo instead.
-- The `workout-coach` edge function (daily encouragement) lives server-side and
-  doesn't receive readiness yet — candidate for a later pass.
+- **Coach messages** — the `workout-coach` edge function (now versioned in this
+  repo at `supabase/functions/workout-coach/`) receives a `readiness` line:
+  daily encouragement acknowledges recovery state, and pre-workout challenges
+  switch to "match last time with perfect form" on run-down days.
+
+## Coach plan editing (chat tools)
+
+The Ask Coach chat can now modify the plan directly (`src/lib/coachTools.ts`):
+- `swap_exercise` — replace an exercise in any workout (persists via
+  `swapForPlan`, same path as the Substitute screen)
+- `add_exercise` — add a library exercise to any workout ("add this to
+  Thursday", "make this my next exercise"), positioned `next` or `end`
+
+Flow: CoachChatSheet keeps a raw Anthropic message history (text, images,
+tool_use/tool_result blocks) and runs a bounded tool loop (max 3 rounds)
+through the `workout-coach` function, which forwards tool definitions to
+Claude (`claude-sonnet-4-6` for chat). Tool calls execute client-side against
+`workoutStore`; the chat shows an action chip (✅ Swapped …) and the coach
+confirms. Equipment photos ride the same path, so "what's this machine?" →
+"add it to today" works in one conversation.
 
 ## Good next features once data flows
 - **Live heart rate + zones** during a workout session (Apple Watch / HC exercise route).
