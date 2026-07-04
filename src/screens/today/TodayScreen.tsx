@@ -26,6 +26,7 @@ import { PremiumModal } from '../../components/ui/PremiumModal';
 import { ReadinessCard } from '../../components/today/ReadinessCard';
 import { useWearablesStore } from '../../store/wearablesStore';
 import { Health } from '../../lib/health';
+import { readinessPromptContext } from '../../lib/readiness';
 import { generateWorkoutPlan, generatePreWorkoutChallenge, generateDailyCoachMessage } from '../../lib/anthropic';
 
 export function TodayScreen() {
@@ -93,13 +94,15 @@ export function TodayScreen() {
 
     const generate = async () => {
       try {
+        const readinessCtx = readinessPromptContext(useWearablesStore.getState().readiness);
         const [daily, challenge] = await Promise.all([
-          generateDailyCoachMessage(profile.name, todayWorkout?.name),
+          generateDailyCoachMessage(profile.name, todayWorkout?.name, readinessCtx),
           todayWorkout
             ? generatePreWorkoutChallenge(
                 profile.name,
                 todayWorkout.name,
-                todayWorkout.exercises.map((e) => e.exercise.name)
+                todayWorkout.exercises.map((e) => e.exercise.name),
+                readinessCtx
               )
             : Promise.resolve(''),
         ]);

@@ -20,9 +20,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
-import { askWorkoutCoach, askCoachWithImage, CoachMessage } from '../../lib/anthropic';
+import { coachChatTurn, CoachMessage } from '../../lib/anthropic';
+import { COACH_TOOLS, buildPlanContext, executeCoachTool } from '../../lib/coachTools';
+import { readinessPromptContext } from '../../lib/readiness';
 import { useProfileStore } from '../../store/profileStore';
 import { useWorkoutStore } from '../../store/workoutStore';
+import { useWearablesStore } from '../../store/wearablesStore';
 
 interface Props {
   visible: boolean;
@@ -31,8 +34,10 @@ interface Props {
 
 const WELCOME: CoachMessage = {
   role: 'assistant',
-  content: "Hey! I'm your RYZR Coach. Ask me anything — form tips, exercise swaps, how many reps to push, recovery advice. I'm here.",
+  content: "Hey! I'm your RYZR Coach. Ask me anything — form tips, how many reps to push, recovery advice. I can also change your plan right here: snap a photo of any machine and say \"add this to today\" or ask me to swap an exercise.",
 };
+
+const MAX_TOOL_ROUNDS = 3;
 
 export function CoachChatSheet({ visible, onClose }: Props) {
   const { profile } = useProfileStore();
@@ -41,6 +46,9 @@ export function CoachChatSheet({ visible, onClose }: Props) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ uri: string; base64: string } | null>(null);
+  // Raw Anthropic message history (text/image/tool_use/tool_result blocks) —
+  // kept separate from the display list, which only holds readable text.
+  const apiMessagesRef = useRef<object[]>([]);
   const slideAnim = useRef(new Animated.Value(600)).current;
   const listRef = useRef<FlatList<CoachMessage>>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -86,44 +94,94 @@ export function CoachChatSheet({ visible, onClose }: Props) {
       name: profile?.name ?? 'Athlete',
       workoutName: todayWorkout?.name,
       exerciseNames: todayWorkout?.exercises.map((e) => e.exercise.name) ?? [],
+      readiness: readinessPromptContext(useWearablesStore.getState().readiness),
+      planContext: buildPlanContext(),
+      tools: COACH_TOOLS,
     };
 
-    if (pendingImage) {
-      const caption = trimmed || 'What is this gym equipment and how do I use it?';
-      const userMsg: CoachMessage = { role: 'user', content: caption, imageUri: pendingImage.uri };
-      const updated = [...messages, userMsg];
-      setMessages(updated);
-      setInput('');
-      setPendingImage(null);
-      setLoading(true);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
-      try {
-        const reply = await askCoachWithImage(messages, pendingImage.base64, caption, ctx);
-        setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
-      } catch {
-        setMessages((prev) => [...prev, { role: 'assistant', content: "I couldn't analyze that image. Try again." }]);
-      } finally {
-        setLoading(false);
-        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    const caption = trimmed || 'What is this gym equipment and how do I use it?';
+    const image = pendingImage;
+    const userMsg: CoachMessage = { role: 'user', content: caption, imageUri: image?.uri };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput('');
+    setPendingImage(null);
+    setLoading(true);
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
+
+    // Snapshot so a failed turn can be rolled back — the API history must never
+    // end with an unanswered tool_use block.
+    const checkpoint = apiMessagesRef.current.length;
+    apiMessagesRef.current.push({
+      role: 'user',
+      content: image
+        ? [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image.base64 } },
+            { type: 'text', text: caption },
+          ]
+        : caption,
+    });
+
+    try {
+      let resp = await coachChatTurn([...apiMessagesRef.current], ctx);
+
+      // Agentic loop: show text, execute any tool calls against the plan,
+      // return the results, and let the coach confirm.
+      for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+        const blocks: any[] = Array.isArray(resp?.content) ? resp.content : [];
+        apiMessagesRef.current.push({ role: 'assistant', content: blocks });
+
+        const text = blocks
+          .filter((b) => b.type === 'text' && typeof b.text === 'string')
+          .map((b) => b.text)
+          .join('\n')
+          .trim();
+        if (text) setMessages((prev) => [...prev, { role: 'assistant', content: text }]);
+
+        const toolUses = blocks.filter((b) => b.type === 'tool_use');
+        if (resp?.stop_reason !== 'tool_use' || toolUses.length === 0) break;
+
+        if (round === MAX_TOOL_ROUNDS) {
+          // Round cap reached — answer the pending tool calls without executing
+          // so the history stays valid, then stop.
+          apiMessagesRef.current.push({
+            role: 'user',
+            content: toolUses.map((tu) => ({
+              type: 'tool_result',
+              tool_use_id: tu.id,
+              content: 'Not executed — action limit reached for this message. Ask the user to send the request again.',
+              is_error: true,
+            })),
+          });
+          break;
+        }
+
+        const results: object[] = [];
+        for (const tu of toolUses) {
+          const outcome = await executeCoachTool({ id: tu.id, name: tu.name, input: tu.input ?? {} });
+          setMessages((prev) => [...prev, {
+            role: 'assistant',
+            kind: 'action',
+            content: outcome.ok ? `✅ ${outcome.summary}` : `⚠️ ${outcome.summary}`,
+          }]);
+          results.push({
+            type: 'tool_result',
+            tool_use_id: outcome.toolUseId,
+            content: outcome.result,
+            ...(outcome.ok ? {} : { is_error: true }),
+          });
+        }
+        apiMessagesRef.current.push({ role: 'user', content: results });
+        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
+        resp = await coachChatTurn([...apiMessagesRef.current], ctx);
       }
-    } else {
-      const userMsg: CoachMessage = { role: 'user', content: trimmed };
-      const updated = [...messages, userMsg];
-      setMessages(updated);
-      setInput('');
-      setLoading(true);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
-      try {
-        const reply = await askWorkoutCoach(updated, ctx);
-        setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
-      } catch {
-        setMessages((prev) => [...prev, { role: 'assistant', content: "I'm having trouble connecting right now. Try again in a moment." }]);
-      } finally {
-        setLoading(false);
-        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-      }
+    } catch {
+      apiMessagesRef.current.length = checkpoint;
+      setMessages((prev) => [...prev, { role: 'assistant', content: "I'm having trouble connecting right now. Try again in a moment." }]);
+    } finally {
+      setLoading(false);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }
-  }, [input, pendingImage, loading, messages, profile, todayWorkout]);
+  }, [input, pendingImage, loading, profile, todayWorkout]);
 
   const pickImage = useCallback(async (fromCamera: boolean) => {
     const permission = fromCamera
@@ -187,16 +245,22 @@ export function CoachChatSheet({ visible, onClose }: Props) {
               contentContainerStyle={styles.messageList}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <View style={[styles.bubble, item.role === 'user' ? styles.bubbleUser : styles.bubbleCoach]}>
-                  {item.imageUri && (
-                    <Image source={{ uri: item.imageUri }} style={styles.bubbleImage} resizeMode="cover" />
-                  )}
-                  <Text style={[styles.bubbleText, item.role === 'user' ? styles.bubbleTextUser : styles.bubbleTextCoach]}>
-                    {item.content}
-                  </Text>
-                </View>
-              )}
+              renderItem={({ item }) =>
+                item.kind === 'action' ? (
+                  <View style={styles.actionChip}>
+                    <Text style={styles.actionChipText}>{item.content}</Text>
+                  </View>
+                ) : (
+                  <View style={[styles.bubble, item.role === 'user' ? styles.bubbleUser : styles.bubbleCoach]}>
+                    {item.imageUri && (
+                      <Image source={{ uri: item.imageUri }} style={styles.bubbleImage} resizeMode="cover" />
+                    )}
+                    <Text style={[styles.bubbleText, item.role === 'user' ? styles.bubbleTextUser : styles.bubbleTextCoach]}>
+                      {item.content}
+                    </Text>
+                  </View>
+                )
+              }
               ListFooterComponent={
                 loading ? (
                   <View style={[styles.bubble, styles.bubbleCoach, { paddingVertical: 12 }]}>
@@ -368,5 +432,22 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 8,
     marginBottom: 6,
+  },
+  actionChip: {
+    alignSelf: 'center',
+    backgroundColor: Colors.primary + '18',
+    borderWidth: 1,
+    borderColor: Colors.primary + '55',
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginBottom: Spacing.sm,
+    maxWidth: '92%',
+  },
+  actionChipText: {
+    color: Colors.primary,
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });

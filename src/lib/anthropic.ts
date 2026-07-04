@@ -66,9 +66,10 @@ export async function generateWorkoutPlan(params: GeneratePlanParams): Promise<W
     ? disabilities.join(', ')
     : 'None';
 
-  const goalDesc = goals.map((g) =>
-    g.specific_activity ? `${g.category} — ${g.specific_activity}` : g.category
-  ).join(', ');
+  const goalDesc = goals.map((g) => {
+    const base = g.specific_activity ? `${g.category} — ${g.specific_activity}` : g.category;
+    return g.target_weeks ? `${base} (target: ${g.target_weeks} weeks)` : base;
+  }).join(', ');
 
   const systemPrompt = `You are an expert strength and conditioning coach. Generate a personalized training plan as valid JSON only — no explanation, no markdown, just JSON.`;
 
@@ -88,7 +89,7 @@ USER PROFILE:
 - Height: ${profile.height_cm}cm, Weight: ${profile.weight_kg}kg
 - Injuries: ${injuryNote}
 - Disabilities / adaptive needs: ${disabilityNote}
-- Days/week: ${schedule.days_per_week}, Minutes/session: ${schedule.minutes_per_session}
+- Days/week: ${schedule.days_per_week}, Minutes/session: ${schedule.minutes_per_session}, Preferred time: ${schedule.preferred_time}
 - Goals: ${goalDesc}
 - Equipment: ${equipment.join(', ') || 'bodyweight only'}
 ${readinessSection}
@@ -128,7 +129,9 @@ RULES:
 - CRITICAL: exercise_id must be EXACTLY one of the quoted names from the available list above — copy-paste the name, do not modify it in any way. Wrong: "Seated Overhead Press". Right: "Overhead Press".
 - Only use exercises from the available list
 - Keep sessions within the time limit
-- Apply progressive overload across the 2 weeks${readinessRule}`;
+- Apply progressive overload across the 2 weeks
+- Match exercise difficulty, volume, and rest periods to the user's fitness level and age — beginners get beginner-difficulty exercises with more rest; experienced/advanced users get appropriately harder selections and denser sessions
+- Choose exercises and rep ranges that directly serve the stated goals (e.g. hypertrophy ranges for build_muscle, higher-rep circuits for lose_fat, movement-specific work for specific_activity)${readinessRule}`;
 
   const data = await callAnthropic({
     model: 'claude-sonnet-4-6',
@@ -230,6 +233,8 @@ export interface CoachMessage {
   role: 'user' | 'assistant';
   content: string;
   imageUri?: string; // local URI for display only — not sent to API
+  /** 'action' = a plan change the coach just made (rendered as a status chip). */
+  kind?: 'action';
 }
 
 export async function askWorkoutCoach(
@@ -247,10 +252,42 @@ export async function askWorkoutCoach(
   return data.content?.[0]?.text ?? "Let's focus — what do you need help with?";
 }
 
+export interface CoachChatTurnContext {
+  name: string;
+  workoutName?: string;
+  exerciseNames?: string[];
+  /** Compact wearable line from readinessPromptContext(). */
+  readiness?: string | null;
+  /** Plan + library block from buildPlanContext() — enables plan-editing tools. */
+  planContext?: string | null;
+  tools?: object[] | null;
+}
+
+/**
+ * One raw model turn for the agentic coach chat. `apiMessages` are Anthropic
+ * messages (content may be text, image blocks, tool_use, or tool_result) and
+ * the FULL response is returned so the caller can run the tool-use loop.
+ */
+export async function coachChatTurn(apiMessages: object[], ctx: CoachChatTurnContext): Promise<any> {
+  return callWorkoutCoach({
+    messages: apiMessages,
+    user_name: ctx.name,
+    workout_name: ctx.workoutName,
+    current_exercises: ctx.exerciseNames ?? [],
+    mode: 'chat',
+    readiness: ctx.readiness ?? undefined,
+    plan_context: ctx.planContext ?? undefined,
+    tools: ctx.tools ?? undefined,
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+  });
+}
+
 export async function generatePreWorkoutChallenge(
   name: string,
   workoutName: string,
-  exerciseNames: string[]
+  exerciseNames: string[],
+  readiness?: string | null
 ): Promise<string> {
   const data = await callWorkoutCoach({
     messages: [],
@@ -258,13 +295,15 @@ export async function generatePreWorkoutChallenge(
     workout_name: workoutName,
     current_exercises: exerciseNames,
     mode: 'pre_workout_challenge',
+    readiness: readiness ?? undefined,
   });
   return data.content?.[0]?.text ?? '';
 }
 
 export async function generateDailyCoachMessage(
   name: string,
-  workoutName?: string
+  workoutName?: string,
+  readiness?: string | null
 ): Promise<string> {
   const data = await callWorkoutCoach({
     messages: [],
@@ -272,6 +311,7 @@ export async function generateDailyCoachMessage(
     workout_name: workoutName,
     current_exercises: [],
     mode: 'daily_encouragement',
+    readiness: readiness ?? undefined,
   });
   return data.content?.[0]?.text ?? '';
 }
