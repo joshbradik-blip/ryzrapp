@@ -22,6 +22,7 @@ import { Health } from '../../lib/health';
 import { kgToDisplay, displayToKg, weightLabel } from '../../lib/units';
 import { navyBodyFat, cmToIn, inToCm } from '../../lib/bodyComposition';
 import { dailyActivityCounts, strengthProgression, topExercisesBySets } from '../../lib/historyMetrics';
+import { getOrGenerateWeeklyRecap } from '../../lib/weeklyRecap';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { MuscleHeatmap } from '../../components/progress/MuscleHeatmap';
 import { GradientButton } from '../../components/ui/GradientButton';
@@ -91,6 +92,7 @@ export function ProgressScreen() {
   const [weightOpen, setWeightOpen] = useState(false);
   const [wValue, setWValue] = useState('');
   const [wSaving, setWSaving] = useState(false);
+  const [recapText, setRecapText] = useState<string | null>(null);
 
   useEffect(() => {
     if (userId) {
@@ -104,6 +106,13 @@ export function ProgressScreen() {
       }
     }
   }, [userId]);
+
+  // AI weekly recap (premium): one cached Haiku call per week, generated
+  // after training + wearable history are in the stores.
+  useEffect(() => {
+    if (!isPremium || sessions.length === 0 || recapText) return;
+    getOrGenerateWeeklyRecap().then((r) => { if (r) setRecapText(r.text); });
+  }, [isPremium, sessions]);
 
   const unit = profile?.weight_unit ?? 'kg';
   const totalVolumeKg = volumeByWeek.reduce((sum, w) => sum + w.volumeKg, 0);
@@ -224,6 +233,17 @@ export function ProgressScreen() {
             Last 90 days
           </Text>
         </View>
+
+        {/* AI weekly recap (premium) */}
+        {isPremium && recapText && (
+          <View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.primary + '44' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+              <SectionLabel>Your Week, Coached</SectionLabel>
+              <Ionicons name="sparkles" size={13} color={Colors.primary} />
+            </View>
+            <Text style={{ color: Colors.text, fontSize: 14, lineHeight: 21 }}>{recapText}</Text>
+          </View>
+        )}
 
         {/* Training volume */}
         <View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>

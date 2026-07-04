@@ -480,6 +480,24 @@ Analyze this image and return ONLY valid JSON, no explanation or markdown:
   }
 }
 
+// AI weekly recap (premium) — one short narrative over the trailing 7 days.
+export async function generateWeeklyRecap(name: string, statsBlock: string): Promise<string> {
+  const data = await callAnthropic({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 300,
+    messages: [{
+      role: 'user',
+      content: `You are RYZR Coach writing ${name}'s weekly training recap.
+
+THIS WEEK'S DATA:
+${statsBlock}
+
+Write 3-4 warm, specific sentences: celebrate what the data shows (use the actual numbers), call out one pattern worth noticing (good or fixable), and end with exactly one line starting "Focus for next week:" with one concrete, actionable focus. No bullet points, no headers, no preamble.`,
+    }],
+  });
+  return (data.content?.[0]?.text ?? '').trim();
+}
+
 export interface ChallengeInput {
   exerciseId: string;
   name: string;

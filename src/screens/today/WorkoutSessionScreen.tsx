@@ -19,6 +19,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useWearablesStore } from '../../store/wearablesStore';
 import { ChallengeInput } from '../../lib/anthropic';
 import { kgToDisplay, displayToKg, WeightUnit } from '../../lib/units';
+import { scheduleRestOverNotification, cancelNotification } from '../../lib/notifications';
 import { Button } from '../../components/ui/Button';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { Colors } from '../../constants/theme';
@@ -54,6 +55,15 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
   const [restTotal, setRestTotal] = useState(0);
   const [completedSets, setCompletedSets] = useState<Record<string, LoggedSet[]>>({});
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Wall-clock end of the current rest — remaining time is derived from this,
+  // so the timer stays correct after the app is backgrounded.
+  const restEndRef = useRef(0);
+  const restNotifIdRef = useRef<string | null>(null);
+
+  const clearRestNotification = () => {
+    cancelNotification(restNotifIdRef.current);
+    restNotifIdRef.current = null;
+  };
 
   const currentExercise = workout?.exercises[currentExerciseIndex];
   const isLastExercise = workout && currentExerciseIndex >= workout.exercises.length - 1;
@@ -90,22 +100,27 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
   }, []);
 
   useEffect(() => {
-    if (restActive && restRemaining > 0) {
+    if (restActive) {
       timerRef.current = setInterval(() => {
-        setRestRemaining((r) => {
-          if (r <= 1) {
+        const remaining = Math.max(0, Math.ceil((restEndRef.current - Date.now()) / 1000));
+        setRestRemaining((prev) => {
+          if (remaining <= 0) {
             clearInterval(timerRef.current!);
             setRestActive(false);
+            clearRestNotification(); // finished in-app — banner not needed
             haptic.success();
             return 0;
           }
-          if (r <= 4) haptic.impact('light');
-          return r - 1;
+          if (remaining <= 4 && remaining < prev) haptic.impact('light');
+          return remaining;
         });
-      }, 1000);
+      }, 500);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [restActive]);
+
+  // Leaving the session screen entirely — drop any pending rest alert.
+  useEffect(() => () => clearRestNotification(), []);
 
   if (!workout || !currentExercise) {
     return (
@@ -149,8 +164,16 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
     const restSecs = currentExercise.rest_seconds || 90;
     setRestTotal(restSecs);
     setRestRemaining(restSecs);
+    restEndRef.current = Date.now() + restSecs * 1000;
     setRestActive(true);
     setReps('');
+    // If the user backgrounds the app mid-rest, a local notification calls
+    // them back; it's suppressed while the app stays foregrounded.
+    clearRestNotification();
+    if (newSets.length < currentExercise.target_sets) {
+      scheduleRestOverNotification(restSecs, currentExercise.exercise.name, newSets.length + 1)
+        .then((id) => { restNotifIdRef.current = id; });
+    }
 
     if (newSets.length < currentExercise.target_sets) {
       setSetIndex((i) => i + 1);
@@ -159,6 +182,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
 
   const handleNextExercise = () => {
     setRestActive(false);
+    clearRestNotification();
     setSetIndex(0);
     setWeight('');
     setReps('');
@@ -394,13 +418,13 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
               </View>
             </View>
             <View style={{ flexDirection: 'row', gap: 6 }}>
-              <TouchableOpacity onPress={() => setRestRemaining((r) => Math.max(0, r - 15))} style={restBtn}>
+              <TouchableOpacity onPress={() => { restEndRef.current -= 15000; setRestRemaining((r) => Math.max(0, r - 15)); }} style={restBtn}>
                 <Text style={restBtnText}>−15</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => { setRestActive(false); if (timerRef.current) clearInterval(timerRef.current); }} style={restBtn}>
+              <TouchableOpacity onPress={() => { setRestActive(false); clearRestNotification(); if (timerRef.current) clearInterval(timerRef.current); }} style={restBtn}>
                 <Text style={restBtnText}>Skip</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setRestRemaining((r) => r + 15)} style={restBtn}>
+              <TouchableOpacity onPress={() => { restEndRef.current += 15000; setRestRemaining((r) => r + 15); }} style={restBtn}>
                 <Text style={restBtnText}>+15</Text>
               </TouchableOpacity>
             </View>
