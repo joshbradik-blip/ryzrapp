@@ -25,17 +25,21 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ryzr.app",
-      "buildNumber": "24",
+      "buildNumber": "25",
       "infoPlist": {
         "NSCameraUsageDescription": "RYZR uses your camera to analyze your workout form in real-time.",
         "NSMicrophoneUsageDescription": "RYZR uses audio for voice coaching feedback.",
         "NSPhotoLibraryUsageDescription": "RYZR can save workout clips to your photo library.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "SKAdNetworkItems": [
+          { "SKAdNetworkIdentifier": "v9wttpbfk9.skadnetwork" },
+          { "SKAdNetworkIdentifier": "n38lu8286q.skadnetwork" }
+        ]
       }
     },
     "android": {
       "package": "com.ryzr.app",
-      "versionCode": 25,
+      "versionCode": 26,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
@@ -89,6 +93,24 @@
           "android": {
             "minSdkVersion": 26
           }
+        }
+      ],
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "988127173851632",
+          "clientToken": "4871b5bde9d5299a9b2036b53855d38d",
+          "displayName": "RYZR",
+          "scheme": "fb988127173851632",
+          "advertiserIDCollectionEnabled": true,
+          "autoLogAppEventsEnabled": true,
+          "isAutoInitEnabled": true
+        }
+      ],
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "RYZR uses this to measure which ads bring people to the app. It never affects your experience."
         }
       ]
     ],
