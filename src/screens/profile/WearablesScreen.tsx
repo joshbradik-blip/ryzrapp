@@ -77,6 +77,12 @@ export function WearablesScreen() {
     if (available && hubConnected) refresh();
   }, [userId]);
 
+  // Brand rows used to be tappable and persisted a fake "Linked" state locally.
+  // Only the OS hub is a real connection — clear any stale brand ids.
+  useEffect(() => {
+    connected.filter((id) => id !== HUB.id).forEach(disconnect);
+  }, []);
+
   const connectHub = async () => {
     const ok = await Health.requestPermissions();
     if (ok) {
@@ -92,17 +98,6 @@ export function WearablesScreen() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Disconnect', style: 'destructive', onPress: () => { disconnect(HUB.id); setSteps(null); setWeight(null); } },
     ]);
-  };
-
-  const onPressBrand = (brand: Brand) => {
-    if (connected.includes(brand.id)) {
-      Alert.alert(`Disconnect ${brand.name}?`, 'RYZR will stop using data from this device.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Disconnect', style: 'destructive', onPress: () => disconnect(brand.id) },
-      ]);
-    } else {
-      toggle(brand.id);
-    }
   };
 
   return (
@@ -177,42 +172,30 @@ export function WearablesScreen() {
 
         {/* ── Brands ── */}
         <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1, marginTop: 16, marginBottom: 10 }}>
-          DEVICES
+          WORKS WITH
         </Text>
         <View style={{ gap: 12 }}>
-          {BRANDS.map((brand) => {
-            const isConnected = connected.includes(brand.id);
-            return (
-              <TouchableOpacity
-                key={brand.id}
-                onPress={() => onPressBrand(brand)}
-                activeOpacity={0.8}
-                style={{
-                  flexDirection: 'row', alignItems: 'center', gap: 14,
-                  backgroundColor: Colors.surface, borderRadius: 16, padding: 16,
-                  borderWidth: 1, borderColor: isConnected ? Colors.primary : Colors.border,
-                }}
-              >
-                <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Ionicons name={brand.icon} size={24} color={Colors.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 15 }}>{brand.name}</Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 }}>{brand.desc}</Text>
-                </View>
-                {isConnected ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: Colors.success + '22', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flexShrink: 0 }}>
-                    <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
-                    <Text style={{ color: Colors.success, fontWeight: '800', fontSize: 13 }}>Linked</Text>
-                  </View>
-                ) : (
-                  <View style={{ backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9, flexShrink: 0 }}>
-                    <Text style={{ color: '#000', fontWeight: '800', fontSize: 13 }}>Link</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+          {BRANDS.map((brand) => (
+            <View
+              key={brand.id}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 14,
+                backgroundColor: Colors.surface, borderRadius: 16, padding: 16,
+                borderWidth: 1, borderColor: Colors.border,
+              }}
+            >
+              <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Ionicons name={brand.icon} size={24} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 15 }}>{brand.name}</Text>
+                <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 }}>{brand.desc}</Text>
+              </View>
+              <View style={{ backgroundColor: Colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flexShrink: 0 }}>
+                <Text style={{ color: Colors.textSecondary, fontWeight: '700', fontSize: 12 }}>Via {HUB.name}</Text>
+              </View>
+            </View>
+          ))}
         </View>
 
         <Text style={{ color: Colors.muted, fontSize: 12, textAlign: 'center', lineHeight: 18, marginTop: 24 }}>
