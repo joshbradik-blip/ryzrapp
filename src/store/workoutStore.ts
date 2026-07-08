@@ -6,6 +6,7 @@ import { EXERCISES } from '../constants/exercises';
 import { supabase } from '../lib/supabase';
 import { useHistoryStore } from './historyStore';
 import { generateExerciseChallenges, ChallengeInput } from '../lib/anthropic';
+import type { ReadinessResult } from '../lib/readiness';
 
 interface ActiveSet {
   workoutExerciseId: string;
@@ -48,8 +49,15 @@ interface WorkoutState {
   saveSession: (weightUnit: 'kg' | 'lbs') => Promise<void>;
   loadChallenges: (
     inputs: ChallengeInput[],
-    ctx: { name: string; unit: 'kg' | 'lbs' },
+    ctx: { name: string; unit: 'kg' | 'lbs'; readiness?: ReadinessResult | null },
   ) => Promise<void>;
+
+  // Coach chat: append/insert a library exercise into a workout (persists via zustand storage)
+  addExerciseToWorkout: (
+    workoutId: string,
+    exercise: Exercise,
+    opts: { targetSets: number; targetReps: string; position: 'next' | 'end' }
+  ) => void;
 
   // Swap for current session only (in-memory)
   swapForSession: (
@@ -268,6 +276,39 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
     } catch {
       set({ challengesLoading: false });
     }
+  },
+
+  addExerciseToWorkout: (workoutId, exercise, opts) => {
+    set((s) => {
+      const insertInto = (w: Workout): Workout => {
+        if (w.id !== workoutId) return w;
+        const we: WorkoutExercise = {
+          id: Math.random().toString(36).slice(2),
+          exercise,
+          target_sets: opts.targetSets,
+          target_reps: opts.targetReps,
+          target_rpe: 7,
+          rest_seconds: 90,
+          order: w.exercises.length,
+        };
+        const exercises = [...w.exercises];
+        // 'next' lands right after the user's current spot mid-session, or on
+        // top of the workout otherwise; 'end' appends.
+        const inSession = s.activeSession?.workout_id === w.id;
+        const at =
+          opts.position === 'next'
+            ? inSession
+              ? Math.min(s.currentExerciseIndex + 1, exercises.length)
+              : 0
+            : exercises.length;
+        exercises.splice(at, 0, we);
+        return { ...w, exercises: exercises.map((x, i) => ({ ...x, order: i })) };
+      };
+      return {
+        workouts: s.workouts.map(insertInto),
+        todayWorkout: s.todayWorkout ? insertInto(s.todayWorkout) : s.todayWorkout,
+      };
+    });
   },
 
   swapForSession: (workoutId, workoutExerciseId, replacement, source) => {

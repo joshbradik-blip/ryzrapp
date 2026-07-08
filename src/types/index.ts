@@ -107,6 +107,9 @@ export interface BodyMeasurement {
   waist_cm: number | null;
   hip_cm: number | null;
   body_fat_pct: number | null;
+  lean_mass_kg?: number | null;
+  /** 'manual' | 'apple_health' | 'health_connect' */
+  source?: string;
 }
 
 export type RootStackParamList = {

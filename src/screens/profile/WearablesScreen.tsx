@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
@@ -7,7 +7,7 @@ import { useBodyStore } from '../../store/bodyStore';
 import { useProfileStore } from '../../store/profileStore';
 import { useAuthStore } from '../../store/authStore';
 import { kgToDisplay, weightLabel } from '../../lib/units';
-import { Health, WeightSample } from '../../lib/health';
+import { Health } from '../../lib/health';
 
 type Brand = {
   id: string;
@@ -16,65 +16,58 @@ type Brand = {
   icon: keyof typeof Ionicons.glyphMap;
 };
 
-// The OS health hub — the primary, real integration point.
+// The OS health hub — the primary, real integration point. Watches, rings,
+// scales, and apps like Strava all publish into it; RYZR reads from it.
 const HUB = Platform.OS === 'ios'
   ? { id: 'apple_health', name: 'Apple Health', icon: 'heart-outline' as const,
-      sub: 'Sync steps, weight & heart rate from iPhone and Apple Watch' }
+      sub: 'Sync steps, activity, sleep, heart rate & body composition from iPhone and Apple Watch' }
   : { id: 'health_connect', name: 'Health Connect', icon: 'fitness-outline' as const,
-      sub: 'Sync steps, weight & activity from your Android health apps' };
+      sub: 'Sync steps, activity, sleep, heart rate & body composition from your Android health apps' };
 
 // Brands that feed the hub. Linking is a preference today; data flows via the hub.
 const BRANDS: Brand[] = [
   ...(Platform.OS === 'ios'
-    ? [{ id: 'apple_watch', name: 'Apple Watch', desc: 'Live heart rate & workout tracking', icon: 'watch-outline' as const }]
-    : []),
-  { id: 'fitbit', name: 'Fitbit',    desc: 'Steps, heart rate, sleep & recovery', icon: 'watch-outline' },
-  { id: 'garmin', name: 'Garmin',    desc: 'Training load, HR & sleep',          icon: 'watch-outline' },
-  { id: 'whoop',  name: 'WHOOP',     desc: 'Recovery, strain & sleep coaching',  icon: 'pulse-outline' },
-  { id: 'oura',   name: 'Oura Ring', desc: 'Readiness, sleep & HRV',             icon: 'ellipse-outline' },
+    ? [{ id: 'apple_watch', name: 'Apple Watch', desc: 'Activity rings, workouts, heart rate & sleep', icon: 'watch-outline' as const }]
+    : [{ id: 'galaxy_watch', name: 'Samsung Galaxy Watch', desc: 'Syncs via Samsung Health → Health Connect', icon: 'watch-outline' as const }]),
+  { id: 'fitbit', name: 'Fitbit',    desc: 'Steps, heart rate, sleep & recovery',        icon: 'watch-outline' },
+  { id: 'garmin', name: 'Garmin',    desc: 'Training load, HR, sleep & body battery',    icon: 'watch-outline' },
+  { id: 'whoop',  name: 'WHOOP',     desc: 'Recovery, strain & sleep coaching',          icon: 'pulse-outline' },
+  { id: 'oura',   name: 'Oura Ring', desc: 'Readiness, sleep & HRV',                     icon: 'ellipse-outline' },
+  { id: 'strava', name: 'Strava',    desc: 'Runs, rides & outdoor workouts',             icon: 'map-outline' },
+  { id: 'polar',  name: 'Polar',     desc: 'HR training, running & recovery',            icon: 'watch-outline' },
 ];
 
+function fmtSleep(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return `${h}h ${m}m`;
+}
+
+function timeAgo(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
 export function WearablesScreen() {
-  const { connected, toggle, disconnect } = useWearablesStore();
+  const { connected, toggle, disconnect, today, bodyComp, lastSyncedAt, syncing, sync, clearLive } = useWearablesStore();
   const profile = useProfileStore((s) => s.profile);
   const userId = useAuthStore((s) => s.session?.user?.id);
+  const latestBody = useBodyStore((s) => s.latest);
 
   const available = Health.isAvailable();
   const hubConnected = connected.includes(HUB.id);
 
-  const [steps, setSteps] = useState<number | null>(null);
-  const [weight, setWeight] = useState<WeightSample | null>(null);
-  const [syncing, setSyncing] = useState(false);
-
   const unit = profile?.weight_unit ?? 'kg';
 
-  // Pull steps + latest weight from the OS hub, and auto-log new weight readings
-  // into the existing bodyweight chart.
-  const refresh = useCallback(async () => {
-    if (!Health.isAvailable()) return;
-    setSyncing(true);
-    try {
-      const [s, w] = await Promise.all([Health.getTodaySteps(), Health.getLatestWeightKg()]);
-      setSteps(s);
-      setWeight(w);
-      if (w && userId) {
-        const latest = useBodyStore.getState().latest;
-        const changed = !latest || latest.weight_kg == null || Math.abs(latest.weight_kg - w.kg) > 0.1;
-        if (changed) {
-          await useBodyStore.getState().logMeasurement(userId, {
-            weight_kg: parseFloat(w.kg.toFixed(1)),
-            neck_cm: null, waist_cm: null, hip_cm: null, body_fat_pct: null,
-          });
-        }
-      }
-    } finally {
-      setSyncing(false);
-    }
-  }, [userId]);
-
   useEffect(() => {
-    if (userId) useBodyStore.getState().fetchMeasurements(userId);
-    if (available && hubConnected) refresh();
+    if (userId) {
+      useBodyStore.getState().fetchMeasurements(userId);
+      if (available && hubConnected) sync(userId);
+    }
   }, [userId]);
 
   // Brand rows used to be tappable and persisted a fake "Linked" state locally.
@@ -87,7 +80,7 @@ export function WearablesScreen() {
     const ok = await Health.requestPermissions();
     if (ok) {
       if (!connected.includes(HUB.id)) toggle(HUB.id);
-      refresh();
+      if (userId) sync(userId);
     } else {
       Alert.alert('Permission needed', `Allow RYZR to read your data in the ${HUB.name} permission screen to enable sync.`);
     }
@@ -96,9 +89,19 @@ export function WearablesScreen() {
   const disconnectHub = () => {
     Alert.alert(`Disconnect ${HUB.name}?`, 'RYZR will stop syncing your health data.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Disconnect', style: 'destructive', onPress: () => { disconnect(HUB.id); setSteps(null); setWeight(null); } },
+      { text: 'Disconnect', style: 'destructive', onPress: () => { disconnect(HUB.id); clearLive(); } },
     ]);
   };
+
+  const weightKg = latestBody?.weight_kg ?? profile?.weight_kg ?? null;
+  const tiles: { label: string; value: string }[] = [
+    { label: 'STEPS TODAY', value: today?.steps != null ? today.steps.toLocaleString() : '—' },
+    { label: 'ACTIVE KCAL', value: today?.activeCalories != null ? today.activeCalories.toLocaleString() : '—' },
+    { label: 'RESTING HR', value: today?.restingHr != null ? `${today.restingHr} bpm` : '—' },
+    { label: 'SLEEP', value: today?.sleepMinutes != null ? fmtSleep(today.sleepMinutes) : '—' },
+    { label: 'WEIGHT', value: weightKg != null ? `${kgToDisplay(weightKg, unit)} ${weightLabel(unit)}` : '—' },
+    { label: 'BODY FAT', value: bodyComp?.bodyFatPct != null ? `${bodyComp.bodyFatPct.value}%` : '—' },
+  ];
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
@@ -126,22 +129,18 @@ export function WearablesScreen() {
           {/* Live sync panel */}
           {available && hubConnected && (
             <>
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-                <View style={{ flex: 1, backgroundColor: Colors.surface2, borderRadius: 12, padding: 14 }}>
-                  <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>STEPS TODAY</Text>
-                  <Text style={{ color: Colors.text, fontSize: 24, fontWeight: '900', marginTop: 4 }}>
-                    {steps != null ? steps.toLocaleString() : '—'}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, backgroundColor: Colors.surface2, borderRadius: 12, padding: 14 }}>
-                  <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>LATEST WEIGHT</Text>
-                  <Text style={{ color: Colors.text, fontSize: 24, fontWeight: '900', marginTop: 4 }}>
-                    {weight ? `${kgToDisplay(weight.kg, unit)} ${weightLabel(unit)}` : '—'}
-                  </Text>
-                </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
+                {tiles.map((t) => (
+                  <View key={t.label} style={{ flexBasis: '30%', flexGrow: 1, backgroundColor: Colors.surface2, borderRadius: 12, padding: 12 }}>
+                    <Text style={{ color: Colors.muted, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>{t.label}</Text>
+                    <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', marginTop: 4 }} numberOfLines={1} adjustsFontSizeToFit>
+                      {t.value}
+                    </Text>
+                  </View>
+                ))}
               </View>
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-                <TouchableOpacity onPress={refresh} disabled={syncing}
+                <TouchableOpacity onPress={() => userId && sync(userId)} disabled={syncing}
                   style={{ flex: 1, flexDirection: 'row', gap: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 11 }}>
                   {syncing ? <ActivityIndicator size="small" color="#000" /> : <Ionicons name="sync" size={16} color="#000" />}
                   <Text style={{ color: '#000', fontWeight: '800', fontSize: 13 }}>{syncing ? 'Syncing…' : 'Sync now'}</Text>
@@ -151,6 +150,11 @@ export function WearablesScreen() {
                   <Text style={{ color: Colors.textSecondary, fontWeight: '700', fontSize: 13 }}>Disconnect</Text>
                 </TouchableOpacity>
               </View>
+              {lastSyncedAt && (
+                <Text style={{ color: Colors.muted, fontSize: 11, marginTop: 10, textAlign: 'center' }}>
+                  Last synced {timeAgo(lastSyncedAt)} · records update on Progress
+                </Text>
+              )}
             </>
           )}
 
@@ -199,8 +203,9 @@ export function WearablesScreen() {
         </View>
 
         <Text style={{ color: Colors.muted, fontSize: 12, textAlign: 'center', lineHeight: 18, marginTop: 24 }}>
-          Devices sync to RYZR through {HUB.name}. We use your activity, heart-rate,
-          and sleep data to tailor your training — disconnect anytime.
+          Devices and apps sync to RYZR through {HUB.name} — make sure they're set to
+          share data with it. We use your activity, heart-rate, sleep, and body-composition
+          data to tailor your training — disconnect anytime.
         </Text>
       </ScrollView>
     </View>

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { UserProfile, Injury, SchedulePrefs, Goal, Workout } from '../types';
 import { EXERCISES } from '../constants/exercises';
+import { ReadinessResult, readinessPromptContext } from './readiness';
 
 async function callAnthropic(body: object): Promise<any> {
   console.log('[Anthropic] invoking edge function...');
@@ -39,10 +40,12 @@ interface GeneratePlanParams {
   schedule: SchedulePrefs;
   goals: Goal[];
   equipment: string[];
+  /** Wearable recovery state — when present the plan adapts to it. */
+  readiness?: ReadinessResult | null;
 }
 
 export async function generateWorkoutPlan(params: GeneratePlanParams): Promise<Workout[]> {
-  const { profile, injuries, disabilities, schedule, goals, equipment } = params;
+  const { profile, injuries, disabilities, schedule, goals, equipment, readiness } = params;
 
   const exerciseList = EXERCISES
     .filter((e) =>
@@ -63,11 +66,21 @@ export async function generateWorkoutPlan(params: GeneratePlanParams): Promise<W
     ? disabilities.join(', ')
     : 'None';
 
-  const goalDesc = goals.map((g) =>
-    g.specific_activity ? `${g.category} — ${g.specific_activity}` : g.category
-  ).join(', ');
+  const goalDesc = goals.map((g) => {
+    const base = g.specific_activity ? `${g.category} — ${g.specific_activity}` : g.category;
+    return g.target_weeks ? `${base} (target: ${g.target_weeks} weeks)` : base;
+  }).join(', ');
 
   const systemPrompt = `You are an expert strength and conditioning coach. Generate a personalized training plan as valid JSON only — no explanation, no markdown, just JSON.`;
+
+  const readinessCtx = readinessPromptContext(readiness ?? null);
+  const readinessSection = readinessCtx
+    ? `\nRECOVERY STATUS (from the user's wearable):\n${readinessCtx}\n`
+    : '';
+  const readinessRule = readinessCtx
+    ? `\n- Apply the recovery status to WORKOUT 1 (the next session): if readiness is low, cut its volume ~20% and cap target_rpe at 7; if high, it may start assertively. Later workouts assume normal recovery.
+- Mention the recovery adjustment in the affected workout's exercise notes so the user knows why.`
+    : '';
 
   const userPrompt = `Generate a ${schedule.days_per_week * 2}-workout (2-week) training plan.
 
@@ -76,10 +89,10 @@ USER PROFILE:
 - Height: ${profile.height_cm}cm, Weight: ${profile.weight_kg}kg
 - Injuries: ${injuryNote}
 - Disabilities / adaptive needs: ${disabilityNote}
-- Days/week: ${schedule.days_per_week}, Minutes/session: ${schedule.minutes_per_session}
+- Days/week: ${schedule.days_per_week}, Minutes/session: ${schedule.minutes_per_session}, Preferred time: ${schedule.preferred_time}
 - Goals: ${goalDesc}
 - Equipment: ${equipment.join(', ') || 'bodyweight only'}
-
+${readinessSection}
 AVAILABLE EXERCISES:
 ${exerciseList}
 
@@ -116,7 +129,9 @@ RULES:
 - CRITICAL: exercise_id must be EXACTLY one of the quoted names from the available list above — copy-paste the name, do not modify it in any way. Wrong: "Seated Overhead Press". Right: "Overhead Press".
 - Only use exercises from the available list
 - Keep sessions within the time limit
-- Apply progressive overload across the 2 weeks`;
+- Apply progressive overload across the 2 weeks
+- Match exercise difficulty, volume, and rest periods to the user's fitness level and age — beginners get beginner-difficulty exercises with more rest; experienced/advanced users get appropriately harder selections and denser sessions
+- Choose exercises and rep ranges that directly serve the stated goals (e.g. hypertrophy ranges for build_muscle, higher-rep circuits for lose_fat, movement-specific work for specific_activity)${readinessRule}`;
 
   const data = await callAnthropic({
     model: 'claude-sonnet-4-6',
@@ -157,7 +172,7 @@ function mapPlanToWorkouts(plan: any): Workout[] {
     exercises: (w.exercises ?? [])
       .map((e: any) => {
         const id = (e.exercise_id ?? '').toLowerCase().trim();
-        const idWords = new Set(id.split(/\s+/).filter((w) => w.length > 2));
+        const idWords = new Set(id.split(/\s+/).filter((w: string) => w.length > 2));
         const exercise =
           EXERCISES.find((ex) => ex.name.toLowerCase() === id) ??
           EXERCISES.find((ex) => ex.name.toLowerCase().includes(id)) ??
@@ -218,6 +233,8 @@ export interface CoachMessage {
   role: 'user' | 'assistant';
   content: string;
   imageUri?: string; // local URI for display only — not sent to API
+  /** 'action' = a plan change the coach just made (rendered as a status chip). */
+  kind?: 'action';
 }
 
 export async function askWorkoutCoach(
@@ -235,10 +252,42 @@ export async function askWorkoutCoach(
   return data.content?.[0]?.text ?? "Let's focus — what do you need help with?";
 }
 
+export interface CoachChatTurnContext {
+  name: string;
+  workoutName?: string;
+  exerciseNames?: string[];
+  /** Compact wearable line from readinessPromptContext(). */
+  readiness?: string | null;
+  /** Plan + library block from buildPlanContext() — enables plan-editing tools. */
+  planContext?: string | null;
+  tools?: object[] | null;
+}
+
+/**
+ * One raw model turn for the agentic coach chat. `apiMessages` are Anthropic
+ * messages (content may be text, image blocks, tool_use, or tool_result) and
+ * the FULL response is returned so the caller can run the tool-use loop.
+ */
+export async function coachChatTurn(apiMessages: object[], ctx: CoachChatTurnContext): Promise<any> {
+  return callWorkoutCoach({
+    messages: apiMessages,
+    user_name: ctx.name,
+    workout_name: ctx.workoutName,
+    current_exercises: ctx.exerciseNames ?? [],
+    mode: 'chat',
+    readiness: ctx.readiness ?? undefined,
+    plan_context: ctx.planContext ?? undefined,
+    tools: ctx.tools ?? undefined,
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+  });
+}
+
 export async function generatePreWorkoutChallenge(
   name: string,
   workoutName: string,
-  exerciseNames: string[]
+  exerciseNames: string[],
+  readiness?: string | null
 ): Promise<string> {
   const data = await callWorkoutCoach({
     messages: [],
@@ -246,13 +295,15 @@ export async function generatePreWorkoutChallenge(
     workout_name: workoutName,
     current_exercises: exerciseNames,
     mode: 'pre_workout_challenge',
+    readiness: readiness ?? undefined,
   });
   return data.content?.[0]?.text ?? '';
 }
 
 export async function generateDailyCoachMessage(
   name: string,
-  workoutName?: string
+  workoutName?: string,
+  readiness?: string | null
 ): Promise<string> {
   const data = await callWorkoutCoach({
     messages: [],
@@ -260,6 +311,7 @@ export async function generateDailyCoachMessage(
     workout_name: workoutName,
     current_exercises: [],
     mode: 'daily_encouragement',
+    readiness: readiness ?? undefined,
   });
   return data.content?.[0]?.text ?? '';
 }
@@ -428,6 +480,24 @@ Analyze this image and return ONLY valid JSON, no explanation or markdown:
   }
 }
 
+// AI weekly recap (premium) — one short narrative over the trailing 7 days.
+export async function generateWeeklyRecap(name: string, statsBlock: string): Promise<string> {
+  const data = await callAnthropic({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 300,
+    messages: [{
+      role: 'user',
+      content: `You are RYZR Coach writing ${name}'s weekly training recap.
+
+THIS WEEK'S DATA:
+${statsBlock}
+
+Write 3-4 warm, specific sentences: celebrate what the data shows (use the actual numbers), call out one pattern worth noticing (good or fixable), and end with exactly one line starting "Focus for next week:" with one concrete, actionable focus. No bullet points, no headers, no preamble.`,
+    }],
+  });
+  return (data.content?.[0]?.text ?? '').trim();
+}
+
 export interface ChallengeInput {
   exerciseId: string;
   name: string;
@@ -441,9 +511,12 @@ export interface ChallengeInput {
 // (deterministic); the model writes ONLY the challenge.
 export async function generateExerciseChallenges(
   inputs: ChallengeInput[],
-  ctx: { name: string; unit: 'kg' | 'lbs' },
+  ctx: { name: string; unit: 'kg' | 'lbs'; readiness?: ReadinessResult | null },
 ): Promise<Record<string, string>> {
   if (inputs.length === 0) return {};
+
+  const readinessCtx = readinessPromptContext(ctx.readiness ?? null);
+  const readinessNote = readinessCtx ? `\nRECOVERY STATUS: ${readinessCtx}\n` : '';
 
   const lines = inputs.map((e) => {
     const last = e.lastSession && e.lastSession.length > 0
@@ -460,7 +533,8 @@ For EACH exercise below, write ONE short challenge (max 18 words) that:
 - references their actual numbers in ${ctx.unit}
 - pushes a sensible progression (add a rep, add weight, tighter tempo, or match a PR)
 - for first-time exercises, gives a smart baseline-setting challenge
-
+- respects the recovery status below if present — under-recovered means NO new-weight or PR challenges
+${readinessNote}
 EXERCISES:
 ${lines}
 

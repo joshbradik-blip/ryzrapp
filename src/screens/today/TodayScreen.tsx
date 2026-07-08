@@ -23,6 +23,17 @@ import { StatTile } from '../../components/ui/StatTile';
 import { Colors } from '../../constants/theme';
 import { CoachChatSheet } from './CoachChatSheet';
 import { PremiumModal } from '../../components/ui/PremiumModal';
+import { ReadinessCard } from '../../components/today/ReadinessCard';
+import { useWearablesStore } from '../../store/wearablesStore';
+import { Health } from '../../lib/health';
+import { readinessPromptContext } from '../../lib/readiness';
+import {
+  ensureNotificationPermissions,
+  preferredTimeToClock,
+  scheduleDailyCoachNotification,
+  scheduleStreakNudge,
+  cancelStreakNudge,
+} from '../../lib/notifications';
 import { generateWorkoutPlan, generatePreWorkoutChallenge, generateDailyCoachMessage } from '../../lib/anthropic';
 
 export function TodayScreen() {
@@ -36,7 +47,8 @@ export function TodayScreen() {
   } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
   const userId = useAuthStore((s) => s.session?.user?.id);
-  const { currentStreak, longestStreak, totalSessions, thisWeekSessions, fetchHistory } = useHistoryStore();
+  const { currentStreak, longestStreak, totalSessions, thisWeekSessions, sessions, loaded, fetchHistory } = useHistoryStore();
+  const readiness = useWearablesStore((s) => s.readiness);
   const [chatOpen, setChatOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [premiumFeatureTitle, setPremiumFeatureTitle] = useState<string | undefined>();
@@ -63,7 +75,10 @@ export function TodayScreen() {
         onPress: async () => {
           setRegenerating(true);
           try {
-            const newWorkouts = await generateWorkoutPlan({ profile, injuries, disabilities, schedule: schedulePrefs, goals, equipment });
+            const newWorkouts = await generateWorkoutPlan({
+              profile, injuries, disabilities, schedule: schedulePrefs, goals, equipment,
+              readiness: useWearablesStore.getState().readiness,
+            });
             setWorkouts(newWorkouts);
             if (newWorkouts.length > 0) setTodayWorkout(newWorkouts[0]);
             Alert.alert('Done!', 'Your new workout plan is ready.');
@@ -86,19 +101,29 @@ export function TodayScreen() {
 
     const generate = async () => {
       try {
+        const readinessCtx = readinessPromptContext(useWearablesStore.getState().readiness);
         const [daily, challenge] = await Promise.all([
-          generateDailyCoachMessage(profile.name, todayWorkout?.name),
+          generateDailyCoachMessage(profile.name, todayWorkout?.name, readinessCtx),
           todayWorkout
             ? generatePreWorkoutChallenge(
                 profile.name,
                 todayWorkout.name,
-                todayWorkout.exercises.map((e) => e.exercise.name)
+                todayWorkout.exercises.map((e) => e.exercise.name),
+                readinessCtx
               )
             : Promise.resolve(''),
         ]);
         if (daily) addPendingCoachMessage(daily);
         if (challenge) addPendingCoachMessage(challenge);
         setLastCoachMessageDate(today);
+        // Push the coach message at the user's preferred training time too —
+        // in-app badges only reach people who already opened the app.
+        if (daily && (await ensureNotificationPermissions())) {
+          const { hour, minute } = preferredTimeToClock(
+            useProfileStore.getState().schedulePrefs?.preferred_time
+          );
+          scheduleDailyCoachNotification(hour, minute, daily);
+        }
       } catch {
         // Silently ignore — non-critical background call
       }
@@ -108,8 +133,31 @@ export function TodayScreen() {
   }, [profile?.name, todayWorkout?.id]);
 
   useEffect(() => {
-    if (userId) fetchHistory(userId);
+    if (userId) {
+      fetchHistory(userId);
+      // Readiness: load synced history, then refresh from the OS hub if connected.
+      const wearables = useWearablesStore.getState();
+      wearables.loadHistory(userId);
+      if (Health.isAvailable() && wearables.connected.length > 0) {
+        wearables.sync(userId);
+      }
+    }
   }, [userId]);
+
+  // Streak protection: evening nudge unless today's session is already logged.
+  useEffect(() => {
+    if (!loaded) return;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const trainedToday = sessions.some((s) => new Date(s.started_at) >= todayStart);
+    if (trainedToday) {
+      cancelStreakNudge();
+    } else {
+      ensureNotificationPermissions().then((ok) => {
+        if (ok) scheduleStreakNudge(currentStreak);
+      });
+    }
+  }, [loaded, sessions, currentStreak]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -159,6 +207,9 @@ export function TodayScreen() {
             </View>
           </View>
         </View>
+
+        {/* Recovery readiness (shows once wearable data has synced) */}
+        {readiness && <ReadinessCard readiness={readiness} isPremium={isPremium} />}
 
         {/* Today's workout hero card */}
         {todayWorkout ? (
