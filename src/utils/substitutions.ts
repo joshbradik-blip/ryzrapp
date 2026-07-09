@@ -5,6 +5,7 @@ import {
   categoryToTargets,
   mapEquipmentToDB,
 } from '../lib/exercisedb';
+import { conflictsWithInjuries } from '../lib/injuries';
 
 function isEquipmentCompatible(
   exerciseEquipment: string[],
@@ -15,8 +16,7 @@ function isEquipmentCompatible(
 }
 
 function isInjurySafe(contraindications: string[], userInjuries: string[]): boolean {
-  if (contraindications.length === 0 || userInjuries.length === 0) return true;
-  return !contraindications.some((c) => userInjuries.includes(c));
+  return !conflictsWithInjuries(contraindications, userInjuries);
 }
 
 function dbEquipmentCompatible(dbEquipment: string, userDBEquipment: string[]): boolean {
