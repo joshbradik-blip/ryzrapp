@@ -317,6 +317,15 @@ export async function generateDailyCoachMessage(
   return data.content?.[0]?.text ?? '';
 }
 
+export async function generateCoachNotice(name: string, fact: string): Promise<string> {
+  const data = await callWorkoutCoach({
+    messages: [{ role: 'user', content: `OBSERVATION: ${fact}` }],
+    user_name: name,
+    mode: 'coach_notice',
+  });
+  return data.content?.[0]?.text ?? '';
+}
+
 export async function askCoach(
   messages: CoachMessage[],
   context: { name: string; workoutName?: string }

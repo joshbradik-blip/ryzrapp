@@ -125,6 +125,14 @@ Generate one uplifting, personal message (2-3 sentences) for the start of the us
 ${hasHistory ? 'Reference their recent training consistency to make it feel earned.' : 'They are just getting started — make them feel welcome and capable.'}
 ${readiness ? 'Weave in their recovery state from the readiness line below: celebrate a primed day, or normalize going lighter on a run-down day (recovery is training too).' : ''}
 Do NOT mention specific weights. Warm, coach-like tone.`;
+  } else if (mode === 'coach_notice') {
+    modeInstructions = `
+MODE: COACH NOTICE
+The user's message contains an OBSERVATION drawn from their real logged training data. Turn
+it into ONE short, direct message (1-2 sentences) as if you personally noticed it — plain,
+observant coach voice, can be a little playful, never preachy or guilt-tripping. Don't restate
+the raw numbers awkwardly or add unrelated encouragement — make it sound like something a
+sharp coach would actually say in passing. No greeting, no sign-off.`;
   } else {
     modeInstructions = `
 MODE: GENERAL COACH CHAT
@@ -242,7 +250,7 @@ Deno.serve(async (req: Request) => {
     user_name?: string;
     workout_name?: string;
     current_exercises?: string[];
-    mode?: 'chat' | 'pre_workout_challenge' | 'daily_encouragement';
+    mode?: 'chat' | 'pre_workout_challenge' | 'daily_encouragement' | 'coach_notice';
     readiness?: string;
     plan_context?: string;
     tools?: unknown[];

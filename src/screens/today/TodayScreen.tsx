@@ -37,6 +37,7 @@ import {
   cancelStreakNudge,
 } from '../../lib/notifications';
 import { generateWorkoutPlan, generatePreWorkoutChallenge, generateDailyCoachMessage } from '../../lib/anthropic';
+import { getOrGenerateCoachNotice } from '../../lib/coachNotices';
 
 export function TodayScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<TodayStackParamList>>();
@@ -146,6 +147,15 @@ export function TodayScreen() {
       }
     }
   }, [userId]);
+
+  // Coach Notices: an occasional (roughly every 1-2 weeks), deterministically
+  // detected pattern observation, queued the same way as the daily message.
+  useEffect(() => {
+    if (!loaded) return;
+    getOrGenerateCoachNotice().then((notice) => {
+      if (notice) addPendingCoachMessage(notice);
+    }).catch(() => {});
+  }, [loaded]);
 
   // Streak protection: evening nudge unless today's session is already logged.
   useEffect(() => {
