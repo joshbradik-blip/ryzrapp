@@ -23,6 +23,7 @@ import { kgToDisplay, displayToKg, weightLabel } from '../../lib/units';
 import { navyBodyFat, cmToIn, inToCm } from '../../lib/bodyComposition';
 import { dailyActivityCounts, strengthProgression, topExercisesBySets } from '../../lib/historyMetrics';
 import { getOrGenerateWeeklyRecap } from '../../lib/weeklyRecap';
+import { projectLiftTrend, projectBodyMetric, TrendProjection } from '../../lib/futureSelf';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { MuscleHeatmap } from '../../components/progress/MuscleHeatmap';
 import { GradientButton } from '../../components/ui/GradientButton';
@@ -76,7 +77,7 @@ function formatSleep(minutes: number): string {
 
 export function ProgressScreen() {
   const { isPremium } = useSubscriptionStore();
-  const { profile } = useProfileStore();
+  const { profile, goals } = useProfileStore();
   const userId = useAuthStore((s) => s.session?.user?.id);
   const { volumeByWeek, muscleHeatMap, bestWeights, sessions, sets, fetchHistory } = useHistoryStore();
   const { latest, previous, fetchMeasurements, logMeasurement } = useBodyStore();
@@ -93,6 +94,7 @@ export function ProgressScreen() {
   const [wValue, setWValue] = useState('');
   const [wSaving, setWSaving] = useState(false);
   const [recapText, setRecapText] = useState<string | null>(null);
+  const [bodyProjection, setBodyProjection] = useState<TrendProjection | null>(null);
 
   useEffect(() => {
     if (userId) {
@@ -113,6 +115,14 @@ export function ProgressScreen() {
     if (!isPremium || sessions.length === 0 || recapText) return;
     getOrGenerateWeeklyRecap().then((r) => { if (r) setRecapText(r.text); });
   }, [isPremium, sessions]);
+
+  // Future Self: deterministic trend projection, no AI call — track whichever
+  // body metric matches the user's stated goal (fat loss → body fat, else weight).
+  useEffect(() => {
+    if (!userId) return;
+    const metric = goals[0]?.category === 'lose_fat' ? 'body_fat_pct' : 'weight_kg';
+    projectBodyMetric(userId, metric, 4).then(setBodyProjection);
+  }, [userId, latest?.recorded_at]);
 
   const unit = profile?.weight_unit ?? 'kg';
   const totalVolumeKg = volumeByWeek.reduce((sum, w) => sum + w.volumeKg, 0);
@@ -143,6 +153,10 @@ export function ProgressScreen() {
     return trained.length > 0 ? trained : ['Back Squat', 'Bench Press', 'Deadlift', 'Pull-Up'];
   }, [sets]);
   const selectedChart = activeChart ?? chartChips[0];
+  const liftProjection = useMemo(() => {
+    const topLift = topExercisesBySets(sets, 1)[0];
+    return topLift ? projectLiftTrend(topLift, 4) : null;
+  }, [sets]);
   const chartPoints = useMemo(
     () => strengthProgression(sets, selectedChart, 10),
     [sets, selectedChart]
@@ -242,6 +256,37 @@ export function ProgressScreen() {
               <Ionicons name="sparkles" size={13} color={Colors.primary} />
             </View>
             <Text style={{ color: Colors.text, fontSize: 14, lineHeight: 21 }}>{recapText}</Text>
+          </View>
+        )}
+
+        {/* Future Self: deterministic trend projection */}
+        {(liftProjection || bodyProjection) && (
+          <View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.primary + '44' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+              <SectionLabel>Future You</SectionLabel>
+              <Ionicons name="trending-up" size={13} color={Colors.primary} />
+            </View>
+            {liftProjection && (
+              <Text style={{ color: Colors.text, fontSize: 14, lineHeight: 21, marginBottom: bodyProjection ? 10 : 0 }}>
+                At your current pace, <Text style={{ fontWeight: '800' }}>{liftProjection.label}</Text> projects to{' '}
+                <Text style={{ fontWeight: '800' }}>{kgToDisplay(liftProjection.projectedValue, unit)} {weightLabel(unit)}</Text> (est. 1RM) by{' '}
+                {shortDate(liftProjection.asOfDate)} — up from {kgToDisplay(liftProjection.currentValue, unit)} {weightLabel(unit)} today.
+              </Text>
+            )}
+            {bodyProjection && (
+              <Text style={{ color: Colors.text, fontSize: 14, lineHeight: 21 }}>
+                {bodyProjection.unit === '%' ? (
+                  <>Your body fat trend puts you at <Text style={{ fontWeight: '800' }}>{bodyProjection.projectedValue}%</Text> by{' '}
+                  {shortDate(bodyProjection.asOfDate)}, from {bodyProjection.currentValue}% today.</>
+                ) : (
+                  <>Your weight trend puts you at <Text style={{ fontWeight: '800' }}>{kgToDisplay(bodyProjection.projectedValue, unit)} {weightLabel(unit)}</Text> by{' '}
+                  {shortDate(bodyProjection.asOfDate)}, from {kgToDisplay(bodyProjection.currentValue, unit)} {weightLabel(unit)} today.</>
+                )}
+              </Text>
+            )}
+            <Text style={{ color: Colors.muted, fontSize: 11, marginTop: 10 }}>
+              A trend from your logged history, not a guarantee — ask your coach for a projection on any lift or goal.
+            </Text>
           </View>
         )}
 

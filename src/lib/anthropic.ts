@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { UserProfile, Injury, SchedulePrefs, Goal, Workout } from '../types';
 import { EXERCISES } from '../constants/exercises';
 import { ReadinessResult, readinessPromptContext } from './readiness';
+import { conflictsWithInjuries } from './injuries';
 
 async function callAnthropic(body: object): Promise<any> {
   console.log('[Anthropic] invoking edge function...');
@@ -53,7 +54,7 @@ export async function generateWorkoutPlan(params: GeneratePlanParams): Promise<W
       e.equipment_required.some((eq) => equipment.includes(eq))
     )
     .filter((e) =>
-      !e.contraindications.some((c) => injuries.some((i) => i.body_part === c))
+      !conflictsWithInjuries(e.contraindications, injuries.map((i) => i.body_part))
     )
     .map((e) => `- "${e.name}" | ${e.category} | ${e.equipment_required.join(', ') || 'bodyweight'} | ${e.difficulty}`)
     .join('\n');
