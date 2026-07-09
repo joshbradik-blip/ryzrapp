@@ -279,7 +279,7 @@ export async function coachChatTurn(apiMessages: object[], ctx: CoachChatTurnCon
     plan_context: ctx.planContext ?? undefined,
     tools: ctx.tools ?? undefined,
     model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
+    max_tokens: 2048,
   });
 }
 
