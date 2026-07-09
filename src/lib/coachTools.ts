@@ -9,6 +9,7 @@ import { useWorkoutStore } from '../store/workoutStore';
 import { useProfileStore } from '../store/profileStore';
 import { useAuthStore } from '../store/authStore';
 import { projectLiftTrend, projectBodyMetric } from './futureSelf';
+import { assessInjuryRisk } from './injuryRisk';
 import { Exercise, Workout, Injury, InjurySeverity, Goal, GoalCategory } from '../types';
 
 const BODY_PARTS = ['lower_back', 'knees', 'left_shoulder', 'right_shoulder', 'wrists', 'elbows', 'neck', 'hips', 'ankles'];
@@ -103,6 +104,12 @@ export const COACH_TOOLS = [
       },
       required: ['metric'],
     },
+  },
+  {
+    name: 'get_injury_risk_assessment',
+    description:
+      "Compute a deterministic injury-risk signal per joint/body part from the user's logged training volume, recovery trend, and reported injuries. Use this whenever the user asks if they're at risk of getting hurt, whether they're overdoing it, or whether they should back off — NEVER guess this yourself, always call the tool and report exactly what it returns.",
+    input_schema: { type: 'object', properties: {} },
   },
 ];
 
@@ -308,6 +315,25 @@ export async function executeCoachTool(tu: CoachToolUse): Promise<CoachToolOutco
       }
 
       return fail(tu, `Unknown metric "${metric}".`);
+    }
+
+    if (tu.name === 'get_injury_risk_assessment') {
+      const signals = assessInjuryRisk();
+      if (signals.length === 0) {
+        return {
+          toolUseId: tu.id,
+          ok: true,
+          result: 'No elevated injury-risk signals right now — training volume and recovery look reasonable across all tracked joints.',
+          summary: 'No injury-risk signals right now',
+        };
+      }
+      const lines = signals.map((s) => `${s.label} (${s.riskLevel}): ${s.reasons.join('; ')}`);
+      return {
+        toolUseId: tu.id,
+        ok: true,
+        result: `Injury-risk signals detected:\n${lines.join('\n')}\nThis is a deterministic trend from logged data, not a diagnosis.`,
+        summary: `Risk signal: ${signals[0].label} (${signals[0].riskLevel})`,
+      };
     }
 
     return fail(tu, `Unknown tool "${tu.name}".`);
