@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,9 +24,11 @@ import { Colors } from '../../constants/theme';
 import { CoachChatSheet } from './CoachChatSheet';
 import { PremiumModal } from '../../components/ui/PremiumModal';
 import { ReadinessCard } from '../../components/today/ReadinessCard';
+import { InjuryRiskCard } from '../../components/today/InjuryRiskCard';
 import { useWearablesStore } from '../../store/wearablesStore';
 import { Health } from '../../lib/health';
 import { readinessPromptContext } from '../../lib/readiness';
+import { assessInjuryRisk } from '../../lib/injuryRisk';
 import {
   ensureNotificationPermissions,
   preferredTimeToClock,
@@ -47,8 +49,9 @@ export function TodayScreen() {
   } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
   const userId = useAuthStore((s) => s.session?.user?.id);
-  const { currentStreak, longestStreak, totalSessions, thisWeekSessions, sessions, loaded, fetchHistory } = useHistoryStore();
+  const { currentStreak, longestStreak, totalSessions, thisWeekSessions, sessions, sets, loaded, fetchHistory } = useHistoryStore();
   const readiness = useWearablesStore((s) => s.readiness);
+  const riskSignals = useMemo(() => assessInjuryRisk(), [sets, injuries]);
   const [chatOpen, setChatOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [premiumFeatureTitle, setPremiumFeatureTitle] = useState<string | undefined>();
@@ -210,6 +213,9 @@ export function TodayScreen() {
 
         {/* Recovery readiness (shows once wearable data has synced) */}
         {readiness && <ReadinessCard readiness={readiness} isPremium={isPremium} />}
+
+        {/* Predictive injury risk (shows only when a joint has an elevated signal) */}
+        <InjuryRiskCard signals={riskSignals} />
 
         {/* Today's workout hero card */}
         {todayWorkout ? (
