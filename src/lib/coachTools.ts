@@ -54,11 +54,19 @@ export function buildPlanContext(): string {
     const exs = w.exercises.map((we) => `${we.exercise.name} (${we.target_sets}x${we.target_reps})`).join(', ');
     return `- workout_id "${w.id}" | ${w.name} | Week ${w.week_number} Day ${w.day_number}${today} | ${exs}`;
   });
+  const library = EXERCISES.map((e) => {
+    const equip = e.equipment_required.length > 0 ? e.equipment_required.join('/') : 'bodyweight';
+    const avoid = e.contraindications.length > 0 ? e.contraindications.join(',') : 'none';
+    return `${e.name} [equipment: ${equip}; avoid if: ${avoid}]`;
+  }).join('\n');
+
   return `WORKOUTS (target tool calls by workout_id):
 ${lines.join('\n')}
 
-EXERCISE LIBRARY (the ONLY valid exercise names for tools):
-${EXERCISES.map((e) => e.name).join(', ')}`;
+EXERCISE LIBRARY (the ONLY valid exercise names for tools — "avoid if" lists the body
+part(s)/injury this exercise stresses; "equipment" is what it requires, "bodyweight"
+means none):
+${library}`;
 }
 
 export interface CoachToolUse {
