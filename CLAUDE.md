@@ -13,6 +13,7 @@ RYZR is a React Native + Expo workout app with AI-generated training plans, a re
 - **AI**: Anthropic Claude API — `claude-sonnet-4-6` for plans, `claude-haiku-4-5-20251001` for form feedback
 - **Subscriptions**: RevenueCat (`react-native-purchases`) — configure keys in `src/store/subscriptionStore.ts`
 - **Camera**: `expo-camera`
+- **Voice**: `expo-speech` (TTS, on-device) + `expo-speech-recognition` (STT, on-device, native module — requires a new native build to ship, does NOT work via EAS Update/OTA)
 
 ## Code conventions
 - All screens live in `src/screens/<tab>/ScreenName.tsx`
@@ -43,7 +44,7 @@ RYZR is a React Native + Expo workout app with AI-generated training plans, a re
 - All screens built and wired up
 - Auth flow: Welcome → Sign Up / Login
 - Onboarding: 5-step flow → AI plan generation → Main tabs
-- Today tab: streak badge, recovery-readiness card (wearable HRV/RHR/sleep → `src/lib/readiness.ts`), workout card, real stat tiles, session tracking, rest timer, form coach
+- Today tab: streak badge, recovery-readiness card (wearable HRV/RHR/sleep → `src/lib/readiness.ts`), injury-risk card (`src/lib/injuryRisk.ts`), workout card, real stat tiles, session tracking, rest timer, form coach, AI coach chat with voice input/output (`CoachChatSheet.tsx`)
 - Progress tab: training volume card, muscle-group heatmap, calendar heatmap, strength chart, PRs, body weight
 - Store tab: Premium subscription cards + Amazon gear storefront
 - Profile tab: real stats, settings, regenerate plan, sign out

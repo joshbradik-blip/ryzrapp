@@ -78,6 +78,14 @@
         }
       ],
       [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "RYZR uses your microphone so you can talk to your AI coach.",
+          "speechRecognitionPermission": "RYZR uses speech recognition to turn what you say into text for your AI coach.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ],
+      [
         "react-native-vision-camera",
         {
           "cameraPermissionText": "RYZR uses your camera to analyze your workout form in real-time.",

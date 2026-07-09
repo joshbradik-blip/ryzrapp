@@ -19,6 +19,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as Speech from 'expo-speech';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { coachChatTurn, CoachMessage } from '../../lib/anthropic';
 import { COACH_TOOLS, buildPlanContext, executeCoachTool } from '../../lib/coachTools';
@@ -34,7 +36,7 @@ interface Props {
 
 const WELCOME: CoachMessage = {
   role: 'assistant',
-  content: "Hey! I'm your RYZR Coach. Ask me anything — form tips, how many reps to push, recovery advice. I can also change your plan right here: snap a photo of any machine and say \"add this to today\" or ask me to swap an exercise.",
+  content: "Hey! I'm your RYZR Coach. Ask me anything — form tips, how many reps to push, recovery advice. I can also change your plan right here: snap a photo of any machine and say \"add this to today\" or ask me to swap an exercise. Tap the mic to talk instead of type.",
 };
 
 const MAX_TOOL_ROUNDS = 3;
@@ -52,6 +54,8 @@ export function CoachChatSheet({ visible, onClose }: Props) {
   const slideAnim = useRef(new Animated.Value(600)).current;
   const listRef = useRef<FlatList<CoachMessage>>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [listening, setListening] = useState(false);
+  const voiceTranscriptRef = useRef('');
 
   useEffect(() => {
     if (visible) {
@@ -64,6 +68,9 @@ export function CoachChatSheet({ visible, onClose }: Props) {
       }
     } else {
       Animated.timing(slideAnim, { toValue: 600, duration: 220, useNativeDriver: true }).start();
+      Speech.stop();
+      ExpoSpeechRecognitionModule.stop();
+      setListening(false);
     }
   }, [visible, slideAnim]);
 
@@ -86,9 +93,10 @@ export function CoachChatSheet({ visible, onClose }: Props) {
     return () => { show.remove(); hide.remove(); };
   }, []);
 
-  const send = useCallback(async () => {
-    const trimmed = input.trim();
+  const send = useCallback(async (overrideText?: string, isVoice = false) => {
+    const trimmed = (overrideText ?? input).trim();
     if ((!trimmed && !pendingImage) || loading) return;
+    Speech.stop();
 
     const ctx = {
       name: profile?.name ?? 'Athlete',
@@ -121,6 +129,7 @@ export function CoachChatSheet({ visible, onClose }: Props) {
         : caption,
     });
 
+    let lastAssistantText = '';
     try {
       let resp = await coachChatTurn([...apiMessagesRef.current], ctx);
 
@@ -135,7 +144,10 @@ export function CoachChatSheet({ visible, onClose }: Props) {
           .map((b) => b.text)
           .join('\n')
           .trim();
-        if (text) setMessages((prev) => [...prev, { role: 'assistant', content: text }]);
+        if (text) {
+          setMessages((prev) => [...prev, { role: 'assistant', content: text }]);
+          lastAssistantText = text;
+        }
 
         const toolUses = blocks.filter((b) => b.type === 'tool_use');
         if (resp?.stop_reason !== 'tool_use' || toolUses.length === 0) break;
@@ -174,6 +186,9 @@ export function CoachChatSheet({ visible, onClose }: Props) {
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
         resp = await coachChatTurn([...apiMessagesRef.current], ctx);
       }
+      if (isVoice && lastAssistantText) {
+        Speech.speak(lastAssistantText, { rate: 0.98 });
+      }
     } catch {
       apiMessagesRef.current.length = checkpoint;
       setMessages((prev) => [...prev, { role: 'assistant', content: "I'm having trouble connecting right now. Try again in a moment." }]);
@@ -182,6 +197,40 @@ export function CoachChatSheet({ visible, onClose }: Props) {
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }, [input, pendingImage, loading, profile, todayWorkout]);
+
+  const startListening = useCallback(async () => {
+    const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    if (!result.granted) {
+      Alert.alert('Permission needed', 'Microphone and speech recognition access are required to talk to your coach.');
+      return;
+    }
+    Speech.stop();
+    voiceTranscriptRef.current = '';
+    setInput('');
+    setListening(true);
+    ExpoSpeechRecognitionModule.start({ lang: 'en-US', interimResults: true, continuous: false });
+  }, []);
+
+  const stopListening = useCallback(() => {
+    ExpoSpeechRecognitionModule.stop();
+  }, []);
+
+  useSpeechRecognitionEvent('result', (event) => {
+    const transcript = event.results?.[0]?.transcript ?? '';
+    voiceTranscriptRef.current = transcript;
+    setInput(transcript);
+  });
+
+  useSpeechRecognitionEvent('end', () => {
+    setListening(false);
+    const transcript = voiceTranscriptRef.current.trim();
+    voiceTranscriptRef.current = '';
+    if (transcript) send(transcript, true);
+  });
+
+  useSpeechRecognitionEvent('error', () => {
+    setListening(false);
+  });
 
   const pickImage = useCallback(async (fromCamera: boolean) => {
     const permission = fromCamera
@@ -283,22 +332,30 @@ export function CoachChatSheet({ visible, onClose }: Props) {
               <TouchableOpacity onPress={showImagePicker} style={styles.cameraBtn}>
                 <Ionicons name="camera-outline" size={22} color={pendingImage ? Colors.primary : Colors.textSecondary} />
               </TouchableOpacity>
+              <TouchableOpacity
+                onPress={listening ? stopListening : startListening}
+                style={styles.cameraBtn}
+                disabled={loading}
+              >
+                <Ionicons name={listening ? 'mic' : 'mic-outline'} size={22} color={listening ? Colors.danger : Colors.textSecondary} />
+              </TouchableOpacity>
               <TextInput
                 style={styles.input}
                 value={input}
                 onChangeText={setInput}
-                placeholder={pendingImage ? 'Add a caption or send…' : 'Ask your coach anything…'}
+                placeholder={listening ? 'Listening…' : pendingImage ? 'Add a caption or send…' : 'Ask your coach anything…'}
                 placeholderTextColor={Colors.muted}
                 multiline
                 maxLength={400}
                 returnKeyType="send"
-                onSubmitEditing={send}
+                onSubmitEditing={() => send()}
                 blurOnSubmit={false}
+                editable={!listening}
               />
               <TouchableOpacity
-                onPress={send}
-                disabled={(!input.trim() && !pendingImage) || loading}
-                style={[styles.sendBtn, ((!input.trim() && !pendingImage) || loading) && { opacity: 0.35 }]}
+                onPress={() => send()}
+                disabled={(!input.trim() && !pendingImage) || loading || listening}
+                style={[styles.sendBtn, ((!input.trim() && !pendingImage) || loading || listening) && { opacity: 0.35 }]}
               >
                 <Ionicons name="send" size={18} color="#000" />
               </TouchableOpacity>
