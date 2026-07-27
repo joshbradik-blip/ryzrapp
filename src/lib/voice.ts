@@ -66,6 +66,10 @@ export async function speak(text: string) {
   const { voiceEnabled, trainerVoiceId } = useSettingsStore.getState();
   if (!voiceEnabled || !text?.trim()) return;
 
+  // Interrupt whatever's currently speaking (device or ElevenLabs) so a new
+  // cue never overlaps an in-flight rep count or a previous line.
+  await stopSpeaking();
+
   if (!trainerVoiceId) {
     speakOnDevice(text);
     return;
