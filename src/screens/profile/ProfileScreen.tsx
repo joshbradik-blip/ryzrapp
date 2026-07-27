@@ -23,6 +23,8 @@ import { useHistoryStore } from '../../store/historyStore';
 import { useWearablesStore } from '../../store/wearablesStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { PremiumModal } from '../../components/ui/PremiumModal';
+import { VoicePickerSheet } from '../../components/settings/VoicePickerSheet';
+import { trainerVoiceName } from '../../constants/voices';
 import { generateWorkoutPlan } from '../../lib/anthropic';
 import { kgToDisplay, displayToKg, weightLabel } from '../../lib/units';
 import { InjurySeverity, GoalCategory, ProfileStackParamList } from '../../types';
@@ -107,6 +109,7 @@ export function ProfileScreen() {
   const connectedWearables = useWearablesStore((s) => s.connected);
 
   const [premiumOpen, setPremiumOpen] = useState(false);
+  const [voicePickerOpen, setVoicePickerOpen] = useState(false);
 
   const userId = session?.user?.id;
   useEffect(() => {
@@ -117,7 +120,7 @@ export function ProfileScreen() {
     (b) => Date.now() - new Date(b.at).getTime() < 30 * 86400000
   ).length;
 
-  const { voiceEnabled, hapticsEnabled, setVoiceEnabled, setHapticsEnabled } = useSettingsStore();
+  const { voiceEnabled, hapticsEnabled, trainerVoiceId, setVoiceEnabled, setHapticsEnabled } = useSettingsStore();
   const units: 'imperial' | 'metric' = profile?.weight_unit === 'lbs' ? 'imperial' : 'metric';
   const setUnits = (u: 'imperial' | 'metric') =>
     setProfile({ weight_unit: u === 'imperial' ? 'lbs' : 'kg' });
@@ -471,6 +474,12 @@ export function ProfileScreen() {
             }
           />
           <SettingRow
+            icon="mic-outline"
+            label="Trainer voice"
+            value={trainerVoiceName(trainerVoiceId)}
+            onPress={() => setVoicePickerOpen(true)}
+          />
+          <SettingRow
             icon="phone-portrait-outline"
             label="Haptics"
             rightElement={
@@ -765,6 +774,12 @@ export function ProfileScreen() {
 
       {/* Upgrade sheet */}
       <PremiumModal visible={premiumOpen} onClose={() => setPremiumOpen(false)} />
+      <VoicePickerSheet
+        visible={voicePickerOpen}
+        onClose={() => setVoicePickerOpen(false)}
+        isPremium={isPremium}
+        onRequirePremium={() => { setVoicePickerOpen(false); setPremiumOpen(true); }}
+      />
     </SafeAreaView>
   );
 }
