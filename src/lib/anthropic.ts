@@ -572,3 +572,61 @@ Return ONLY valid JSON, no markdown, mapping each exercise id to its challenge s
     return {};
   }
 }
+
+export interface ParsedFoodItem {
+  name: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+/**
+ * Parses a free-text meal description ("2 eggs and toast, black coffee")
+ * into individual food items with estimated calories + macros. Runs on
+ * Haiku for speed/cost. The estimate is deliberately surfaced to the user as
+ * an editable draft — never saved silently — so portion guesses can be
+ * corrected before they hit the log.
+ */
+export async function parseNutritionText(input: string): Promise<ParsedFoodItem[]> {
+  const text = input.trim();
+  if (!text) return [];
+
+  const data = await callAnthropic({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 700,
+    messages: [
+      {
+        role: 'user',
+        content: `You estimate nutrition from a free-text meal description. Break the text into individual food and drink items and estimate the calories and macros for the portion described. If a quantity isn't given, assume one typical serving. Use realistic common-food values. Combine obvious duplicates. Ignore anything that isn't food or drink.
+
+Meal description: "${text}"
+
+Respond with ONLY valid JSON, no markdown or commentary:
+{"items":[{"name":"<short food name>","calories":<integer kcal>,"protein_g":<number>,"carbs_g":<number>,"fat_g":<number>}]}
+If there is no food or drink, return {"items":[]}.`,
+      },
+    ],
+  });
+
+  const raw: string = data.content?.[0]?.text ?? '{}';
+  try {
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    const parsed = JSON.parse(start >= 0 && end > start ? raw.slice(start, end + 1) : '{}');
+    const items = Array.isArray(parsed.items) ? parsed.items : [];
+    const clean = (n: unknown) => Math.max(0, Math.round((Number(n) || 0) * 10) / 10);
+    return items
+      .filter((it: Record<string, unknown>) => typeof it?.name === 'string' && (it.name as string).trim())
+      .slice(0, 20)
+      .map((it: Record<string, unknown>) => ({
+        name: (it.name as string).trim().slice(0, 80),
+        calories: Math.max(0, Math.round(Number(it.calories) || 0)),
+        protein_g: clean(it.protein_g),
+        carbs_g: clean(it.carbs_g),
+        fat_g: clean(it.fat_g),
+      }));
+  } catch {
+    return [];
+  }
+}

@@ -5,12 +5,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store/authStore';
 import { useProfileStore } from '../../store/profileStore';
+import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useNutritionStore } from '../../store/nutritionStore';
 import { deriveTargets, sumEntries } from '../../lib/nutrition';
 import { MealType, NutritionTargets } from '../../types';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { GradientButton } from '../../components/ui/GradientButton';
+import { PremiumModal } from '../../components/ui/PremiumModal';
 import { CalorieRing } from '../../components/nutrition/CalorieRing';
+import { AiLogSheet } from '../../components/nutrition/AiLogSheet';
 
 const MEALS: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const MEAL_LABEL: Record<MealType, string> = {
@@ -19,6 +22,15 @@ const MEAL_LABEL: Record<MealType, string> = {
   dinner: 'Dinner',
   snack: 'Snacks',
 };
+
+/** Best-guess meal from the time of day, used as the AI sheet's default. */
+function mealForNow(): MealType {
+  const h = new Date().getHours();
+  if (h < 11) return 'breakfast';
+  if (h < 15) return 'lunch';
+  if (h < 20) return 'dinner';
+  return 'snack';
+}
 
 function MacroBar({ label, consumed, target, color }: { label: string; consumed: number; target: number; color: string }) {
   const pct = target > 0 ? Math.min(consumed / target, 1) : 0;
@@ -40,9 +52,12 @@ function MacroBar({ label, consumed, target, color }: { label: string; consumed:
 export function NutritionScreen() {
   const userId = useAuthStore((s) => s.session?.user?.id);
   const { profile, schedulePrefs, goals } = useProfileStore();
-  const { entries, fetchDay, addEntry, deleteEntry } = useNutritionStore();
+  const { isPremium } = useSubscriptionStore();
+  const { entries, day, fetchDay, addEntry, deleteEntry } = useNutritionStore();
 
   const [addOpen, setAddOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [premiumOpen, setPremiumOpen] = useState(false);
   const [meal, setMeal] = useState<MealType>('breakfast');
   const [name, setName] = useState('');
   const [cal, setCal] = useState('');
@@ -141,6 +156,23 @@ export function NutritionScreen() {
                 Targets estimated from your profile, training days, and goal — a starting point you can refine as you track.
               </Text>
             </View>
+
+            {/* AI describe-a-meal (premium) */}
+            <TouchableOpacity
+              onPress={() => (isPremium ? setAiOpen(true) : setPremiumOpen(true))}
+              style={{ marginHorizontal: 24, marginTop: 16, backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.primary + '55', flexDirection: 'row', alignItems: 'center', gap: 12 }}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="sparkles" size={20} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>Describe a meal</Text>
+                <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 1 }}>
+                  {isPremium ? 'Type it in plain words — AI estimates the macros' : 'Premium — AI estimates calories from text'}
+                </Text>
+              </View>
+              <Ionicons name={isPremium ? 'chevron-forward' : 'lock-closed'} size={18} color={isPremium ? Colors.primary : Colors.muted} />
+            </TouchableOpacity>
 
             {/* Meals */}
             <View style={{ marginHorizontal: 24, marginTop: 24 }}>
@@ -254,6 +286,22 @@ export function NutritionScreen() {
             </View>
           </View>
         </Modal>
+
+        {userId && (
+          <AiLogSheet
+            visible={aiOpen}
+            onClose={() => setAiOpen(false)}
+            userId={userId}
+            day={day}
+            defaultMeal={mealForNow()}
+          />
+        )}
+
+        <PremiumModal
+          visible={premiumOpen}
+          onClose={() => setPremiumOpen(false)}
+          featureTitle="AI Meal Logging"
+        />
       </ScrollView>
     </SafeAreaView>
   );

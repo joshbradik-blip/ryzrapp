@@ -10,6 +10,7 @@ interface NutritionState {
   loading: boolean;
   fetchDay: (userId: string, day?: string) => Promise<void>;
   addEntry: (userId: string, entry: NewNutritionEntry) => Promise<boolean>;
+  addEntries: (userId: string, entries: NewNutritionEntry[]) => Promise<boolean>;
   deleteEntry: (userId: string, id: string) => Promise<boolean>;
 }
 
@@ -43,6 +44,19 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
       if (error) throw error;
       // Only refresh the visible day if the new entry belongs to it.
       if (entry.logged_on === get().day) await get().fetchDay(userId, get().day);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  addEntries: async (userId: string, entries: NewNutritionEntry[]) => {
+    if (entries.length === 0) return true;
+    try {
+      const rows = entries.map((e) => ({ user_id: userId, ...e }));
+      const { error } = await supabase.from('nutrition_logs').insert(rows);
+      if (error) throw error;
+      if (entries.some((e) => e.logged_on === get().day)) await get().fetchDay(userId, get().day);
       return true;
     } catch {
       return false;
