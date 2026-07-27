@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Modal, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Modal, ScrollView, Image, Platform, ActionSheetIOS, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../constants/theme';
 import { MealType } from '../../types';
-import { parseNutritionText, ParsedFoodItem } from '../../lib/anthropic';
+import { parseNutritionText, parseNutritionPhoto, ParsedFoodItem } from '../../lib/anthropic';
 import { useNutritionStore } from '../../store/nutritionStore';
 import { GradientButton } from '../ui/GradientButton';
 
@@ -34,25 +35,68 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
   const [text, setText] = useState('');
   const [meal, setMeal] = useState<MealType>(defaultMeal);
   const [items, setItems] = useState<ParsedFoodItem[] | null>(null);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const reset = () => { setText(''); setItems(null); setBusy(false); };
+  const reset = () => { setText(''); setItems(null); setPhotoUri(null); setBusy(false); };
   const close = () => { reset(); onClose(); };
+
+  const applyResult = (parsed: ParsedFoodItem[]) => {
+    if (parsed.length === 0) {
+      Alert.alert('Nothing to log', "Couldn't find any food. Try again with a clearer photo or description.");
+      return;
+    }
+    setItems(parsed);
+  };
 
   const estimate = async () => {
     if (!text.trim()) return;
     setBusy(true);
     try {
-      const parsed = await parseNutritionText(text);
-      if (parsed.length === 0) {
-        Alert.alert('Nothing to log', "Couldn't find any food in that. Try describing what you ate, e.g. \"2 eggs, toast, black coffee\".");
-      } else {
-        setItems(parsed);
-      }
+      applyResult(await parseNutritionText(text));
     } catch {
       Alert.alert('Estimate failed', 'Please try again in a moment.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const pickPhoto = async (fromCamera: boolean) => {
+    const permission = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', fromCamera ? 'Camera access is required.' : 'Photo library access is required.');
+      return;
+    }
+    const result = fromCamera
+      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.6, mediaTypes: 'images' })
+      : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.6, mediaTypes: 'images' });
+    if (result.canceled || !result.assets[0].base64) return;
+
+    setPhotoUri(result.assets[0].uri);
+    setBusy(true);
+    try {
+      applyResult(await parseNutritionPhoto(result.assets[0].base64));
+    } catch {
+      Alert.alert('Estimate failed', 'Please try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const choosePhotoSource = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ['Cancel', 'Take Photo', 'Choose from Library'], cancelButtonIndex: 0 },
+        (i) => { if (i === 1) pickPhoto(true); if (i === 2) pickPhoto(false); }
+      );
+    } else {
+      Alert.alert('Add photo', '', [
+        { text: 'Take Photo', onPress: () => pickPhoto(true) },
+        { text: 'Choose from Library', onPress: () => pickPhoto(false) },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
     }
   };
 
@@ -111,7 +155,7 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
         <View style={{ backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 36, borderWidth: 1, borderColor: Colors.border, maxHeight: '88%' }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Describe your meal</Text>
+              <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>{items ? 'Review & adjust' : 'Log a meal'}</Text>
               <Ionicons name="sparkles" size={15} color={Colors.primary} />
             </View>
             <TouchableOpacity onPress={close}>
@@ -122,18 +166,34 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
           {!items ? (
             <>
               <Text style={{ color: Colors.textSecondary, fontSize: 13, marginBottom: 14, lineHeight: 19 }}>
-                Type what you ate in plain language — we'll estimate the calories and macros for you to review.
+                Snap a photo or type what you ate — we'll estimate the calories and macros for you to review.
               </Text>
+
+              {/* Photo path */}
+              <TouchableOpacity
+                onPress={choosePhotoSource}
+                disabled={busy}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.surface2, borderRadius: 12, paddingVertical: 14, borderWidth: 1, borderColor: Colors.primary + '55', marginBottom: 16 }}
+              >
+                <Ionicons name="camera" size={20} color={Colors.primary} />
+                <Text style={{ color: Colors.primary, fontSize: 15, fontWeight: '800' }}>Snap a photo of your plate</Text>
+              </TouchableOpacity>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
+                <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '700' }}>OR DESCRIBE IT</Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
+              </View>
+
               <TextInput
                 value={text}
                 onChangeText={setText}
                 placeholder={'e.g. "grilled chicken breast, cup of rice, side salad with olive oil"'}
                 placeholderTextColor={Colors.muted}
                 multiline
-                autoFocus
                 style={{ backgroundColor: Colors.surface2, borderRadius: 12, padding: 14, color: Colors.text, fontSize: 15, minHeight: 96, textAlignVertical: 'top', borderWidth: 1, borderColor: Colors.border, marginBottom: 18 }}
               />
-              <GradientButton title={busy ? 'Estimating…' : 'Estimate nutrition'} icon="sparkles" onPress={estimate} loading={busy} disabled={!text.trim()} />
+              <GradientButton title={busy ? 'Estimating…' : 'Estimate nutrition'} icon="sparkles" onPress={estimate} loading={busy} disabled={busy || !text.trim()} />
             </>
           ) : (
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -148,6 +208,14 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
                   );
                 })}
               </View>
+
+              {photoUri && (
+                <Image
+                  source={{ uri: photoUri }}
+                  style={{ width: '100%', height: 140, borderRadius: 12, marginBottom: 12 }}
+                  resizeMode="cover"
+                />
+              )}
 
               <Text style={{ color: Colors.muted, fontSize: 12, marginBottom: 10 }}>
                 AI estimate — tap any value to adjust before saving.

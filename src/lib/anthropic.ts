@@ -609,7 +609,44 @@ If there is no food or drink, return {"items":[]}.`,
     ],
   });
 
-  const raw: string = data.content?.[0]?.text ?? '{}';
+  return coerceFoodItems(data.content?.[0]?.text ?? '{}');
+}
+
+/**
+ * Estimates nutrition from a photo of a meal via Haiku vision. Returns the
+ * same editable ParsedFoodItem[] as the text path — a photo can't see oil,
+ * hidden sugar, or true grams, so the caller must present it as a draft to
+ * correct, never as a final number.
+ */
+export async function parseNutritionPhoto(imageBase64: string): Promise<ParsedFoodItem[]> {
+  if (!imageBase64) return [];
+
+  const data = await callAnthropic({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 700,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+          {
+            type: 'text',
+            text: `Identify each distinct food and drink item in this meal photo and estimate the calories and macros for the portion shown. Give a realistic best estimate even when the exact portion is uncertain. Ignore non-food objects (plates, cutlery, background).
+
+Respond with ONLY valid JSON, no markdown or commentary:
+{"items":[{"name":"<short food name>","calories":<integer kcal>,"protein_g":<number>,"carbs_g":<number>,"fat_g":<number>}]}
+If no food or drink is visible, return {"items":[]}.`,
+          },
+        ],
+      },
+    ],
+  });
+
+  return coerceFoodItems(data.content?.[0]?.text ?? '{}');
+}
+
+/** Shared parse/validate for the {items:[...]} food JSON both paths return. */
+function coerceFoodItems(raw: string): ParsedFoodItem[] {
   try {
     const start = raw.indexOf('{');
     const end = raw.lastIndexOf('}');

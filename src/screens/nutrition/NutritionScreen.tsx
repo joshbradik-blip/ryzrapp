@@ -163,12 +163,12 @@ export function NutritionScreen() {
               style={{ marginHorizontal: 24, marginTop: 16, backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.primary + '55', flexDirection: 'row', alignItems: 'center', gap: 12 }}
             >
               <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="sparkles" size={20} color={Colors.primary} />
+                <Ionicons name="camera" size={20} color={Colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>Describe a meal</Text>
+                <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>Snap or describe a meal</Text>
                 <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 1 }}>
-                  {isPremium ? 'Type it in plain words — AI estimates the macros' : 'Premium — AI estimates calories from text'}
+                  {isPremium ? 'Photo or text — AI estimates the calories & macros' : 'Premium — AI estimates calories from a photo or text'}
                 </Text>
               </View>
               <Ionicons name={isPremium ? 'chevron-forward' : 'lock-closed'} size={18} color={isPremium ? Colors.primary : Colors.muted} />
