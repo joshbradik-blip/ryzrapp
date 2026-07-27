@@ -95,17 +95,18 @@ function extractImageUrl(results: unknown): string | undefined {
 }
 
 /**
- * Runs the reshape on a PUBLIC full-body photo URL (upload the selfie to a
- * Supabase Storage bucket first and pass its public URL). Returns the
- * reshaped image URL, or an error. Premium + consent gating is the caller's
- * responsibility.
+ * Runs the reshape on a full-body selfie (base64, as returned by
+ * expo-image-picker). The edge function stashes it in a private bucket, hands
+ * Perfect Corp a short-lived signed URL, and deletes the input again — the
+ * photo is never made public. Returns the reshaped image URL, or an error.
+ * Premium + consent gating is the caller's responsibility.
  */
 export async function generatePhysiquePreview(
-  srcFileUrl: string,
+  imageBase64: string,
   features: ReshapeFeatures
 ): Promise<ReshapeResult> {
   const { data, error } = await supabase.functions.invoke('future-self-reshape', {
-    body: { src_file_url: srcFileUrl, features },
+    body: { image_base64: imageBase64, features },
   });
   if (error) return { status: 'error', error: error.message };
   if (data?.error || data?.status === 'error') {
