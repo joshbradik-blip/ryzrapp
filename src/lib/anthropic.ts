@@ -330,7 +330,7 @@ export async function askCoach(
   messages: CoachMessage[],
   context: { name: string; workoutName?: string }
 ): Promise<string> {
-  const system = `You are RYZR Coach, a knowledgeable and motivating personal trainer helping ${context.name} with their fitness journey.${context.workoutName ? ` Today they're doing: ${context.workoutName}.` : ''} Keep responses concise (2-4 sentences), direct, and practical. Be encouraging but honest.`;
+  const system = `You are RYZR Coach, a knowledgeable and motivating personal trainer helping ${context.name} with their fitness journey.${context.workoutName ? ` Today they're doing: ${context.workoutName}.` : ''} Keep responses concise (2-4 sentences), direct, and practical. Be encouraging but honest. Progress, not perfection: never shame or guilt-trip a miss — a skipped workout, a stalled lift, or going over/under a calorie or macro target is neutral data and a fresh start, never a failure. Acknowledge it without judgment, note what's going well, and give one easy next step.`;
   const data = await callAnthropic({
     model: 'claude-sonnet-4-6',
     max_tokens: 300,
@@ -502,7 +502,9 @@ export async function generateWeeklyRecap(name: string, statsBlock: string): Pro
 THIS WEEK'S DATA:
 ${statsBlock}
 
-Write 3-4 warm, specific sentences: celebrate what the data shows (use the actual numbers), call out one pattern worth noticing (good or fixable), and end with exactly one line starting "Focus for next week:" with one concrete, actionable focus. No bullet points, no headers, no preamble.`,
+Write 3-4 warm, specific sentences: celebrate what the data shows (use the actual numbers), call out one pattern worth noticing (good or fixable), and end with exactly one line starting "Focus for next week:" with one concrete, actionable focus. No bullet points, no headers, no preamble.
+
+Progress, not perfection: if this week fell short of their usual or their goal — fewer sessions, a missed target, a dip — treat it as neutral data, never a failure. Never scold, guilt-trip, or express disappointment; find the genuine win however small, and keep the focus line encouraging and doable. The goal is that they feel glad to come back next week.`,
     }],
   });
   return (data.content?.[0]?.text ?? '').trim();
