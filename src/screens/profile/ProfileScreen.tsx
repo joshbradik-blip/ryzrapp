@@ -120,7 +120,7 @@ export function ProfileScreen() {
     (b) => Date.now() - new Date(b.at).getTime() < 30 * 86400000
   ).length;
 
-  const { voiceEnabled, hapticsEnabled, trainerVoiceId, setVoiceEnabled, setHapticsEnabled } = useSettingsStore();
+  const { voiceEnabled, hapticsEnabled, trainerVoiceId, futureSelfConsent, setVoiceEnabled, setHapticsEnabled, setFutureSelfConsent } = useSettingsStore();
   const units: 'imperial' | 'metric' = profile?.weight_unit === 'lbs' ? 'imperial' : 'metric';
   const setUnits = (u: 'imperial' | 'metric') =>
     setProfile({ weight_unit: u === 'imperial' ? 'lbs' : 'kg' });
@@ -486,6 +486,18 @@ export function ProfileScreen() {
               <Switch
                 value={hapticsEnabled}
                 onValueChange={setHapticsEnabled}
+                trackColor={{ true: Colors.primary, false: Colors.surface3 }}
+                thumbColor={Colors.text}
+              />
+            }
+          />
+          <SettingRow
+            icon="body-outline"
+            label="Future You visual"
+            rightElement={
+              <Switch
+                value={futureSelfConsent}
+                onValueChange={setFutureSelfConsent}
                 trackColor={{ true: Colors.primary, false: Colors.surface3 }}
                 thumbColor={Colors.text}
               />

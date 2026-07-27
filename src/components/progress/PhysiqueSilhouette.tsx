@@ -1,19 +1,20 @@
 import React from 'react';
-import Svg, { Path, Circle, Rect, Line, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Path, Circle, Rect, Line, Ellipse, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Colors, Gradients } from '../../constants/theme';
 
 /**
- * A stylized body silhouette whose torso taper and muscle definition scale
- * with body-fat %. This is deliberately an abstract illustration — never a
- * photo or a claim about a specific person's future body — so it motivates
- * without pretending to predict an exact appearance.
+ * A stylized body silhouette driven by two factors:
+ *  - leanness (from body-fat %): narrows the waist and reveals definition.
+ *  - muscle (0..1): broadens shoulders, arms and legs and sharpens the cuts.
  *
- * Geometry is driven by a single "leanness" factor derived from the body-fat
- * value against sex-specific bounds: leaner → broader shoulders, narrower
- * waist, and muscle-definition lines that fade in.
+ * It is deliberately an abstract illustration — never a photo or a claim about
+ * a specific person's future body — so it motivates without pretending to
+ * predict an exact appearance.
  */
 interface Props {
   bodyFatPct: number;
+  /** Muscular development 0..1 (1 = well developed). Defaults to a mid build. */
+  muscle?: number;
   sex?: 'male' | 'female';
   /** 'future' fills with ember; 'now' uses a muted grey for contrast. */
   variant?: 'now' | 'future';
@@ -35,17 +36,20 @@ function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
 }
 
-export function PhysiqueSilhouette({ bodyFatPct, sex = 'male', variant = 'future', width = 110 }: Props) {
+export function PhysiqueSilhouette({ bodyFatPct, muscle = 0.45, sex = 'male', variant = 'future', width = 110 }: Props) {
   const height = (width * VB_H) / VB_W;
   const gradId = React.useId();
 
   const b = BOUNDS[sex];
   // Leanness: 1 = very lean, 0 = soft. Higher body fat → lower t.
   const t = clamp01((b.soft - bodyFatPct) / (b.soft - b.lean));
+  const m = clamp01(muscle);
 
-  // Half-widths at each vertical anchor, interpolated by leanness.
-  const shoulderHalf = sex === 'female' ? 18 + 5 * t : 22 + 8 * t;
-  const waistHalf = sex === 'female' ? 22 - 10 * t : 25 - 12 * t;
+  // Half-widths at each vertical anchor. Shoulders/arms/legs scale with muscle;
+  // the waist is governed by leanness (fat), with a slight taper from a bigger
+  // upper body.
+  const shoulderHalf = sex === 'female' ? 17 + 4 * t + 5 * m : 20 + 6 * t + 9 * m;
+  const waistHalf = sex === 'female' ? 24 - 11 * t : 26 - 12 * t;
   const hipHalf = sex === 'female' ? 23 + t : 18;
 
   const yShoulder = 60;
@@ -70,13 +74,14 @@ export function PhysiqueSilhouette({ bodyFatPct, sex = 'male', variant = 'future
   const grad =
     variant === 'future' ? Gradients.ember : ([Colors.surface3, Colors.border] as const);
 
-  // Muscle-definition lines only make sense on a lean figure — fade with t.
-  const defOpacity = 0.32 * t;
-  const armW = 11;
+  // Definition needs low fat to show at all; muscle sharpens it further.
+  const defOpacity = 0.34 * t * (0.65 + 0.35 * m);
+  const armW = sex === 'female' ? 9 + 3 * m : 10 + 5 * m;
   const armH = yHip - yShoulder - 4;
-  const legW = 15;
+  const legW = sex === 'female' ? 13 + 3 * m : 14 + 4 * m;
   const legTop = yHip - 6;
   const legInset = hipHalf / 2;
+  const deltRx = (sex === 'female' ? 5 : 6) + 5 * m; // shoulder caps grow with muscle
 
   return (
     <Svg width={width} height={height} viewBox={`0 0 ${VB_W} ${VB_H}`}>
@@ -95,6 +100,10 @@ export function PhysiqueSilhouette({ bodyFatPct, sex = 'male', variant = 'future
       <Rect x={CX - shoulderHalf - armW + 3} y={yShoulder + 2} width={armW} height={armH} rx={armW / 2} fill={fill} />
       <Rect x={CX + shoulderHalf - 3} y={yShoulder + 2} width={armW} height={armH} rx={armW / 2} fill={fill} />
 
+      {/* Deltoid caps — read as shoulders, swell with muscle */}
+      <Ellipse cx={CX - shoulderHalf + 2} cy={yShoulder + 6} rx={deltRx} ry={deltRx * 0.85} fill={fill} />
+      <Ellipse cx={CX + shoulderHalf - 2} cy={yShoulder + 6} rx={deltRx} ry={deltRx * 0.85} fill={fill} />
+
       {/* Neck + head */}
       <Rect x={CX - 7} y={40} width={14} height={24} rx={6} fill={fill} />
       <Circle cx={CX} cy={26} r={14} fill={fill} />
@@ -102,7 +111,7 @@ export function PhysiqueSilhouette({ bodyFatPct, sex = 'male', variant = 'future
       {/* Torso */}
       <Path d={torso} fill={fill} />
 
-      {/* Muscle definition (fades in as the figure leans out) */}
+      {/* Muscle definition (fades in with leanness + muscle) */}
       {defOpacity > 0.02 && (
         <>
           {/* linea alba (centre line) */}
@@ -113,6 +122,9 @@ export function PhysiqueSilhouette({ bodyFatPct, sex = 'male', variant = 'future
           ))}
           {/* chest split */}
           <Line x1={CX} y1={68} x2={CX} y2={80} stroke={Colors.background} strokeWidth={1.4} opacity={defOpacity} strokeLinecap="round" />
+          {/* pec / shoulder separation lines, stronger with muscle */}
+          <Line x1={CX - shoulderHalf + 4} y1={yShoulder + 10} x2={CX - 4} y2={78} stroke={Colors.background} strokeWidth={1.2} opacity={defOpacity} strokeLinecap="round" />
+          <Line x1={CX + shoulderHalf - 4} y1={yShoulder + 10} x2={CX + 4} y2={78} stroke={Colors.background} strokeWidth={1.2} opacity={defOpacity} strokeLinecap="round" />
         </>
       )}
     </Svg>

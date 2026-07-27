@@ -124,8 +124,9 @@ export function ProgressScreen() {
     if (!userId) return;
     const metric = goals[0]?.category === 'lose_fat' ? 'body_fat_pct' : 'weight_kg';
     projectBodyMetric(userId, metric, 4).then(setBodyProjection);
-    // Multi-horizon body-fat outlook drives the morphing silhouette.
-    projectBodyFatOutlook(userId).then(setBodyFatOutlook);
+    // Multi-horizon outlook drives the morphing silhouette; goal shapes the
+    // modeled muscle dimension.
+    projectBodyFatOutlook(userId, goals[0]?.category).then(setBodyFatOutlook);
   }, [userId, latest?.recorded_at]);
 
   const unit = profile?.weight_unit ?? 'kg';

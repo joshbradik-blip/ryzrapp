@@ -155,13 +155,27 @@ const bodyFatWeeklyCap = () => 0.4;
 export interface BodyFatMilestone {
   weeksAhead: number;
   projectedBf: number;
+  /** Modeled muscular development 0..1 at this horizon (illustration only). */
+  muscleLevel: number;
   asOfDate: string; // YYYY-MM-DD
 }
 
 export interface BodyFatOutlook {
   currentBf: number;
+  currentMuscle: number;
   milestones: BodyFatMilestone[];
   dataPoints: number;
+}
+
+// Muscle is not directly measured, so the silhouette's muscle dimension is a
+// modeled, clamped development index — a motivational illustration, never a
+// precise prediction. It grows fastest toward a muscle-building goal.
+const MUSCLE_BASE = 0.4;
+const MUSCLE_GAIN_CAP = 0.3;
+function muscleGainPerWeek(goal?: string): number {
+  if (goal === 'build_muscle') return 0.02;
+  if (goal === 'lose_fat') return 0.006;
+  return 0.011;
 }
 
 /**
@@ -174,6 +188,7 @@ export interface BodyFatOutlook {
  */
 export async function projectBodyFatOutlook(
   userId: string,
+  goalCategory?: string,
   weeks: number[] = [4, 8, 12]
 ): Promise<BodyFatOutlook | null> {
   const { data, error } = await supabase
@@ -192,17 +207,20 @@ export async function projectBodyFatOutlook(
   if (!fit) return null;
 
   const round1 = (n: number) => Math.round(n * 10) / 10;
+  const muscleRate = muscleGainPerWeek(goalCategory);
   const milestones = weeks
     .slice()
     .sort((a, b) => a - b)
     .map((w) => ({
       weeksAhead: w,
       projectedBf: Math.max(BODY_FAT_FLOOR, round1(fit.current + fit.weeklyRate * w)),
+      muscleLevel: Math.min(1, MUSCLE_BASE + Math.min(muscleRate * w, MUSCLE_GAIN_CAP)),
       asOfDate: daysAheadDate(w),
     }));
 
   return {
     currentBf: Math.max(BODY_FAT_FLOOR, round1(fit.current)),
+    currentMuscle: MUSCLE_BASE,
     milestones,
     dataPoints: points.length,
   };

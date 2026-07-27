@@ -4,8 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { kgToDisplay, weightLabel, WeightUnit } from '../../lib/units';
 import { TrendProjection, BodyFatOutlook } from '../../lib/futureSelf';
+import { useSettingsStore } from '../../store/settingsStore';
 import { SectionLabel } from '../ui/SectionLabel';
 import { PhysiqueSilhouette } from './PhysiqueSilhouette';
+import { FutureSelfConsentModal } from './FutureSelfConsentModal';
 
 interface Props {
   liftProjection: TrendProjection | null;
@@ -32,6 +34,8 @@ export function FutureSelfCard({ liftProjection, bodyProjection, outlook, sex, u
   // Default to the furthest horizon — the most visible (and most motivating)
   // change — but keep it tappable back to the nearer, more conservative ones.
   const [selectedIdx, setSelectedIdx] = useState(Math.max(0, milestones.length - 1));
+  const { futureSelfConsent, setFutureSelfConsent } = useSettingsStore();
+  const [consentOpen, setConsentOpen] = useState(false);
 
   if (!liftProjection && !bodyProjection && !outlook) return null;
 
@@ -56,7 +60,26 @@ export function FutureSelfCard({ liftProjection, bodyProjection, outlook, sex, u
         <Ionicons name="trending-up" size={13} color={Colors.primary} />
       </View>
 
-      {outlook && selected && (
+      {/* Consent gate for the body visual — numbers below still show. */}
+      {outlook && selected && !futureSelfConsent && (
+        <TouchableOpacity
+          onPress={() => setConsentOpen(true)}
+          style={{ backgroundColor: Colors.surface2, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: Colors.primary + '55', flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}
+        >
+          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="body-outline" size={20} color={Colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>See your visual projection</Text>
+            <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 1 }}>
+              Watch an illustrated you lean out and build over 4–12 weeks
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
+        </TouchableOpacity>
+      )}
+
+      {outlook && selected && futureSelfConsent && (
         <>
           {/* Milestone selector */}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
@@ -87,7 +110,7 @@ export function FutureSelfCard({ liftProjection, bodyProjection, outlook, sex, u
           {/* Now → projected silhouettes */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginBottom: 4 }}>
             <View style={{ alignItems: 'center' }}>
-              <PhysiqueSilhouette bodyFatPct={outlook.currentBf} sex={sex} variant="now" width={104} />
+              <PhysiqueSilhouette bodyFatPct={outlook.currentBf} muscle={outlook.currentMuscle} sex={sex} variant="now" width={104} />
               <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginTop: 4 }}>NOW</Text>
               <Text style={{ color: Colors.textSecondary, fontSize: 15, fontWeight: '800' }}>{outlook.currentBf}%</Text>
             </View>
@@ -95,7 +118,7 @@ export function FutureSelfCard({ liftProjection, bodyProjection, outlook, sex, u
             <Ionicons name="arrow-forward" size={22} color={Colors.primary} />
 
             <View style={{ alignItems: 'center' }}>
-              <PhysiqueSilhouette bodyFatPct={selected.projectedBf} sex={sex} variant="future" width={104} />
+              <PhysiqueSilhouette bodyFatPct={selected.projectedBf} muscle={selected.muscleLevel} sex={sex} variant="future" width={104} />
               <Text style={{ color: Colors.primary, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginTop: 4 }}>
                 {selected.weeksAhead} WEEKS
               </Text>
@@ -154,6 +177,12 @@ export function FutureSelfCard({ liftProjection, bodyProjection, outlook, sex, u
       <Text style={{ color: Colors.muted, fontSize: 11, marginTop: 12, lineHeight: 16 }}>
         An illustration of your logged trend, not a guarantee — the figure is a stylized guide, not a photo. Ask your coach for a projection on any lift or goal.
       </Text>
+
+      <FutureSelfConsentModal
+        visible={consentOpen}
+        onConsent={() => { setFutureSelfConsent(true); setConsentOpen(false); }}
+        onClose={() => setConsentOpen(false)}
+      />
     </View>
   );
 }
