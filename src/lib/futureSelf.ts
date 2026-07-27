@@ -38,11 +38,16 @@ function estimate1RM(weightKg: number, reps: number): number {
   return weightKg * (1 + reps / 30);
 }
 
-function projectFromSeries(
+/**
+ * Fits a clamped weekly rate to a time series. Returns the latest fitted
+ * value and the sanity-capped weekly slope, or null when the sample is too
+ * short/noisy to trust. Shared by every projection so the guardrails
+ * (min points, min span, per-week cap) live in exactly one place.
+ */
+function fitSeries(
   points: { at: string; y: number }[],
-  weeksAhead: number,
   maxWeeklyRate: (current: number) => number
-): { current: number; projected: number; asOfDate: string } | null {
+): { current: number; weeklyRate: number } | null {
   if (points.length < MIN_POINTS) return null;
   const sorted = [...points].sort((a, b) => a.at.localeCompare(b.at));
   const firstMs = new Date(sorted[0].at).getTime();
@@ -56,10 +61,22 @@ function projectFromSeries(
   const current = fitPoints[fitPoints.length - 1].y;
   const cap = maxWeeklyRate(current);
   const weeklyRate = Math.max(-cap, Math.min(cap, fit.slope * 7));
-  const projected = Math.round((current + weeklyRate * weeksAhead) * 10) / 10;
-  const asOfDate = new Date(Date.now() + weeksAhead * 7 * DAY_MS).toISOString().slice(0, 10);
+  return { current, weeklyRate };
+}
 
-  return { current: Math.round(current * 10) / 10, projected, asOfDate };
+function daysAheadDate(weeksAhead: number): string {
+  return new Date(Date.now() + weeksAhead * 7 * DAY_MS).toISOString().slice(0, 10);
+}
+
+function projectFromSeries(
+  points: { at: string; y: number }[],
+  weeksAhead: number,
+  maxWeeklyRate: (current: number) => number
+): { current: number; projected: number; asOfDate: string } | null {
+  const fit = fitSeries(points, maxWeeklyRate);
+  if (!fit) return null;
+  const projected = Math.round((fit.current + fit.weeklyRate * weeksAhead) * 10) / 10;
+  return { current: Math.round(fit.current * 10) / 10, projected, asOfDate: daysAheadDate(weeksAhead) };
 }
 
 /**
@@ -127,5 +144,66 @@ export async function projectBodyMetric(
     weeksAhead,
     dataPoints: points.length,
     asOfDate: result.asOfDate,
+  };
+}
+
+/** Lowest body-fat % the projection will ever display — essential-fat floor. */
+const BODY_FAT_FLOOR = 5;
+/** Clamp body-fat change to 0.4 points/week, matching projectBodyMetric. */
+const bodyFatWeeklyCap = () => 0.4;
+
+export interface BodyFatMilestone {
+  weeksAhead: number;
+  projectedBf: number;
+  asOfDate: string; // YYYY-MM-DD
+}
+
+export interface BodyFatOutlook {
+  currentBf: number;
+  milestones: BodyFatMilestone[];
+  dataPoints: number;
+}
+
+/**
+ * Projects logged body-fat % forward to several milestones at once (default
+ * 4 / 8 / 12 weeks) from a single query, so the "Future You" silhouette can
+ * morph across horizons. Uses the same clamped linear fit as every other
+ * projection — a floor at essential-fat levels keeps a steep short-term
+ * trend from rendering an impossible physique. Returns null when there isn't
+ * enough body-fat history yet (the caller then hides the visual).
+ */
+export async function projectBodyFatOutlook(
+  userId: string,
+  weeks: number[] = [4, 8, 12]
+): Promise<BodyFatOutlook | null> {
+  const { data, error } = await supabase
+    .from('body_measurements')
+    .select('recorded_at, body_fat_pct')
+    .eq('user_id', userId)
+    .order('recorded_at', { ascending: true })
+    .limit(200);
+  if (error || !data) return null;
+
+  const points = (data as Array<Record<string, unknown>>)
+    .filter((d) => d.body_fat_pct != null)
+    .map((d) => ({ at: d.recorded_at as string, y: d.body_fat_pct as number }));
+
+  const fit = fitSeries(points, bodyFatWeeklyCap);
+  if (!fit) return null;
+
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const milestones = weeks
+    .slice()
+    .sort((a, b) => a - b)
+    .map((w) => ({
+      weeksAhead: w,
+      projectedBf: Math.max(BODY_FAT_FLOOR, round1(fit.current + fit.weeklyRate * w)),
+      asOfDate: daysAheadDate(w),
+    }));
+
+  return {
+    currentBf: Math.max(BODY_FAT_FLOOR, round1(fit.current)),
+    milestones,
+    dataPoints: points.length,
   };
 }
