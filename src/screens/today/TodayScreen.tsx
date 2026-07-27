@@ -25,8 +25,11 @@ import { CoachChatSheet } from './CoachChatSheet';
 import { PremiumModal } from '../../components/ui/PremiumModal';
 import { ReadinessCard } from '../../components/today/ReadinessCard';
 import { InjuryRiskCard } from '../../components/today/InjuryRiskCard';
+import { EnergyBalanceCard } from '../../components/nutrition/EnergyBalanceCard';
 import { useWearablesStore } from '../../store/wearablesStore';
+import { useNutritionStore } from '../../store/nutritionStore';
 import { Health } from '../../lib/health';
+import { computeEnergyBalance, sumEntries, localDayKey } from '../../lib/nutrition';
 import { readinessPromptContext } from '../../lib/readiness';
 import { assessInjuryRisk } from '../../lib/injuryRisk';
 import {
@@ -52,6 +55,8 @@ export function TodayScreen() {
   const userId = useAuthStore((s) => s.session?.user?.id);
   const { currentStreak, longestStreak, totalSessions, thisWeekSessions, sessions, sets, loaded, fetchHistory } = useHistoryStore();
   const readiness = useWearablesStore((s) => s.readiness);
+  const wearableToday = useWearablesStore((s) => s.today);
+  const nutritionEntries = useNutritionStore((s) => s.entries);
   const riskSignals = useMemo(() => assessInjuryRisk(), [sets, injuries]);
   const [chatOpen, setChatOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
@@ -139,6 +144,7 @@ export function TodayScreen() {
   useEffect(() => {
     if (userId) {
       fetchHistory(userId);
+      useNutritionStore.getState().fetchDay(userId);
       // Readiness: load synced history, then refresh from the OS hub if connected.
       const wearables = useWearablesStore.getState();
       wearables.loadHistory(userId);
@@ -147,6 +153,16 @@ export function TodayScreen() {
       }
     }
   }, [userId]);
+
+  // Energy balance: food logged today vs calories burned. Only meaningful once
+  // something's been eaten; active calories come from the wearable when today's
+  // day has synced, otherwise the burn falls back to an estimate.
+  const caloriesInToday = useMemo(() => sumEntries(nutritionEntries).calories, [nutritionEntries]);
+  const energyBalance = useMemo(() => {
+    if (!profile || caloriesInToday <= 0) return null;
+    const activeToday = wearableToday?.date === localDayKey() ? wearableToday.activeCalories : null;
+    return computeEnergyBalance({ profile, schedule: schedulePrefs, caloriesIn: caloriesInToday, activeCalories: activeToday });
+  }, [profile, schedulePrefs, caloriesInToday, wearableToday]);
 
   // Coach Notices: an occasional (roughly every 1-2 weeks), deterministically
   // detected pattern observation, queued the same way as the daily message.
@@ -226,6 +242,9 @@ export function TodayScreen() {
 
         {/* Predictive injury risk (shows only when a joint has an elevated signal) */}
         <InjuryRiskCard signals={riskSignals} />
+
+        {/* Energy balance — food in vs calories burned (shows once food is logged today) */}
+        {energyBalance && <EnergyBalanceCard balance={energyBalance} goalCategory={goals[0]?.category} />}
 
         {/* Today's workout hero card */}
         {todayWorkout ? (

@@ -92,6 +92,42 @@ export function sumEntries(entries: NutritionEntry[]): DailyTotals {
   );
 }
 
+export interface EnergyBalance {
+  caloriesIn: number;
+  caloriesOut: number;
+  net: number; // in − out; negative = deficit, positive = surplus
+  bmr: number;
+  activeCalories: number | null; // from wearable; null when unavailable
+  usedWearable: boolean;
+}
+
+/**
+ * Energy in vs out for the day. When a wearable reported active calories we
+ * use the real burn (BMR + active) — the thing an estimate-only tracker
+ * can't do. Otherwise we fall back to the estimated TDEE.
+ */
+export function computeEnergyBalance(params: {
+  profile: UserProfile;
+  schedule: SchedulePrefs | null;
+  caloriesIn: number;
+  activeCalories: number | null;
+}): EnergyBalance {
+  const { profile, schedule, caloriesIn, activeCalories } = params;
+  const bmr = Math.round(mifflinStJeorBMR(profile));
+  const usedWearable = activeCalories != null;
+  const caloriesOut = usedWearable
+    ? bmr + Math.round(activeCalories as number)
+    : estimateTDEE(profile, schedule);
+  return {
+    caloriesIn: Math.round(caloriesIn),
+    caloriesOut,
+    net: Math.round(caloriesIn) - caloriesOut,
+    bmr,
+    activeCalories: usedWearable ? Math.round(activeCalories as number) : null,
+    usedWearable,
+  };
+}
+
 /** Local calendar day as YYYY-MM-DD (not UTC — matches how meals are logged). */
 export function localDayKey(d: Date = new Date()): string {
   const y = d.getFullYear();
