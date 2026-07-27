@@ -112,6 +112,33 @@ export interface BodyMeasurement {
   source?: string;
 }
 
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+/** A single logged food item. Macros in grams, energy in kcal. */
+export interface NutritionEntry {
+  id: string;
+  user_id: string;
+  logged_on: string; // YYYY-MM-DD (local calendar day)
+  meal: MealType;
+  name: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  created_at: string;
+}
+
+/** Fields needed to create an entry (server fills id/created_at). */
+export type NewNutritionEntry = Omit<NutritionEntry, 'id' | 'user_id' | 'created_at'>;
+
+/** Daily calorie + macro goals, derived from profile/goal (see lib/nutrition). */
+export interface NutritionTargets {
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
 export type RootStackParamList = {
   Intro: undefined;
   Auth: undefined;
@@ -139,6 +166,7 @@ export type OnboardingStackParamList = {
 export type MainTabParamList = {
   Today: undefined;
   Progress: undefined;
+  Nutrition: undefined;
   Store: undefined;
   Profile: undefined;
 };

@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as Speech from 'expo-speech';
+import { speak, stopSpeaking } from '../../lib/voice';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { coachChatTurn, CoachMessage } from '../../lib/anthropic';
@@ -68,7 +68,7 @@ export function CoachChatSheet({ visible, onClose }: Props) {
       }
     } else {
       Animated.timing(slideAnim, { toValue: 600, duration: 220, useNativeDriver: true }).start();
-      Speech.stop();
+      stopSpeaking();
       ExpoSpeechRecognitionModule.stop();
       setListening(false);
     }
@@ -96,7 +96,7 @@ export function CoachChatSheet({ visible, onClose }: Props) {
   const send = useCallback(async (overrideText?: string, isVoice = false) => {
     const trimmed = (overrideText ?? input).trim();
     if ((!trimmed && !pendingImage) || loading) return;
-    Speech.stop();
+    stopSpeaking();
 
     const ctx = {
       name: profile?.name ?? 'Athlete',
@@ -187,7 +187,7 @@ export function CoachChatSheet({ visible, onClose }: Props) {
         resp = await coachChatTurn([...apiMessagesRef.current], ctx);
       }
       if (isVoice && lastAssistantText) {
-        Speech.speak(lastAssistantText, { rate: 0.98 });
+        speak(lastAssistantText);
       }
     } catch {
       apiMessagesRef.current.length = checkpoint;
@@ -204,7 +204,7 @@ export function CoachChatSheet({ visible, onClose }: Props) {
       Alert.alert('Permission needed', 'Microphone and speech recognition access are required to talk to your coach.');
       return;
     }
-    Speech.stop();
+    stopSpeaking();
     voiceTranscriptRef.current = '';
     setInput('');
     setListening(true);

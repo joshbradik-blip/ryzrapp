@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { MainTabParamList } from '../types';
 import { TodayNavigator } from './TodayNavigator';
 import { ProgressScreen } from '../screens/progress/ProgressScreen';
+import { NutritionScreen } from '../screens/nutrition/NutritionScreen';
 // Social removed in 1.0.8 — to be rebuilt as a richer experience once the user base grows
 import { StoreScreen } from '../screens/store/StoreScreen';
 import { ProfileNavigator } from './ProfileNavigator';
@@ -12,10 +13,11 @@ import { Colors } from '../constants/theme';
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const TAB_ICONS: Record<string, { active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap }> = {
-  Today:    { active: 'flash',     inactive: 'flash-outline' },
-  Progress: { active: 'bar-chart', inactive: 'bar-chart-outline' },
-  Store:    { active: 'bag',       inactive: 'bag-outline' },
-  Profile:  { active: 'person',    inactive: 'person-outline' },
+  Today:     { active: 'flash',      inactive: 'flash-outline' },
+  Progress:  { active: 'bar-chart',  inactive: 'bar-chart-outline' },
+  Nutrition: { active: 'restaurant', inactive: 'restaurant-outline' },
+  Store:     { active: 'bag',        inactive: 'bag-outline' },
+  Profile:   { active: 'person',     inactive: 'person-outline' },
 };
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
@@ -53,6 +55,7 @@ export function MainTabNavigator() {
     >
       <Tab.Screen name="Today" component={TodayNavigator} />
       <Tab.Screen name="Progress" component={ProgressScreen} />
+      <Tab.Screen name="Nutrition" component={NutritionScreen} />
       <Tab.Screen name="Store" component={StoreScreen} />
       <Tab.Screen name="Profile" component={ProfileNavigator} />
     </Tab.Navigator>

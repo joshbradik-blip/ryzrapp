@@ -17,6 +17,7 @@ import { Colors } from '../../constants/theme';
 import { haptic } from '../../lib/feedback';
 import { useSettingsStore } from '../../store/settingsStore';
 import * as Speech from 'expo-speech';
+import { speak, stopSpeaking } from '../../lib/voice';
 import { Camera, useCameraDevice, useCameraFormat } from 'react-native-vision-camera';
 import { analyzePoseSnapshot, PoseSnapshot } from '../../lib/anthropic';
 
@@ -121,7 +122,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
       if (v !== 'true') setIntroVisible(true);
       setIntroChecked(true);
     });
-    return () => { Speech.stop(); };
+    return () => { stopSpeaking(); };
   }, []);
 
   const dismissIntro = useCallback(() => {
@@ -140,7 +141,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
     ]).start();
   }, [cueAnim]);
 
-  const maybeSpeak = useCallback((text: string, opts?: Speech.SpeechOptions) => {
+  const maybeSpeak = useCallback((text: string) => {
     if (!voiceEnabled) return;
     const now = Date.now();
     if (text === lastSpokenCueRef.current && now - lastSpokenAtRef.current < MIN_SPEAK_INTERVAL_MS) {
@@ -148,8 +149,8 @@ export function FormCoachScreen({ navigation, route }: Props) {
     }
     lastSpokenCueRef.current = text;
     lastSpokenAtRef.current = now;
-    Speech.stop();
-    Speech.speak(text, { rate: 0.95, pitch: 1.0, ...opts });
+    // Coaching cues use the chosen trainer voice (ElevenLabs or device).
+    speak(text);
   }, [voiceEnabled]);
 
   // ── Capture + analyze loop ──────────────────────────────────────────────
@@ -212,7 +213,9 @@ export function FormCoachScreen({ navigation, route }: Props) {
         if (result.formIssue) setAllFormIssues(p => [...p, result.formIssue!]);
         haptic.impact('medium');
         if (voiceEnabled) {
-          Speech.stop();
+          // Rep counts stay on-device TTS: they must fire instantly and a
+          // network call per rep would lag the count behind the movement.
+          stopSpeaking();
           Speech.speak(String(next), { rate: 1.0, pitch: 1.05 });
         }
       }
@@ -259,10 +262,10 @@ export function FormCoachScreen({ navigation, route }: Props) {
   const endSet = () => {
     isActiveRef.current = false;
     setIsActive(false);
-    Speech.stop();
+    stopSpeaking();
     setShowSummary(true);
     if (voiceEnabled) {
-      setTimeout(() => Speech.speak(rnd(SET_COMPLETE_PHRASES), { rate: 0.9 }), 400);
+      setTimeout(() => speak(rnd(SET_COMPLETE_PHRASES)), 400);
     }
   };
 
@@ -422,7 +425,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
 
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => { Speech.stop(); navigation.goBack(); }}
+          onPress={() => { stopSpeaking(); navigation.goBack(); }}
           style={styles.closeBtn}
         >
           <Ionicons name="close" size={18} color={Colors.text} />

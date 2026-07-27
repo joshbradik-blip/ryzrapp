@@ -330,7 +330,7 @@ export async function askCoach(
   messages: CoachMessage[],
   context: { name: string; workoutName?: string }
 ): Promise<string> {
-  const system = `You are RYZR Coach, a knowledgeable and motivating personal trainer helping ${context.name} with their fitness journey.${context.workoutName ? ` Today they're doing: ${context.workoutName}.` : ''} Keep responses concise (2-4 sentences), direct, and practical. Be encouraging but honest.`;
+  const system = `You are RYZR Coach, a knowledgeable and motivating personal trainer helping ${context.name} with their fitness journey.${context.workoutName ? ` Today they're doing: ${context.workoutName}.` : ''} Keep responses concise (2-4 sentences), direct, and practical. Be encouraging but honest. Progress, not perfection: never shame or guilt-trip a miss — a skipped workout, a stalled lift, or going over/under a calorie or macro target is neutral data and a fresh start, never a failure. Acknowledge it without judgment, note what's going well, and give one easy next step.`;
   const data = await callAnthropic({
     model: 'claude-sonnet-4-6',
     max_tokens: 300,
@@ -502,7 +502,9 @@ export async function generateWeeklyRecap(name: string, statsBlock: string): Pro
 THIS WEEK'S DATA:
 ${statsBlock}
 
-Write 3-4 warm, specific sentences: celebrate what the data shows (use the actual numbers), call out one pattern worth noticing (good or fixable), and end with exactly one line starting "Focus for next week:" with one concrete, actionable focus. No bullet points, no headers, no preamble.`,
+Write 3-4 warm, specific sentences: celebrate what the data shows (use the actual numbers), call out one pattern worth noticing (good or fixable), and end with exactly one line starting "Focus for next week:" with one concrete, actionable focus. No bullet points, no headers, no preamble.
+
+Progress, not perfection: if this week fell short of their usual or their goal — fewer sessions, a missed target, a dip — treat it as neutral data, never a failure. Never scold, guilt-trip, or express disappointment; find the genuine win however small, and keep the focus line encouraging and doable. The goal is that they feel glad to come back next week.`,
     }],
   });
   return (data.content?.[0]?.text ?? '').trim();
@@ -570,5 +572,100 @@ Return ONLY valid JSON, no markdown, mapping each exercise id to its challenge s
     return out;
   } catch {
     return {};
+  }
+}
+
+export interface ParsedFoodItem {
+  name: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+/**
+ * Parses a free-text meal description ("2 eggs and toast, black coffee")
+ * into individual food items with estimated calories + macros. Runs on
+ * Haiku for speed/cost. The estimate is deliberately surfaced to the user as
+ * an editable draft — never saved silently — so portion guesses can be
+ * corrected before they hit the log.
+ */
+export async function parseNutritionText(input: string): Promise<ParsedFoodItem[]> {
+  const text = input.trim();
+  if (!text) return [];
+
+  const data = await callAnthropic({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 700,
+    messages: [
+      {
+        role: 'user',
+        content: `You estimate nutrition from a free-text meal description. Break the text into individual food and drink items and estimate the calories and macros for the portion described. If a quantity isn't given, assume one typical serving. Use realistic common-food values. Combine obvious duplicates. Ignore anything that isn't food or drink.
+
+Meal description: "${text}"
+
+Respond with ONLY valid JSON, no markdown or commentary:
+{"items":[{"name":"<short food name>","calories":<integer kcal>,"protein_g":<number>,"carbs_g":<number>,"fat_g":<number>}]}
+If there is no food or drink, return {"items":[]}.`,
+      },
+    ],
+  });
+
+  return coerceFoodItems(data.content?.[0]?.text ?? '{}');
+}
+
+/**
+ * Estimates nutrition from a photo of a meal via Haiku vision. Returns the
+ * same editable ParsedFoodItem[] as the text path — a photo can't see oil,
+ * hidden sugar, or true grams, so the caller must present it as a draft to
+ * correct, never as a final number.
+ */
+export async function parseNutritionPhoto(imageBase64: string): Promise<ParsedFoodItem[]> {
+  if (!imageBase64) return [];
+
+  const data = await callAnthropic({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 700,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+          {
+            type: 'text',
+            text: `Identify each distinct food and drink item in this meal photo and estimate the calories and macros for the portion shown. Give a realistic best estimate even when the exact portion is uncertain. Ignore non-food objects (plates, cutlery, background).
+
+Respond with ONLY valid JSON, no markdown or commentary:
+{"items":[{"name":"<short food name>","calories":<integer kcal>,"protein_g":<number>,"carbs_g":<number>,"fat_g":<number>}]}
+If no food or drink is visible, return {"items":[]}.`,
+          },
+        ],
+      },
+    ],
+  });
+
+  return coerceFoodItems(data.content?.[0]?.text ?? '{}');
+}
+
+/** Shared parse/validate for the {items:[...]} food JSON both paths return. */
+function coerceFoodItems(raw: string): ParsedFoodItem[] {
+  try {
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    const parsed = JSON.parse(start >= 0 && end > start ? raw.slice(start, end + 1) : '{}');
+    const items = Array.isArray(parsed.items) ? parsed.items : [];
+    const clean = (n: unknown) => Math.max(0, Math.round((Number(n) || 0) * 10) / 10);
+    return items
+      .filter((it: Record<string, unknown>) => typeof it?.name === 'string' && (it.name as string).trim())
+      .slice(0, 20)
+      .map((it: Record<string, unknown>) => ({
+        name: (it.name as string).trim().slice(0, 80),
+        calories: Math.max(0, Math.round(Number(it.calories) || 0)),
+        protein_g: clean(it.protein_g),
+        carbs_g: clean(it.carbs_g),
+        fat_g: clean(it.fat_g),
+      }));
+  } catch {
+    return [];
   }
 }
