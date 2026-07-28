@@ -15,6 +15,8 @@ interface Props {
   outlook: BodyFatOutlook | null;
   sex?: 'male' | 'female';
   unit: WeightUnit;
+  /** When provided, shows a "see it on your photo" entry (premium reshape). */
+  onSeePhoto?: () => void;
 }
 
 function shortDate(iso: string): string {
@@ -29,7 +31,7 @@ function shortDate(iso: string): string {
  * illustration, not a photo or a promise; the numbers come straight from the
  * clamped linear fit in futureSelf.ts.
  */
-export function FutureSelfCard({ liftProjection, bodyProjection, outlook, sex, unit }: Props) {
+export function FutureSelfCard({ liftProjection, bodyProjection, outlook, sex, unit, onSeePhoto }: Props) {
   const milestones = outlook?.milestones ?? [];
   // Default to the furthest horizon — the most visible (and most motivating)
   // change — but keep it tappable back to the nearer, more conservative ones.
@@ -150,6 +152,16 @@ export function FutureSelfCard({ liftProjection, bodyProjection, outlook, sex, u
                 </Text>
               </View>
             </View>
+          )}
+
+          {onSeePhoto && (
+            <TouchableOpacity
+              onPress={onSeePhoto}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.surface2, borderRadius: 12, paddingVertical: 12, borderWidth: 1, borderColor: Colors.primary + '55', marginTop: 12 }}
+            >
+              <Ionicons name="camera" size={18} color={Colors.primary} />
+              <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '800' }}>See it on your photo</Text>
+            </TouchableOpacity>
           )}
         </>
       )}

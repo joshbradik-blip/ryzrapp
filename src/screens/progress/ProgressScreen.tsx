@@ -27,6 +27,7 @@ import { projectLiftTrend, projectBodyMetric, projectBodyFatOutlook, TrendProjec
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { MuscleHeatmap } from '../../components/progress/MuscleHeatmap';
 import { FutureSelfCard } from '../../components/progress/FutureSelfCard';
+import { FutureSelfPhotoSheet } from '../../components/progress/FutureSelfPhotoSheet';
 import { GradientButton } from '../../components/ui/GradientButton';
 
 const { width } = Dimensions.get('window');
@@ -97,6 +98,7 @@ export function ProgressScreen() {
   const [recapText, setRecapText] = useState<string | null>(null);
   const [bodyProjection, setBodyProjection] = useState<TrendProjection | null>(null);
   const [bodyFatOutlook, setBodyFatOutlook] = useState<BodyFatOutlook | null>(null);
+  const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
 
   useEffect(() => {
     if (userId) {
@@ -271,6 +273,15 @@ export function ProgressScreen() {
           outlook={bodyFatOutlook}
           sex={profile?.sex}
           unit={unit}
+          onSeePhoto={bodyFatOutlook ? () => setPhotoSheetOpen(true) : undefined}
+        />
+
+        <FutureSelfPhotoSheet
+          visible={photoSheetOpen}
+          onClose={() => setPhotoSheetOpen(false)}
+          outlook={bodyFatOutlook}
+          goal={goals[0]?.category}
+          isPremium={isPremium}
         />
 
         {/* Training volume */}
