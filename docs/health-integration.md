@@ -1,6 +1,17 @@
 # Health integration (Apple Health / Health Connect)
 
-Status: **ENABLED in JS/config — pending a native rebuild + on-device test.**
+Status: **Android (Health Connect) confirmed working on a real device** — a
+`health_daily_metrics` row set synced from `source = 'health_connect'` on
+2026-07-20 (steps only; that device had no paired watch/scale, so the other
+metrics simply had nothing to sync — each metric degrades independently, see
+below). **iOS (HealthKit) is unverified** — no `source = 'apple_health'` rows
+have ever landed in the table. Since app.json/eas.json don't commit native
+`ios`/`android` projects, every EAS build runs a fresh `prebuild` from the
+current config — so whichever build is actually submitted determines whether
+this ships, not whatever the previous build did. Confirm on Profile →
+Wearables ("Connect" = compiled in, "SOON" = it didn't link) before trusting a
+release's wearable support, and test on iOS specifically since it has no
+track record yet.
 
 Reads (all read-only, no writes):
 

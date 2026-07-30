@@ -7,7 +7,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useProfileStore } from '../../store/profileStore';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useNutritionStore } from '../../store/nutritionStore';
-import { deriveTargets, sumEntries } from '../../lib/nutrition';
+import { deriveTargets, sumEntries, localDayKey } from '../../lib/nutrition';
 import { MealType, NutritionTargets } from '../../types';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { GradientButton } from '../../components/ui/GradientButton';
@@ -30,6 +30,20 @@ function mealForNow(): MealType {
   if (h < 15) return 'lunch';
   if (h < 20) return 'dinner';
   return 'snack';
+}
+
+function shiftDay(day: string, delta: number): string {
+  const d = new Date(`${day}T12:00:00`); // noon avoids DST edge cases on the shift
+  d.setDate(d.getDate() + delta);
+  return localDayKey(d);
+}
+
+function dayLabel(day: string): string {
+  const today = localDayKey();
+  if (day === today) return 'Today';
+  if (day === shiftDay(today, -1)) return 'Yesterday';
+  const d = new Date(`${day}T12:00:00`);
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function MacroBar({ label, consumed, target, color }: { label: string; consumed: number; target: number; color: string }) {
@@ -122,16 +136,33 @@ export function NutritionScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Header */}
         <View style={{ padding: 24, paddingBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View>
-            <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900' }}>Nutrition</Text>
-            <Text style={{ color: Colors.textSecondary, fontSize: 14, marginTop: 2 }}>Today</Text>
-          </View>
+          <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900' }}>Nutrition</Text>
           <TouchableOpacity
             onPress={() => setAddOpen(true)}
             style={{ backgroundColor: Colors.primary + '22', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: Colors.primary, flexDirection: 'row', alignItems: 'center', gap: 6 }}
           >
             <Ionicons name="add" size={18} color={Colors.primary} />
             <Text style={{ color: Colors.primary, fontWeight: '800', fontSize: 14 }}>Log food</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Day switcher */}
+        <View style={{ paddingHorizontal: 24, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <TouchableOpacity
+            onPress={() => userId && fetchDay(userId, shiftDay(day, -1))}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ padding: 6 }}
+          >
+            <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
+          </TouchableOpacity>
+          <Text style={{ color: Colors.textSecondary, fontSize: 15, fontWeight: '700' }}>{dayLabel(day)}</Text>
+          <TouchableOpacity
+            onPress={() => day < localDayKey() && userId && fetchDay(userId, shiftDay(day, 1))}
+            disabled={day >= localDayKey()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ padding: 6, opacity: day >= localDayKey() ? 0.3 : 1 }}
+          >
+            <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
