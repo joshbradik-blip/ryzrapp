@@ -39,8 +39,8 @@ export interface DailyHealthMetrics {
   hrvMs: number | null;
   sleepMinutes: number | null; // asleep time for the night ending this day
   activeCalories: number | null; // kcal
-  distanceMeters: number | null; // walking + running
-  exerciseMinutes: number | null;
+  /** Walking + running distance. iOS only — not read from Health Connect. */
+  distanceMeters: number | null;
 }
 
 export interface HealthProvider {

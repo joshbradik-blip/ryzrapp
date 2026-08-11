@@ -28,8 +28,7 @@ function hasAnyData(d: DailyHealthMetrics): boolean {
     d.hrvMs != null ||
     d.sleepMinutes != null ||
     d.activeCalories != null ||
-    d.distanceMeters != null ||
-    d.exerciseMinutes != null
+    d.distanceMeters != null
   );
 }
 
@@ -50,7 +49,6 @@ export async function syncHealthToCloud(userId: string): Promise<DailyHealthMetr
     sleep_minutes: d.sleepMinutes,
     active_calories: d.activeCalories,
     distance_meters: d.distanceMeters,
-    exercise_minutes: d.exerciseMinutes,
     source: healthSource(),
     synced_at: new Date().toISOString(),
   }));
@@ -69,7 +67,7 @@ export async function fetchHealthHistory(userId: string, days = 90): Promise<Hea
     const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
     const { data, error } = await supabase
       .from('health_daily_metrics')
-      .select('date, steps, resting_hr, hrv_ms, sleep_minutes, active_calories, distance_meters, exercise_minutes, source')
+      .select('date, steps, resting_hr, hrv_ms, sleep_minutes, active_calories, distance_meters, source')
       .eq('user_id', userId)
       .gte('date', since)
       .order('date', { ascending: true });
@@ -82,7 +80,6 @@ export async function fetchHealthHistory(userId: string, days = 90): Promise<Hea
       sleepMinutes: r.sleep_minutes,
       activeCalories: r.active_calories,
       distanceMeters: r.distance_meters,
-      exerciseMinutes: r.exercise_minutes,
       source: r.source,
     }));
   } catch {

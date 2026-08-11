@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { SubscriptionTerms } from '../../components/ui/SubscriptionTerms';
+import { PromoCodeRow } from '../../components/ui/PromoCodeRow';
 import {
   useSubscriptionStore,
   PRICE_MONTHLY,
@@ -337,6 +338,8 @@ export function StoreScreen() {
                     <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 2 }}>Billed monthly, auto-renews · cancel anytime</Text>
                   </TouchableOpacity>
                 </View>
+
+                <PromoCodeRow />
 
                 <TouchableOpacity onPress={handleRestore} style={{ alignItems: 'center', paddingVertical: 10 }}>
                   <Text style={{ color: Colors.muted, fontSize: 13 }}>Restore purchases</Text>

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Platform } from 'react-native';
+import { Platform, Linking } from 'react-native';
 import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 import { supabase } from '../lib/supabase';
 
@@ -36,6 +36,7 @@ interface SubscriptionState {
   fetchLifetimeSlots: () => Promise<void>;
   purchasePackage: (pkg: PurchasesPackage) => Promise<boolean>;
   purchaseLifetime: () => Promise<boolean>;
+  redeemCode: (code?: string) => Promise<void>;
   restorePurchases: () => Promise<boolean>;
   checkPremium: () => Promise<void>;
 }
@@ -151,6 +152,26 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     } finally {
       set({ loading: false });
     }
+  },
+
+  // Promo / offer code redemption.
+  //
+  // iOS: StoreKit's native redemption sheet opens over the app — the user types
+  //   the code there and the purchase flows back through RevenueCat normally.
+  //   Apple gives no result callback, so we re-check entitlements on return.
+  // Android: there is no in-app redemption API. The Play Store's redeem page is
+  //   the only path; deep-linking it with `?code=` pre-fills the field, which is
+  //   as close to in-app as Google allows.
+  redeemCode: async (code) => {
+    if (Platform.OS === 'ios') {
+      await Purchases.presentCodeRedemptionSheet();
+      return;
+    }
+    const trimmed = (code ?? '').trim();
+    const url = trimmed
+      ? `https://play.google.com/redeem?code=${encodeURIComponent(trimmed)}`
+      : 'https://play.google.com/redeem';
+    await Linking.openURL(url);
   },
 
   restorePurchases: async () => {

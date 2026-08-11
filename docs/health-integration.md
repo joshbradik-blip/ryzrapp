@@ -15,20 +15,38 @@ track record yet.
 
 Reads (all read-only, no writes):
 
-| Metric | iOS (HealthKit) | Android (Health Connect) |
-| --- | --- | --- |
-| Steps | StepCount | Steps |
-| Body weight | BodyMass | Weight |
-| Body fat % | BodyFatPercentage | BodyFat |
-| Lean mass | LeanBodyMass | LeanBodyMass |
-| Resting heart rate | RestingHeartRate | RestingHeartRate |
-| HR variability | HeartRateVariabilitySDNN | HeartRateVariabilityRmssd |
-| Sleep | SleepAnalysis (asleep stages) | SleepSession |
-| Active calories | ActiveEnergyBurned | ActiveCaloriesBurned |
-| Distance | DistanceWalkingRunning | Distance |
-| Exercise minutes | AppleExerciseTime | ExerciseSession duration |
+| Metric | iOS (HealthKit) | Android (Health Connect) | Feature it powers |
+| --- | --- | --- | --- |
+| Steps | StepCount | Steps | Activity tiles + best-step-day record |
+| Body weight | BodyMass | Weight | Body-weight trend, auto-logged measurements |
+| Body fat % | BodyFatPercentage | BodyFat | Body composition + Future Self projection |
+| Resting heart rate | RestingHeartRate | RestingHeartRate | Readiness score (0.3) + lowest-RHR record |
+| HR variability | HeartRateVariabilitySDNN | HeartRateVariabilityRmssd | Readiness score (0.4) |
+| Sleep | SleepAnalysis (asleep stages) | SleepSession | Readiness score (0.3) + longest-sleep record |
+| Active calories | ActiveEnergyBurned | ActiveCaloriesBurned | Energy balance card + most-active-kcal record |
+| Lean mass | LeanBodyMass | **not read** | Lean-mass row on Progress (iOS only) |
+| Distance | DistanceWalkingRunning | **not read** | Longest-distance-day record (iOS only) |
 
 Note: iOS HRV is SDNN, Android is RMSSD — trends are comparable, absolute values are not.
+
+### Health Connect permissions are policy-scoped — don't add speculatively
+
+Google Play rejects any Health Connect permission that isn't visibly used
+("Excessive data access for declared feature"). RYZR was rejected on 2026-08-06
+for exactly this. The rules that follow from it:
+
+- **Every declared permission must map to a row above with a real feature.**
+  Reading a value and storing it is not enough — a reviewer has to be able to
+  see it on a screen.
+- `ExerciseSession` was removed because `exerciseMinutes` was synced but never
+  rendered. `Distance` and `LeanBodyMass` were dropped on Android because each
+  backed only a single line in a records list — too thin to defend.
+- Adding a permission means updating **three** places in lockstep:
+  `android.permissions` in `app.json`, the request list in
+  `src/lib/healthProvider.ts`, and `ROWS` in
+  `src/components/wearables/HealthDisclosureSheet.tsx` — plus re-submitting the
+  Play Console Health Connect declaration. See
+  `docs/health-connect-play-declaration.md`.
 
 ## How data flows
 

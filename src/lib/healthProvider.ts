@@ -8,8 +8,15 @@
 // leaves the no-op provider in place. `import type` is erased at compile time,
 // so it adds no runtime import while still giving full type-checking.
 //
-// Reads only. Metrics: steps, body mass, body fat %, lean mass, resting HR,
-// HRV, sleep, active calories, distance, exercise minutes.
+// Reads only. Every metric below maps to a feature the user can see — Google
+// Play's Health Connect policy rejects any permission that doesn't, so don't
+// add a read here without a screen that renders it.
+//
+//   steps, active calories  → energy balance + activity records
+//   resting HR, HRV, sleep  → recovery-readiness score (src/lib/readiness.ts)
+//   body mass, body fat %   → body composition + Future Self projection
+//   lean mass, distance     → iOS only; not declared on Health Connect
+//
 // See docs/health-integration.md.
 // ─────────────────────────────────────────────────────────────────────────────
 import { Platform } from 'react-native';
@@ -46,7 +53,6 @@ function emptyDay(date: string): DailyHealthMetrics {
     sleepMinutes: null,
     activeCalories: null,
     distanceMeters: null,
-    exerciseMinutes: null,
   };
 }
 
@@ -128,7 +134,6 @@ function createHealthKitProvider(): HealthProvider {
             'HKQuantityTypeIdentifierHeartRateVariabilitySDNN',
             'HKQuantityTypeIdentifierActiveEnergyBurned',
             'HKQuantityTypeIdentifierDistanceWalkingRunning',
-            'HKQuantityTypeIdentifierAppleExerciseTime',
             'HKCategoryTypeIdentifierSleepAnalysis',
           ],
         });
@@ -171,11 +176,10 @@ function createHealthKitProvider(): HealthProvider {
         const start = startOfDay(i);
         const end = i === 0 ? new Date() : startOfDay(i - 1);
         const day = emptyDay(localDateKey(start));
-        const [steps, activeCal, distance, exercise, restingHr, hrv, sleep] = await Promise.all([
+        const [steps, activeCal, distance, restingHr, hrv, sleep] = await Promise.all([
           daySum('HKQuantityTypeIdentifierStepCount', 'count', start, end),
           daySum('HKQuantityTypeIdentifierActiveEnergyBurned', 'kcal', start, end),
           daySum('HKQuantityTypeIdentifierDistanceWalkingRunning', 'm', start, end),
-          daySum('HKQuantityTypeIdentifierAppleExerciseTime', 'min', start, end),
           dayAvg('HKQuantityTypeIdentifierRestingHeartRate', 'count/min', start, end),
           dayAvg('HKQuantityTypeIdentifierHeartRateVariabilitySDNN', 'ms', start, end),
           sleepMinutes(start, end),
@@ -183,7 +187,6 @@ function createHealthKitProvider(): HealthProvider {
         day.steps = steps != null ? Math.round(steps) : null;
         day.activeCalories = activeCal != null ? Math.round(activeCal) : null;
         day.distanceMeters = distance != null ? Math.round(distance) : null;
-        day.exerciseMinutes = exercise != null ? Math.round(exercise) : null;
         day.restingHr = restingHr != null ? Math.round(restingHr) : null;
         day.hrvMs = hrv != null ? Math.round(hrv * 10) / 10 : null;
         day.sleepMinutes = sleep;
@@ -223,17 +226,17 @@ function createHealthConnectProvider(): HealthProvider {
     requestPermissions: async () => {
       try {
         await ensureInit();
+        // Must stay in sync with android.permissions in app.json — requesting a
+        // record type whose permission isn't declared throws, and declaring one
+        // we never read is a Play policy violation ("excessive data access").
         const wanted = [
           { accessType: 'read', recordType: 'Steps' },
           { accessType: 'read', recordType: 'Weight' },
           { accessType: 'read', recordType: 'BodyFat' },
-          { accessType: 'read', recordType: 'LeanBodyMass' },
           { accessType: 'read', recordType: 'RestingHeartRate' },
           { accessType: 'read', recordType: 'HeartRateVariabilityRmssd' },
           { accessType: 'read', recordType: 'SleepSession' },
           { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
-          { accessType: 'read', recordType: 'Distance' },
-          { accessType: 'read', recordType: 'ExerciseSession' },
         ] as const;
         try {
           const granted = await HC.requestPermission([...wanted]);
@@ -279,11 +282,7 @@ function createHealthConnectProvider(): HealthProvider {
         const lastBf = bf[bf.length - 1];
         if (lastBf) out.bodyFatPct = { value: Math.round(lastBf.percentage * 10) / 10, date: lastBf.time };
       } catch {}
-      try {
-        const lm = await readRange('LeanBodyMass', yearAgo, new Date());
-        const lastLm = lm[lm.length - 1];
-        if (lastLm) out.leanMassKg = { value: Math.round(lastLm.mass.inKilograms * 10) / 10, date: lastLm.time };
-      } catch {}
+      // Lean mass is iOS-only — READ_LEAN_BODY_MASS isn't declared on Android.
       return out;
     },
     getDailyMetrics: async (days: number) => {
@@ -316,20 +315,7 @@ function createHealthConnectProvider(): HealthProvider {
           if (d) d.activeCalories = (d.activeCalories ?? 0) + r.energy.inKilocalories;
         }
       } catch {}
-      try {
-        for (const r of await readRange('Distance', start, end)) {
-          const d = dayOf(r.startTime);
-          if (d) d.distanceMeters = (d.distanceMeters ?? 0) + r.distance.inMeters;
-        }
-      } catch {}
-      try {
-        for (const r of await readRange('ExerciseSession', start, end)) {
-          const d = dayOf(r.startTime);
-          if (!d) continue;
-          const mins = (new Date(r.endTime).getTime() - new Date(r.startTime).getTime()) / 60000;
-          d.exerciseMinutes = (d.exerciseMinutes ?? 0) + mins;
-        }
-      } catch {}
+      // Distance is iOS-only — READ_DISTANCE isn't declared on Android.
       try {
         // Attribute a sleep session to the day it ended (the "night of" that morning).
         for (const r of await readRange('SleepSession', start, end)) {
@@ -368,7 +354,6 @@ function createHealthConnectProvider(): HealthProvider {
         ...d,
         activeCalories: d.activeCalories != null ? Math.round(d.activeCalories) : null,
         distanceMeters: d.distanceMeters != null ? Math.round(d.distanceMeters) : null,
-        exerciseMinutes: d.exerciseMinutes != null ? Math.round(d.exerciseMinutes) : null,
         sleepMinutes: d.sleepMinutes != null ? Math.round(d.sleepMinutes) : null,
       }));
     },

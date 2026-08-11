@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
@@ -8,6 +8,7 @@ import { useProfileStore } from '../../store/profileStore';
 import { useAuthStore } from '../../store/authStore';
 import { kgToDisplay, weightLabel } from '../../lib/units';
 import { Health } from '../../lib/health';
+import { HealthDisclosureSheet } from '../../components/wearables/HealthDisclosureSheet';
 
 type Brand = {
   id: string;
@@ -76,7 +77,12 @@ export function WearablesScreen() {
     connected.filter((id) => id !== HUB.id).forEach(disconnect);
   }, []);
 
+  // Prominent disclosure must be shown and acknowledged before the OS prompt —
+  // see HealthDisclosureSheet for why.
+  const [disclosureOpen, setDisclosureOpen] = useState(false);
+
   const connectHub = async () => {
+    setDisclosureOpen(false);
     const ok = await Health.requestPermissions();
     if (ok) {
       if (!connected.includes(HUB.id)) toggle(HUB.id);
@@ -160,7 +166,7 @@ export function WearablesScreen() {
 
           {/* Connect button */}
           {available && !hubConnected && (
-            <TouchableOpacity onPress={connectHub}
+            <TouchableOpacity onPress={() => setDisclosureOpen(true)}
               style={{ marginTop: 16, backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}>
               <Text style={{ color: '#000', fontWeight: '800', fontSize: 14 }}>Connect {HUB.name}</Text>
             </TouchableOpacity>
@@ -207,7 +213,22 @@ export function WearablesScreen() {
           share data with it. We use your activity, heart-rate, sleep, and body-composition
           data to tailor your training — disconnect anytime.
         </Text>
+
+        {/* Always reachable, connected or not — reviewers and users can see exactly
+            which data types RYZR reads and what each one powers. */}
+        <TouchableOpacity onPress={() => setDisclosureOpen(true)} style={{ paddingVertical: 14 }}>
+          <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '700', textAlign: 'center', textDecorationLine: 'underline' }}>
+            What health data does RYZR read?
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      <HealthDisclosureSheet
+        visible={disclosureOpen}
+        hubName={HUB.name}
+        onCancel={() => setDisclosureOpen(false)}
+        onContinue={connectHub}
+      />
     </View>
   );
 }
