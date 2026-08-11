@@ -34,57 +34,52 @@ signup still succeeds — a welcome email is never allowed to break auth.
 | `supabase/functions/send-ryzr-welcome-batch/` | Backfill for users who signed up before automation existed. `verify_jwt = true`. |
 | `supabase/migrations/20260811000000_welcome_email_automation.sql` | Send-log table, pg_net, trigger. |
 
-## Setup
+## Configuration
 
-### 1. Resend API key
+All of this is **already provisioned on the live project** — this section
+documents what exists and how to reproduce it on a fresh project.
 
-`RESEND_API_KEY` is most likely **already set** — the existing `send-ryzr-email`
-function reads it, throws at boot without it, and has sent successfully. Supabase
-secrets are project-wide, so every function here inherits the same key. Check with:
+### Secrets
 
-```bash
-supabase secrets list
-```
+| Where | Name | Purpose |
+|---|---|---|
+| Edge function secret | `RESEND_API_KEY` | Resend sending key. Project-wide, so all three functions share it. |
+| Vault | `ryzr_functions_url` | Project base URL the trigger POSTs to. |
+| Vault | `ryzr_welcome_hook_secret` | Shared secret authenticating trigger → `send-welcome-email`. |
 
-If it's missing, note that Resend reveals a token only once at creation, so an
-existing key whose value you no longer have is unrecoverable — create a new one
-(resend.com → **API Keys** → **Create API Key** → permission **Sending access**)
-and delete the old one.
+The hook secret lives **only in Vault**, not also in a `WELCOME_HOOK_SECRET` env
+var. Both ends read the one copy — the trigger directly, the edge function through
+the `public.ryzr_welcome_hook_secret()` accessor, which is granted to `service_role`
+alone. Two copies that had to be kept identical by hand would be a standing chance
+of silently 401ing every welcome email.
 
-Your sending domain also needs to be verified (Resend → **Domains** → add the
-DKIM/SPF records at your DNS host). Until it is, Resend only delivers to the
-address on your own account — everything else 403s. The `from` address is
-`josh@bradikenterprises.com`, so `bradikenterprises.com` is the domain in question.
-
-### 2. Set the remaining secret
-
-```bash
-# Shared secret authenticating the DB trigger to send-welcome-email.
-# Generate a fresh random one — this value is never committed.
-supabase secrets set WELCOME_HOOK_SECRET="$(openssl rand -hex 32)"
-```
-
-### 3. Store the trigger's copies in Vault
-
-Postgres needs the same shared secret, plus the project URL, to make the call.
-Run this in the Supabase SQL editor, substituting the **same** `WELCOME_HOOK_SECRET`
-value from step 2:
+To provision on a fresh project, run in the SQL editor:
 
 ```sql
-select vault.create_secret(
-  'https://<project-ref>.supabase.co',
-  'ryzr_functions_url'
-);
-
-select vault.create_secret(
-  '<the same WELCOME_HOOK_SECRET value>',
-  'ryzr_welcome_hook_secret'
-);
+select vault.create_secret('https://<project-ref>.supabase.co', 'ryzr_functions_url');
+select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'ryzr_welcome_hook_secret');
 ```
 
-To rotate later, use `vault.update_secret` and re-run `supabase secrets set`.
+Generating the secret inside Postgres means its value never passes through a
+shell history, a clipboard, or a chat log. Rotate with `vault.update_secret`;
+the edge function caches it per isolate, so a rotation takes effect on the next
+cold start (or redeploy to force it).
 
-### 4. Deploy
+### Resend
+
+`RESEND_API_KEY` is set as an edge function secret. Note that Resend reveals a
+token only once at creation — an existing key whose value you no longer have is
+unrecoverable, so create a new one and delete the old rather than trying to
+retrieve it.
+
+The sending domain must be verified (Resend → **Domains** → DKIM/SPF records at
+your DNS host). Until it is, Resend only delivers to the address on your own
+account and 403s everything else. The `from` address is
+`josh@bradikenterprises.com`, so `bradikenterprises.com` is the domain in question.
+
+### Deploy
+
+Redeploy after any change to the template or the functions:
 
 ```bash
 supabase db push
@@ -97,9 +92,9 @@ supabase functions deploy send-ryzr-welcome-batch
 user JWT to present. The shared-secret header is what protects that endpoint, and
 the function rejects any request without it.
 
-### 5. Verify
+## Verifying
 
-Sign up with a throwaway address in the app, then:
+Sign up with a throwaway address, then:
 
 ```sql
 select email, status, resend_email_id, created_at, sent_at
@@ -112,6 +107,12 @@ limit 5;
 stay `pending`, the edge function isn't being reached — check
 `select * from net._http_response order by id desc limit 5;`
 and the function logs in the Supabase dashboard.
+
+This was verified end to end on 2026-08-11 by inserting a temporary user, which
+produced a `200` from pg_net, a `sent` row with a Resend ID, and a delivered
+email. Re-firing the confirmation trigger for that same user produced no second
+HTTP call and no second email, confirming the idempotency gate. The test user was
+then deleted.
 
 ## Backfilling existing users
 

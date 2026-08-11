@@ -15,7 +15,9 @@
 -- the unique constraint and only one email goes out.
 
 -- pg_net gives Postgres async HTTP. Supabase ships it but leaves it uninstalled.
-CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+-- It is not relocatable: its functions always land in the `net` schema, so no
+-- WITH SCHEMA clause here.
+CREATE EXTENSION IF NOT EXISTS pg_net;
 
 -- ---------------------------------------------------------------------------
 -- Send log
@@ -45,6 +47,31 @@ CREATE INDEX IF NOT EXISTS ryzr_email_campaign_sends_campaign_status_idx
 ALTER TABLE ryzr_email_campaign_sends ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
+-- Shared secret accessor
+-- ---------------------------------------------------------------------------
+-- Both ends of the trigger -> edge function call need the same secret. Keeping
+-- the single copy in Vault (rather than a Vault copy plus a WELCOME_HOOK_SECRET
+-- env var that must be kept identical by hand) removes the chance of the two
+-- drifting apart and silently 401ing every welcome email.
+--
+-- PostgREST only exposes the `public` schema, so the edge function reaches the
+-- Vault entry through this wrapper. Execute is granted to service_role alone,
+-- which can already read anything in the database.
+CREATE OR REPLACE FUNCTION public.ryzr_welcome_hook_secret()
+RETURNS text
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = vault, public
+AS $$
+  SELECT decrypted_secret
+    FROM vault.decrypted_secrets
+   WHERE name = 'ryzr_welcome_hook_secret';
+$$;
+
+REVOKE ALL ON FUNCTION public.ryzr_welcome_hook_secret() FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.ryzr_welcome_hook_secret() TO service_role;
+
+-- ---------------------------------------------------------------------------
 -- Signup trigger
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.ryzr_send_welcome_email()
@@ -69,10 +96,14 @@ BEGIN
     -- On INSERT: send right away (RYZR has email confirmation disabled, so users
     -- arrive already confirmed). On UPDATE: only when confirmation just landed,
     -- which covers the case where confirmation gets switched on later.
-    IF TG_OP = 'UPDATE' AND NOT (
-      old.email_confirmed_at IS NULL AND new.email_confirmed_at IS NOT NULL
-    ) THEN
-      RETURN new;
+    --
+    -- OLD is unassigned in an INSERT trigger and reading it raises, so it must
+    -- stay inside this branch rather than being folded into one condition — SQL
+    -- does not guarantee short-circuit evaluation of AND.
+    IF TG_OP = 'UPDATE' THEN
+      IF NOT (old.email_confirmed_at IS NULL AND new.email_confirmed_at IS NOT NULL) THEN
+        RETURN new;
+      END IF;
     END IF;
 
     SELECT decrypted_secret INTO v_functions_url

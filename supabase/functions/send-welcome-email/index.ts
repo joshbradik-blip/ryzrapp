@@ -22,12 +22,10 @@ import {
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const resendApiKey = Deno.env.get('RESEND_API_KEY');
-const hookSecret = Deno.env.get('WELCOME_HOOK_SECRET');
 
 if (!supabaseUrl) throw new Error('SUPABASE_URL is not configured');
 if (!serviceRoleKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured');
 if (!resendApiKey) throw new Error('RESEND_API_KEY is not configured');
-if (!hookSecret) throw new Error('WELCOME_HOOK_SECRET is not configured');
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -41,12 +39,28 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
+// The trigger and this function share one secret, stored once in Vault. Read it
+// through the service-role-only accessor and cache it for the life of the
+// isolate, so this costs one query per cold start rather than one per signup.
+let cachedSecret: string | null = null;
+
+async function getHookSecret(): Promise<string> {
+  if (cachedSecret) return cachedSecret;
+
+  const { data, error } = await supabase.rpc('ryzr_welcome_hook_secret');
+  if (error) throw new Error(`Could not read hook secret from Vault: ${error.message}`);
+  if (!data) throw new Error("Vault secret 'ryzr_welcome_hook_secret' is not set");
+
+  cachedSecret = data as string;
+  return cachedSecret;
+}
+
 /** Constant-time compare so the secret can't be recovered by timing the endpoint. */
-function secretMatches(provided: string | null): boolean {
+function secretMatches(provided: string | null, expected: string): boolean {
   if (!provided) return false;
 
   const a = new TextEncoder().encode(provided);
-  const b = new TextEncoder().encode(hookSecret);
+  const b = new TextEncoder().encode(expected);
   if (a.length !== b.length) return false;
 
   let diff = 0;
@@ -59,8 +73,14 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Method not allowed' }, 405);
   }
 
-  if (!secretMatches(req.headers.get('x-ryzr-webhook-secret'))) {
-    return json({ error: 'Unauthorized' }, 401);
+  try {
+    const expected = await getHookSecret();
+    if (!secretMatches(req.headers.get('x-ryzr-webhook-secret'), expected)) {
+      return json({ error: 'Unauthorized' }, 401);
+    }
+  } catch (error) {
+    console.error('Hook secret unavailable:', error);
+    return json({ success: false, error: 'Hook secret unavailable' }, 500);
   }
 
   let userId: string | undefined;
