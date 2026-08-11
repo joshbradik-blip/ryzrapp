@@ -1,7 +1,23 @@
-# Welcome email automation
+# Lifecycle email automation
 
-Sends the RYZR welcome email (free-month promo + feedback ask) automatically when
-someone signs up, via Supabase + Resend. No third-party automation service.
+Sends the RYZR onboarding email sequence automatically, via Supabase + Resend. No
+third-party automation service.
+
+| Stage | Timing | Subject | Live |
+|---|---|---|---|
+| Day 1 | On signup | Welcome to RYZR — Your Free Month is Waiting | ✅ |
+| Day 3 | 3 days after signup | Three features most people miss in RYZR | ✅ |
+| Day 7 | 7 days after signup | Getting the most out of RYZR | ✅ |
+| Day 21 | 21 days after signup | What's coming next in RYZR | ❌ placeholder roadmap |
+
+Day 1 is trigger-driven (there is a signup event to hang it off). Days 3/7/21 are
+schedule-driven, because "3 days later" has no event — a pg_cron job runs hourly
+and works out who is due.
+
+**Day 21 ships switched off.** Its roadmap section is a placeholder: shipping
+promises invented on the user's behalf are the one thing worth refusing to guess
+at. Replace `ROADMAP_ITEMS` in `_shared/dripEmails.ts` with real plans, set
+`live: true` on that stage, and redeploy.
 
 ## How it works
 
@@ -28,11 +44,51 @@ signup still succeeds — a welcome email is never allowed to break auth.
 
 | Path | Role |
 |---|---|
-| `supabase/functions/_shared/welcomeEmail.ts` | The email template. Single source of truth — edit the copy here. |
-| `supabase/functions/send-welcome-email/` | Automatic per-signup send. Called by the DB trigger. `verify_jwt = false`. |
+| `supabase/functions/_shared/emailLayout.ts` | The branded shell all four emails render inside. |
+| `supabase/functions/_shared/welcomeEmail.ts` | Day 1 copy. |
+| `supabase/functions/_shared/dripEmails.ts` | Day 3 / 7 / 21 copy, timings, and live flags. |
+| `supabase/functions/send-welcome-email/` | Day 1 send. Called by the DB trigger. `verify_jwt = false`. |
+| `supabase/functions/send-ryzr-drip/` | Day 3/7/21 dispatch. Called by pg_cron. `verify_jwt = false`. |
 | `supabase/functions/send-ryzr-email/` | Manual one-off send, for previewing or re-sending. `verify_jwt = true`. |
-| `supabase/functions/send-ryzr-welcome-batch/` | Backfill for users who signed up before automation existed. `verify_jwt = true`. |
-| `supabase/migrations/20260811000000_welcome_email_automation.sql` | Send-log table, pg_net, trigger. |
+| `supabase/functions/send-ryzr-welcome-batch/` | Backfill for users who predate automation. `verify_jwt = true`. |
+| `supabase/migrations/20260811000000_welcome_email_automation.sql` | Send-log table, pg_net, signup trigger. |
+| `supabase/migrations/20260811210000_welcome_email_drip_sequence.sql` | pg_cron, drip config, claim/preview functions. |
+
+## The drip sequence
+
+`ryzr_drip_config` is a single-row table holding two controls:
+
+- **`sequence_start_at`** — only users created at or after this point enter the
+  sequence. It was set to the moment the sequence went live, so existing users are
+  not retro-drip-fed. Moving it earlier lets more users in; **sent email cannot be
+  recalled, so move it earlier deliberately and in small steps.**
+- **`enabled`** — the kill switch. `update ryzr_drip_config set enabled = false;`
+  stops all drip stages immediately, without touching Day 1.
+
+Preview who is currently due, without sending or claiming anything:
+
+```sql
+select * from ryzr_drip_preview('ryzr-drip-day3', 3, 100);
+```
+
+Or dry-run the whole dispatcher:
+
+```sql
+select net.http_post(
+  url := (select decrypted_secret from vault.decrypted_secrets where name='ryzr_functions_url')
+         || '/functions/v1/send-ryzr-drip',
+  headers := jsonb_build_object(
+    'Content-Type','application/json',
+    'x-ryzr-webhook-secret', (select decrypted_secret from vault.decrypted_secrets
+                               where name='ryzr_welcome_hook_secret')),
+  body := '{"dryRun":true}'::jsonb
+);
+-- then read the result:
+select status_code, content from net._http_response order by id desc limit 1;
+```
+
+The cron job is `ryzr-drip-dispatch`, hourly at :17 (`select * from cron.job`).
+Each run claims at most 25 users per stage and paces sends 600ms apart.
 
 ## Configuration
 

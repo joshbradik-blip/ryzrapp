@@ -1,75 +1,37 @@
-// Single source of truth for the RYZR welcome email.
+// Day 1 of the RYZR lifecycle sequence: the welcome email.
 //
-// Previously this markup was copy-pasted into both `send-ryzr-email` and
-// `send-ryzr-welcome-batch`, so the two could drift apart. Every function that
-// sends the welcome email now imports from here.
+// Sent by the auth.users trigger via send-welcome-email. Later stages live in
+// dripEmails.ts; the branded shell both share lives in emailLayout.ts.
 //
-// The copy comes from the Resend Broadcast version of this email (the one
-// actually sent to the early user list). Two Broadcast-only merge tags had to be
-// translated, because they are expanded by Resend's Broadcast pipeline and NOT
-// by the transactional send API — pasted verbatim they reach the recipient as
-// literal `{{{...}}}` text:
+// The copy comes from the Resend Broadcast version of this email. Two
+// Broadcast-only merge tags had to be translated, because they are expanded by
+// Resend's Broadcast pipeline and NOT by the transactional send API — pasted
+// verbatim they reach the recipient as literal `{{{...}}}` text:
 //
 //   {{{contact.first_name|there}}} -> interpolated here from signup metadata
-//   {{{RESEND_UNSUBSCRIBE_URL}}}   -> a mailto: unsubscribe (see UNSUBSCRIBE_MAILTO)
+//   {{{RESEND_UNSUBSCRIBE_URL}}}   -> a mailto: unsubscribe (see emailLayout.ts)
+
+import {
+  escapeHtml,
+  renderEmail,
+  UNSUBSCRIBE_MAILTO,
+  WELCOME_FROM,
+  WELCOME_REPLY_TO,
+} from './emailLayout.ts';
+
+// Re-exported so existing importers of this module keep working unchanged.
+export {
+  resolveFirstName,
+  UNSUBSCRIBE_MAILTO,
+  WELCOME_FROM,
+  WELCOME_REPLY_TO,
+} from './emailLayout.ts';
 
 export const WELCOME_CAMPAIGN = 'ryzr-free-month-2026';
-
-export const WELCOME_FROM = 'Josh Perry, Founder of RYZR <josh@bradikenterprises.com>';
-export const WELCOME_REPLY_TO = 'josh@bradikenterprises.com';
 export const WELCOME_SUBJECT = 'Welcome to RYZR — Your Free Month is Waiting';
 
 /** Promo code shown in the email, redeemed via App Store offer codes / Play billing. */
 export const PROMO_CODE = 'RYZR30';
-
-/**
- * Broadcasts get a hosted one-click unsubscribe URL from Resend; transactional
- * sends do not, so this email carries a mailto: unsubscribe instead. It is
- * honoured by hand today. Wiring up a real suppression list (a table checked
- * before each send, plus an HTTPS endpoint for one-click) is the follow-up if
- * this email ever goes out at higher volume.
- */
-export const UNSUBSCRIBE_MAILTO =
-  'mailto:josh@bradikenterprises.com?subject=Unsubscribe';
-
-/**
- * The display name comes from user-supplied signup metadata, so it must never be
- * interpolated into the template raw.
- */
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-/**
- * Pull a usable first name out of whatever the signup flow stored. The app writes
- * `{ data: { name } }` on `auth.signUp` (see `src/store/authStore.ts`), but older
- * rows and OAuth providers use other shapes, so check the common ones.
- *
- * Mirrors the Broadcast tag's `|there` fallback.
- */
-export function resolveFirstName(metadata: Record<string, unknown> | null | undefined): string {
-  const meta = metadata ?? {};
-
-  const candidates = [
-    meta.first_name,
-    meta.firstName,
-    meta.name,
-    meta.full_name,
-  ];
-
-  for (const candidate of candidates) {
-    if (typeof candidate !== 'string') continue;
-    const first = candidate.trim().split(/\s+/)[0];
-    if (first) return first;
-  }
-
-  return 'there';
-}
 
 /** Ready-to-send Resend payload for the welcome email. */
 export function welcomeEmailPayload(to: string, firstName: string) {
@@ -90,34 +52,10 @@ export function welcomeEmailPayload(to: string, firstName: string) {
 export function buildWelcomeEmail(rawFirstName: string): string {
   const firstName = escapeHtml(rawFirstName || 'there');
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
-  <meta name="supported-color-schemes" content="light">
-  <title>RYZR — Your Free Month is Waiting</title>
-</head>
-<body style="margin:0;padding:0;background:#f4f4f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
-
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
-    Thanks for trying RYZR. I'd love your feedback — and here's a free month of Premium.
-  </div>
-
-  <div style="max-width:620px;margin:0 auto;background:#ffffff;">
-
-    <div style="background:#171717;padding:42px 28px;text-align:center;">
-      <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:#ffffff;">
-        RYZR
-      </div>
-      <div style="margin-top:10px;font-size:19px;color:#f0a23a;">
-        Train for the life you want.
-      </div>
-    </div>
-
-    <div style="padding:36px 32px;color:#2b2b2b;font-size:17px;line-height:1.65;">
-
+  return renderEmail({
+    title: 'RYZR — Your Free Month is Waiting',
+    preheader: "Thanks for trying RYZR. I'd love your feedback — and here's a free month of Premium.",
+    body: `
       <p style="margin-top:0;">
         Hi ${firstName},
       </p>
@@ -240,20 +178,6 @@ export function buildWelcomeEmail(rawFirstName: string): string {
       <div style="margin-top:34px;padding-top:22px;border-top:1px solid #eeeeee;font-size:14px;color:#666666;line-height:1.55;">
         <strong>P.S.</strong> Every feature in RYZR started as someone's idea. If there's anything that frustrates you
         — or something you'd love to see — just hit Reply. I read every email personally.
-      </div>
-
-    </div>
-
-    <div style="background:#171717;color:#999999;text-align:center;padding:26px;font-size:13px;line-height:1.6;">
-      © 2026 RYZR<br>
-      Bradik Enterprises<br><br>
-      <a href="${UNSUBSCRIBE_MAILTO}" style="color:#bdbdbd;text-decoration:underline;">
-        Unsubscribe
-      </a>
-    </div>
-
-  </div>
-
-</body>
-</html>`;
+      </div>`,
+  });
 }
