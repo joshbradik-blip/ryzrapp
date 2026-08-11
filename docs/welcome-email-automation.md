@@ -36,23 +36,29 @@ signup still succeeds — a welcome email is never allowed to break auth.
 
 ## Setup
 
-### 1. Get a Resend API key
+### 1. Resend API key
 
-resend.com → **API Keys** → **Create API Key** → permission **Sending access**.
-Copy it immediately; Resend shows it once. It starts with `re_`.
-
-Also verify your sending domain (Resend → **Domains** → add the DKIM/SPF records
-at your DNS host). Until a domain is verified, Resend only delivers to the address
-on your own account — everything else 403s. The `from` address in
-`_shared/welcomeEmail.ts` is `josh@bradikenterprises.com`, so
-`bradikenterprises.com` is the domain that needs verifying.
-
-### 2. Set the edge function secrets
+`RESEND_API_KEY` is most likely **already set** — the existing `send-ryzr-email`
+function reads it, throws at boot without it, and has sent successfully. Supabase
+secrets are project-wide, so every function here inherits the same key. Check with:
 
 ```bash
-# Resend key, used by all three functions
-supabase secrets set RESEND_API_KEY=re_xxxxxxxxxxxx
+supabase secrets list
+```
 
+If it's missing, note that Resend reveals a token only once at creation, so an
+existing key whose value you no longer have is unrecoverable — create a new one
+(resend.com → **API Keys** → **Create API Key** → permission **Sending access**)
+and delete the old one.
+
+Your sending domain also needs to be verified (Resend → **Domains** → add the
+DKIM/SPF records at your DNS host). Until it is, Resend only delivers to the
+address on your own account — everything else 403s. The `from` address is
+`josh@bradikenterprises.com`, so `bradikenterprises.com` is the domain in question.
+
+### 2. Set the remaining secret
+
+```bash
 # Shared secret authenticating the DB trigger to send-welcome-email.
 # Generate a fresh random one — this value is never committed.
 supabase secrets set WELCOME_HOOK_SECRET="$(openssl rand -hex 32)"
@@ -143,5 +149,20 @@ Work through pages until a page returns no `would_send` results.
 Change `buildWelcomeEmail()` in `supabase/functions/_shared/welcomeEmail.ts`, then
 redeploy all three functions — each bundles its own copy of the shared module.
 
-The recipient's first name is escaped before interpolation. Keep it that way: the
-name comes from user-supplied signup metadata.
+Two rules when pulling copy over from a Resend **Broadcast**:
+
+1. **Broadcast merge tags do not work here.** Resend expands `{{{...}}}` tags in
+   its Broadcast pipeline, not in the transactional send API. Pasted verbatim they
+   reach the recipient as literal `{{{contact.first_name|there}}}` text. The two
+   tags in the original broadcast are already translated — the first name is
+   interpolated from signup metadata, and `{{{RESEND_UNSUBSCRIBE_URL}}}` became a
+   `mailto:` unsubscribe.
+2. **Keep the first name escaped.** It comes from user-supplied signup metadata.
+
+### Unsubscribe
+
+Broadcasts get a hosted one-click unsubscribe URL from Resend; transactional sends
+don't. The footer link and the `List-Unsubscribe` header both point at a `mailto:`,
+which you honour by hand. That's proportionate at current volume, but if this email
+ever goes out in bulk, the follow-up is a suppression table checked before each send
+plus an HTTPS endpoint for true one-click unsubscribe.
