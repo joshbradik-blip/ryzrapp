@@ -39,7 +39,7 @@
     },
     "android": {
       "package": "com.ryzr.app",
-      "versionCode": 31,
+      "versionCode": 32,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
@@ -50,6 +50,7 @@
         "CAMERA",
         "RECORD_AUDIO",
         "VIBRATE",
+        "com.google.android.gms.permission.AD_ID",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.health.READ_STEPS",
