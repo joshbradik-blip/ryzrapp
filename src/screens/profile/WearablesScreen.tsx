@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { useWearablesStore } from '../../store/wearablesStore';
@@ -37,6 +37,9 @@ const BRANDS: Brand[] = [
   { id: 'strava', name: 'Strava',    desc: 'Runs, rides & outdoor workouts',             icon: 'map-outline' },
   { id: 'polar',  name: 'Polar',     desc: 'HR training, running & recovery',            icon: 'watch-outline' },
 ];
+
+const HEALTH_CONNECT_PLAY_URL =
+  'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata';
 
 function fmtSleep(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -80,16 +83,60 @@ export function WearablesScreen() {
   // Prominent disclosure must be shown and acknowledged before the OS prompt —
   // see HealthDisclosureSheet for why.
   const [disclosureOpen, setDisclosureOpen] = useState(false);
+  const pendingConnect = useRef(false);
+
+  // The OS prompt can only be raised once the disclosure sheet is fully gone.
+  // iOS waits for the Modal's onDismiss; Android's permission flow is a separate
+  // activity with no such conflict, so it runs straight away.
+  const acceptDisclosure = () => {
+    pendingConnect.current = true;
+    setDisclosureOpen(false);
+    if (Platform.OS !== 'ios') connectHub();
+  };
 
   const connectHub = async () => {
-    setDisclosureOpen(false);
-    const ok = await Health.requestPermissions();
-    if (ok) {
+    if (!pendingConnect.current) return;
+    pendingConnect.current = false;
+    const result = await Health.requestPermissions();
+
+    if (result === 'granted') {
       if (!connected.includes(HUB.id)) toggle(HUB.id);
       if (userId) sync(userId);
-    } else {
-      Alert.alert('Permission needed', `Allow RYZR to read your data in the ${HUB.name} permission screen to enable sync.`);
+      return;
     }
+
+    if (result === 'provider_update_required') {
+      Alert.alert(
+        'Update Health Connect',
+        'Health Connect needs to be installed or updated before RYZR can sync. Open the Play Store to update it.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open Play Store', onPress: () => Linking.openURL(HEALTH_CONNECT_PLAY_URL).catch(() => {}) },
+        ],
+      );
+      return;
+    }
+
+    if (result === 'unavailable') {
+      Alert.alert(
+        `${HUB.name} unavailable`,
+        Platform.OS === 'android'
+          ? 'Health Connect is not available on this device, so RYZR cannot sync wearable data here.'
+          : `${HUB.name} is not available on this device.`,
+      );
+      return;
+    }
+
+    // Denied — which also covers the OS refusing to show the prompt again after
+    // repeated attempts. Always offer the manual route so this can't dead-end.
+    Alert.alert(
+      'Permission needed',
+      `RYZR needs read access to sync. If no permission screen appeared, grant it directly in ${HUB.name}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: `Open ${HUB.name}`, onPress: () => Health.openSettings() },
+      ],
+    );
   };
 
   const disconnectHub = () => {
@@ -226,8 +273,9 @@ export function WearablesScreen() {
       <HealthDisclosureSheet
         visible={disclosureOpen}
         hubName={HUB.name}
-        onCancel={() => setDisclosureOpen(false)}
-        onContinue={connectHub}
+        onCancel={() => { pendingConnect.current = false; setDisclosureOpen(false); }}
+        onContinue={acceptDisclosure}
+        onDismissed={connectHub}
       />
     </View>
   );

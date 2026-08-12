@@ -19,7 +19,7 @@
 //
 // See docs/health-integration.md.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import {
   BodyComposition,
   DailyHealthMetrics,
@@ -120,11 +120,16 @@ function createHealthKitProvider(): HealthProvider {
     isAvailable: () => {
       try { return HK.isHealthDataAvailable(); } catch { return false; }
     },
+    openSettings: () => {
+      // HealthKit grants are managed in Settings → Health → Data Access, which
+      // has no direct deep link; the app's own settings page is the closest.
+      Linking.openSettings().catch(() => {});
+    },
     requestPermissions: async () => {
       try {
         // HealthKit never reveals read-grant status (privacy); resolves true once
         // the sheet completes. We surface "no data" downstream if reads come back empty.
-        return await HK.requestAuthorization({
+        const ok = await HK.requestAuthorization({
           toRead: [
             'HKQuantityTypeIdentifierStepCount',
             'HKQuantityTypeIdentifierBodyMass',
@@ -137,8 +142,13 @@ function createHealthKitProvider(): HealthProvider {
             'HKCategoryTypeIdentifierSleepAnalysis',
           ],
         });
-      } catch {
-        return false;
+        return ok ? 'granted' : 'denied';
+      } catch (e) {
+        // Don't swallow this silently — a rejection here means the sheet never
+        // presented (e.g. raised while another view controller was still being
+        // dismissed), which is indistinguishable from a denial at the call site.
+        console.warn('[health] HealthKit requestAuthorization failed:', e);
+        return 'denied';
       }
     },
     getTodaySteps: async () => {
@@ -223,13 +233,35 @@ function createHealthConnectProvider(): HealthProvider {
 
   return {
     isAvailable: () => true, // confirmed for real once initialize() runs
+    openSettings: () => {
+      try { HC.openHealthConnectSettings(); } catch {}
+    },
     requestPermissions: async () => {
       try {
-        await ensureInit();
+        // Health Connect ships as a separate app below Android 14. Check before
+        // requesting, so "not installed" is reported as itself rather than
+        // surfacing as a silent denial the user can't act on.
+        const status = await HC.getSdkStatus();
+        if (status === HC.SdkAvailabilityStatus.SDK_UNAVAILABLE) return 'unavailable';
+        if (status === HC.SdkAvailabilityStatus.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED) {
+          return 'provider_update_required';
+        }
+        if (!(await ensureInit())) return 'unavailable';
+
+        // Already granted? Health Connect resolves requestPermission with an
+        // empty array when there is nothing new to grant, which is otherwise
+        // indistinguishable from a refusal.
+        if ((await HC.getGrantedPermissions()).length > 0) return 'granted';
+
         // Must stay in sync with android.permissions in app.json — requesting a
         // record type whose permission isn't declared throws, and declaring one
         // we never read is a Play policy violation ("excessive data access").
-        const wanted = [
+        //
+        // Exactly one request per attempt. Health Connect rate-limits the
+        // permission dialog and stops showing it after repeated asks; the old
+        // code fired a second "fallback" request on every tap, burning that
+        // budget twice as fast and leaving the prompt permanently suppressed.
+        const granted = await HC.requestPermission([
           { accessType: 'read', recordType: 'Steps' },
           { accessType: 'read', recordType: 'Weight' },
           { accessType: 'read', recordType: 'BodyFat' },
@@ -237,20 +269,15 @@ function createHealthConnectProvider(): HealthProvider {
           { accessType: 'read', recordType: 'HeartRateVariabilityRmssd' },
           { accessType: 'read', recordType: 'SleepSession' },
           { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
-        ] as const;
-        try {
-          const granted = await HC.requestPermission([...wanted]);
-          if (granted.length > 0) return true;
-        } catch {}
-        // Older Health Connect builds can reject unknown record types — fall back
-        // to the original minimal set so steps + weight keep working.
-        const basic = await HC.requestPermission([
-          { accessType: 'read', recordType: 'Steps' },
-          { accessType: 'read', recordType: 'Weight' },
         ]);
-        return basic.length > 0;
-      } catch {
-        return false;
+        if (granted.length > 0) return 'granted';
+
+        // The dialog may have been suppressed entirely — re-read the real state
+        // rather than trusting an empty response.
+        return (await HC.getGrantedPermissions()).length > 0 ? 'granted' : 'denied';
+      } catch (e) {
+        console.warn('[health] Health Connect permission request failed:', e);
+        return 'denied';
       }
     },
     getTodaySteps: async () => {

@@ -44,11 +44,18 @@ interface Props {
   hubName: string;
   onCancel: () => void;
   onContinue: () => void;
+  /**
+   * iOS only — fires once the sheet has finished animating away. The OS health
+   * permission prompt must not be requested until then: this Modal is a real
+   * presented view controller, and UIKit refuses to present the HealthKit
+   * authorization sheet while it's still mid-dismissal.
+   */
+  onDismissed?: () => void;
 }
 
-export function HealthDisclosureSheet({ visible, hubName, onCancel, onContinue }: Props) {
+export function HealthDisclosureSheet({ visible, hubName, onCancel, onContinue, onDismissed }: Props) {
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel} onDismiss={onDismissed}>
       <View style={{ flex: 1, backgroundColor: '#000000CC', justifyContent: 'flex-end' }}>
         <View style={{
           backgroundColor: Colors.background,

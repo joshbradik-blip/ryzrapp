@@ -43,11 +43,29 @@ export interface DailyHealthMetrics {
   distanceMeters: number | null;
 }
 
+/**
+ * Why a permission request ended the way it did. A bare boolean can't tell
+ * "you declined" from "Health Connect isn't installed" from "the OS refused to
+ * show the prompt again" — and the caller needs that distinction to offer a way
+ * out instead of looping on the same dead-end alert.
+ */
+export type HealthPermissionResult =
+  /** Read access is available. */
+  | 'granted'
+  /** Declined, or the OS suppressed the prompt after repeated requests. */
+  | 'denied'
+  /** No health provider on this device at all. */
+  | 'unavailable'
+  /** Health Connect is missing or too old and must be installed/updated. */
+  | 'provider_update_required';
+
 export interface HealthProvider {
   /** True only on a build where the native health module is linked + the OS supports it. */
   isAvailable(): boolean;
-  /** Prompt the OS health permission sheet. Resolves true if read access was granted. */
-  requestPermissions(): Promise<boolean>;
+  /** Prompt the OS health permission sheet. */
+  requestPermissions(): Promise<HealthPermissionResult>;
+  /** Open the OS health settings so the user can grant access by hand. */
+  openSettings(): void;
   /** Step count since local midnight, or null if unavailable/denied. */
   getTodaySteps(): Promise<number | null>;
   /** Most recent body-mass sample in kg, or null. */
@@ -69,8 +87,9 @@ const EMPTY_BODY_COMP: BodyComposition = { bodyFatPct: null, leanMassKg: null };
 
 export const Health = {
   isAvailable: (): boolean => provider?.isAvailable() ?? false,
-  requestPermissions: (): Promise<boolean> =>
-    provider?.requestPermissions() ?? Promise.resolve(false),
+  requestPermissions: (): Promise<HealthPermissionResult> =>
+    provider?.requestPermissions() ?? Promise.resolve('unavailable'),
+  openSettings: (): void => provider?.openSettings(),
   getTodaySteps: (): Promise<number | null> =>
     provider?.getTodaySteps() ?? Promise.resolve(null),
   getLatestWeightKg: (): Promise<WeightSample | null> =>
