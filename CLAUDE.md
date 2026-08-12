@@ -13,6 +13,7 @@ RYZR is a React Native + Expo workout app with AI-generated training plans, a re
 - **AI**: Anthropic Claude API — `claude-sonnet-4-6` for plans, `claude-haiku-4-5-20251001` for form feedback
 - **Subscriptions**: RevenueCat (`react-native-purchases`) — configure keys in `src/store/subscriptionStore.ts`
 - **Camera**: `expo-camera`
+- **Ad attribution**: Meta SDK (`react-native-fbsdk-next`) for Ads Manager install/purchase tracking — init in `src/lib/adTracking.ts`, gated on iOS App Tracking Transparency. Config injected from `EXPO_PUBLIC_FACEBOOK_APP_ID`/`EXPO_PUBLIC_FACEBOOK_CLIENT_TOKEN` via `app.config.js` (app.json alone can't read `.env`).
 
 ## Code conventions
 - All screens live in `src/screens/<tab>/ScreenName.tsx`

@@ -93,6 +93,12 @@
       ],
       "expo-web-browser",
       [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "RYZR uses this to measure ad performance and show you more relevant ads."
+        }
+      ],
+      [
         "@kingstinct/react-native-healthkit",
         {
           "NSHealthShareUsageDescription": "RYZR reads your steps, activity, sleep, heart-rate, and body-composition data to personalize your training and track your progress.",

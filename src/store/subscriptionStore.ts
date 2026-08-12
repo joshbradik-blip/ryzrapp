@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Platform } from 'react-native';
 import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 import { supabase } from '../lib/supabase';
+import { logPurchaseEvent } from '../lib/adTracking';
 
 export const REVENUECAT_API_KEY_IOS = 'appl_ncBNRQuNkRYHyRUGOxYRenoKvGA';
 export const REVENUECAT_API_KEY_ANDROID = 'goog_SqmsQvDGeXhkJJrdDoFDeQAiyeP';
@@ -120,6 +121,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       const { customerInfo } = await Purchases.purchasePackage(pkg);
       const isPremium = customerInfo.entitlements.active[ENTITLEMENT_PREMIUM] !== undefined;
       set({ isPremium, customerInfo });
+      if (isPremium) logPurchaseEvent(pkg.product.price, pkg.identifier);
       return isPremium;
     } catch (e: any) {
       if (e?.userCancelled) return false;
@@ -141,6 +143,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       const isPremium = customerInfo.entitlements.active[ENTITLEMENT_PREMIUM] !== undefined;
       if (isPremium) {
         set({ isPremium, customerInfo });
+        logPurchaseEvent(pkg.product.price, pkg.identifier);
         await supabase.rpc('decrement_lifetime_slots');
         await get().fetchLifetimeSlots();
       }
