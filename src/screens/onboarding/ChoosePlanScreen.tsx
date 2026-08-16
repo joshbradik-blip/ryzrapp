@@ -43,6 +43,7 @@ const PREMIUM_FEATURES = [
 
 export function ChoosePlanScreen({ navigation }: Props) {
   const {
+    isPremium,
     lifetimeSlotsRemaining,
     loading,
     purchasePackage,
@@ -75,10 +76,21 @@ export function ChoosePlanScreen({ navigation }: Props) {
 
   const proceed = () => navigation.navigate('GeneratingPlan');
 
+  // Never sell to someone who already owns it. Reinstalling subscribers and
+  // comped/beta accounts arrive here already premium; showing them a price
+  // sheet reads as being charged twice.
+  React.useEffect(() => {
+    if (isPremium) proceed();
+  }, [isPremium]);
+
+  // A restored subscriber must not be left staring at the paywall they just
+  // proved they don't need — carry them straight on into plan generation.
   const handleRestore = async () => {
     const restored = await restorePurchases();
     if (restored) {
-      Alert.alert('Purchases restored!', 'Your subscription has been restored.');
+      Alert.alert('Purchases restored!', "Your subscription is active. Let's build your plan.", [
+        { text: 'Continue', onPress: proceed },
+      ]);
     } else {
       Alert.alert('No purchases found', 'No active subscriptions to restore.');
     }

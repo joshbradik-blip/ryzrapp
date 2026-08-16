@@ -40,10 +40,14 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
 
   const slotsGone = lifetimeSlotsRemaining <= 0;
 
+  // Dismiss the paywall on a successful restore — leaving it up in front of a
+  // now-paying user reads as the purchase not having worked.
   const handleRestore = async () => {
     const restored = await restorePurchases();
     if (restored) {
-      Alert.alert('Purchases restored!', 'Your subscription has been restored.');
+      Alert.alert('Purchases restored!', 'Your subscription is active — enjoy.', [
+        { text: 'Continue', onPress: onClose },
+      ]);
     } else {
       Alert.alert('No purchases found', 'No active subscriptions to restore.');
     }
