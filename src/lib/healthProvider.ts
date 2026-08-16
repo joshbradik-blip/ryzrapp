@@ -231,6 +231,27 @@ function createHealthConnectProvider(): HealthProvider {
     return records;
   };
 
+  // Steps and active calories are commonly double-written: a phone's own
+  // on-device sensor and a paired wearable (e.g. a Galaxy Watch via Samsung
+  // Health) both report to Health Connect as separate sources for the same
+  // physical activity. Summing every record — as if two trackers meant twice
+  // the movement — inflates the total. Sum within each source (a source can
+  // legitimately post multiple records per day), then take the max across
+  // sources, so the most complete tracker wins instead of stacking with the
+  // others.
+  const bestSourceTotal = <T extends { metadata?: { dataOrigin?: string } }>(
+    records: T[],
+    value: (r: T) => number,
+  ): number => {
+    if (records.length === 0) return 0;
+    const bySource = new Map<string, number>();
+    for (const r of records) {
+      const source = r.metadata?.dataOrigin ?? 'unknown';
+      bySource.set(source, (bySource.get(source) ?? 0) + value(r));
+    }
+    return Math.max(...bySource.values());
+  };
+
   return {
     isAvailable: () => true, // confirmed for real once initialize() runs
     openSettings: () => {
@@ -284,7 +305,7 @@ function createHealthConnectProvider(): HealthProvider {
       try {
         await ensureInit();
         const records = await readRange('Steps', startOfDay(0), new Date());
-        return records.reduce((sum, r) => sum + r.count, 0);
+        return bestSourceTotal(records, (r) => r.count);
       } catch {
         return null;
       }
@@ -330,16 +351,38 @@ function createHealthConnectProvider(): HealthProvider {
 
       // Each record type degrades independently — a denied permission or missing
       // data source must not blank out the other metrics.
+      //
+      // Steps/calories are grouped by (day, source) first, then reduced with
+      // bestSourceTotal per day — see its comment above for why a straight
+      // per-record sum double-counts a phone + paired wearable.
       try {
+        const byDaySource = new Map<string, Map<string, number>>();
         for (const r of await readRange('Steps', start, end)) {
           const d = dayOf(r.startTime);
-          if (d) d.steps = (d.steps ?? 0) + r.count;
+          if (!d) continue;
+          const source = r.metadata?.dataOrigin ?? 'unknown';
+          const perSource = byDaySource.get(d.date) ?? new Map<string, number>();
+          perSource.set(source, (perSource.get(source) ?? 0) + r.count);
+          byDaySource.set(d.date, perSource);
+        }
+        for (const [date, perSource] of byDaySource) {
+          const d = byDate.get(date);
+          if (d) d.steps = Math.max(...perSource.values());
         }
       } catch {}
       try {
+        const byDaySource = new Map<string, Map<string, number>>();
         for (const r of await readRange('ActiveCaloriesBurned', start, end)) {
           const d = dayOf(r.startTime);
-          if (d) d.activeCalories = (d.activeCalories ?? 0) + r.energy.inKilocalories;
+          if (!d) continue;
+          const source = r.metadata?.dataOrigin ?? 'unknown';
+          const perSource = byDaySource.get(d.date) ?? new Map<string, number>();
+          perSource.set(source, (perSource.get(source) ?? 0) + r.energy.inKilocalories);
+          byDaySource.set(d.date, perSource);
+        }
+        for (const [date, perSource] of byDaySource) {
+          const d = byDate.get(date);
+          if (d) d.activeCalories = Math.max(...perSource.values());
         }
       } catch {}
       // Distance is iOS-only — READ_DISTANCE isn't declared on Android.
