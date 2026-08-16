@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { useProfileStore } from '../../store/profileStore';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { Colors } from '../../constants/theme';
+import { useFunnelStep } from '../../lib/funnel';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'Goals'>;
@@ -46,6 +47,7 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
 }
 
 export function GoalsScreen({ navigation }: Props) {
+  useFunnelStep('onboarding_goals_viewed');
   const { setGoals } = useProfileStore();
   const { isPremium } = useSubscriptionStore();
   const [category, setCategory] = useState<GoalCategory>('build_muscle');

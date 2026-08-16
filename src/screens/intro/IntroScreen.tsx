@@ -15,6 +15,7 @@ import * as SecureStore from 'expo-secure-store';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { useIntroStore } from '../../store/introStore';
+import { logFunnelStep, useFunnelStep } from '../../lib/funnel';
 import type { RootStackParamList } from '../../types';
 
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -69,14 +70,19 @@ export default function IntroScreen(_props: Props) {
 
   const isLast = currentIndex === SLIDES.length - 1;
 
-  const finish = useCallback(async () => {
+  useFunnelStep('intro_viewed');
+
+  // Records which slide people bail on, so the deck can be cut to the slides
+  // that actually earn their place.
+  const finish = useCallback(async (skipped: boolean) => {
+    logFunnelStep(skipped ? 'intro_skipped' : 'intro_completed', { slide: currentIndex });
     await SecureStore.setItemAsync('intro_seen', 'true');
     markSeen();
-  }, [markSeen]);
+  }, [markSeen, currentIndex]);
 
   const handleNext = useCallback(() => {
     if (isLast) {
-      finish();
+      finish(false);
     } else {
       listRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
     }
@@ -119,7 +125,7 @@ export default function IntroScreen(_props: Props) {
       {!isLast && (
         <SafeAreaView style={styles.skipArea} pointerEvents="box-none">
           <TouchableOpacity
-            onPress={finish}
+            onPress={() => finish(true)}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Text style={styles.skipText}>Skip</Text>

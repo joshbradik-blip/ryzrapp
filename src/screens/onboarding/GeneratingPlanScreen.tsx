@@ -9,6 +9,7 @@ import { useWorkoutStore } from '../../store/workoutStore';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { generateWorkoutPlan } from '../../lib/anthropic';
 import { Colors } from '../../constants/theme';
+import { logFunnelStep, useFunnelStep } from '../../lib/funnel';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'GeneratingPlan'>;
@@ -24,6 +25,7 @@ const STEPS = [
 ];
 
 export function GeneratingPlanScreen({ navigation }: Props) {
+  useFunnelStep('plan_generation_started');
   const { profile, injuries, disabilities, schedulePrefs, goals, equipment, completeOnboarding } = useProfileStore();
   const { setWorkouts, setTodayWorkout } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
@@ -69,9 +71,13 @@ export function GeneratingPlanScreen({ navigation }: Props) {
         setWorkouts(workouts);
         if (workouts.length > 0) setTodayWorkout(workouts[0]);
         setStepIndex(STEPS.length - 1);
+        // The payoff moment — the denominator for every step above it.
+        logFunnelStep('plan_ready', { workouts: workouts.length });
         completeOnboarding();
       } catch (e: any) {
         console.error('[GeneratingPlan] failed:', e?.message);
+        // Distinguishes "gave up" from "we failed them" at the last step.
+        logFunnelStep('plan_generation_failed', {}, false);
         setError(e?.message ?? 'Could not generate your plan. Please check your connection and try again.');
       }
     };

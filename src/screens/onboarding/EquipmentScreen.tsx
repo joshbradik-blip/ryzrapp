@@ -7,6 +7,7 @@ import { OnboardingStackParamList } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { useProfileStore } from '../../store/profileStore';
 import { Colors } from '../../constants/theme';
+import { useFunnelStep } from '../../lib/funnel';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'Equipment'>;
@@ -41,6 +42,7 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
 }
 
 export function EquipmentScreen({ navigation }: Props) {
+  useFunnelStep('onboarding_equipment_viewed');
   const { setEquipment } = useProfileStore();
   const [selected, setSelected] = useState<string[]>([]);
   const [bodyweightOnly, setBodyweightOnly] = useState(false);

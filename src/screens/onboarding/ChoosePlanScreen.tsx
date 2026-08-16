@@ -20,6 +20,7 @@ import {
   PRICE_LIFETIME,
   LIFETIME_SLOTS_TOTAL,
 } from '../../store/subscriptionStore';
+import { logFunnelStep, useFunnelStep } from '../../lib/funnel';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'ChoosePlan'>;
@@ -55,6 +56,8 @@ export function ChoosePlanScreen({ navigation }: Props) {
 
   const slotsGone = lifetimeSlotsRemaining <= 0;
 
+  useFunnelStep('paywall_viewed');
+
   const monthlyPkg = packages.find((p) => p.packageType === 'MONTHLY');
   const annualPkg = packages.find((p) => p.packageType === 'ANNUAL');
   const lifetimePkg = packages.find((p) => p.packageType === 'LIFETIME');
@@ -80,7 +83,10 @@ export function ChoosePlanScreen({ navigation }: Props) {
   // comped/beta accounts arrive here already premium; showing them a price
   // sheet reads as being charged twice.
   React.useEffect(() => {
-    if (isPremium) proceed();
+    if (isPremium) {
+      logFunnelStep('paywall_skipped_already_premium');
+      proceed();
+    }
   }, [isPremium]);
 
   // A restored subscriber must not be left staring at the paywall they just
@@ -88,6 +94,7 @@ export function ChoosePlanScreen({ navigation }: Props) {
   const handleRestore = async () => {
     const restored = await restorePurchases();
     if (restored) {
+      logFunnelStep('paywall_restored');
       Alert.alert('Purchases restored!', "Your subscription is active. Let's build your plan.", [
         { text: 'Continue', onPress: proceed },
       ]);
@@ -99,19 +106,20 @@ export function ChoosePlanScreen({ navigation }: Props) {
   const handleMonthly = async () => {
     if (!monthlyPkg) return;
     const ok = await purchasePackage(monthlyPkg);
-    if (ok) proceed();
+    if (ok) { logFunnelStep('paywall_purchased', { plan: 'monthly' }); proceed(); }
   };
 
   const handleAnnual = async () => {
     if (!annualPkg) return;
     const ok = await purchasePackage(annualPkg);
-    if (ok) proceed();
+    if (ok) { logFunnelStep('paywall_purchased', { plan: 'annual' }); proceed(); }
   };
 
   const handleLifetime = async () => {
     if (slotsGone) return;
     const ok = await purchaseLifetime();
     if (ok) {
+      logFunnelStep('paywall_purchased', { plan: 'lifetime' });
       Alert.alert('You\'re a RYZR Founding Member! 🏆', 'Lifetime access is yours. Let\'s build your plan.', [
         { text: 'Let\'s go!', onPress: proceed },
       ]);
@@ -277,7 +285,7 @@ export function ChoosePlanScreen({ navigation }: Props) {
 
         {/* Start free — presented as a full plan option, not a footnote */}
         <TouchableOpacity
-          onPress={proceed}
+          onPress={() => { logFunnelStep('paywall_start_free'); proceed(); }}
           disabled={loading}
           style={{
             backgroundColor: Colors.surface,
