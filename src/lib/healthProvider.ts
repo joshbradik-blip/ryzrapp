@@ -231,6 +231,56 @@ function createHealthConnectProvider(): HealthProvider {
     return records;
   };
 
+  // ── De-duplicating steps / active calories across trackers ────────────────
+  //
+  // A phone pedometer and a paired wearable (e.g. a Galaxy Watch via Samsung
+  // Health) both write to Health Connect as separate sources, describing the
+  // SAME physical activity. Reading raw records and summing them double-counts
+  // every step taken while wearing both.
+  //
+  // Health Connect solves this itself: its aggregation API de-duplicates using
+  // the user's app-priority list (Health Connect → Data and access → app
+  // priority) and merges by time segment, so a morning walk tracked only by the
+  // watch and an afternoon walk tracked only by the phone both count exactly
+  // once. Always prefer it — hand-rolled maths over raw records can't see that
+  // priority list and can't split overlapping time ranges.
+  const aggregateTotal = async (
+    recordType: 'Steps' | 'ActiveCaloriesBurned',
+    start: Date,
+    end: Date,
+  ): Promise<number | null> => {
+    const timeRangeFilter = {
+      operator: 'between' as const,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+    };
+    if (recordType === 'Steps') {
+      const res = await HC.aggregateRecord({ recordType: 'Steps', timeRangeFilter });
+      return res.COUNT_TOTAL > 0 ? Math.round(res.COUNT_TOTAL) : null;
+    }
+    const res = await HC.aggregateRecord({ recordType: 'ActiveCaloriesBurned', timeRangeFilter });
+    const kcal = res.ACTIVE_CALORIES_TOTAL?.inKilocalories ?? 0;
+    return kcal > 0 ? Math.round(kcal) : null;
+  };
+
+  // Fallback for when aggregation is unavailable (older Health Connect
+  // provider, or an aggregate query that throws). Sums within each source, then
+  // takes the largest — cruder than the priority-aware merge above (it drops
+  // activity a secondary tracker recorded alone), but far better than summing
+  // every source together, and better than showing nothing at all.
+  const bestSourceTotal = <T extends { metadata?: { dataOrigin?: string } }>(
+    records: T[],
+    value: (r: T) => number,
+  ): number => {
+    if (records.length === 0) return 0;
+    const bySource = new Map<string, number>();
+    for (const r of records) {
+      const source = r.metadata?.dataOrigin ?? 'unknown';
+      bySource.set(source, (bySource.get(source) ?? 0) + value(r));
+    }
+    return Math.max(...bySource.values());
+  };
+
   return {
     isAvailable: () => true, // confirmed for real once initialize() runs
     openSettings: () => {
@@ -283,8 +333,12 @@ function createHealthConnectProvider(): HealthProvider {
     getTodaySteps: async () => {
       try {
         await ensureInit();
-        const records = await readRange('Steps', startOfDay(0), new Date());
-        return records.reduce((sum, r) => sum + r.count, 0);
+        try {
+          return await aggregateTotal('Steps', startOfDay(0), new Date());
+        } catch {
+          const records = await readRange('Steps', startOfDay(0), new Date());
+          return bestSourceTotal(records, (r) => r.count);
+        }
       } catch {
         return null;
       }
@@ -330,18 +384,75 @@ function createHealthConnectProvider(): HealthProvider {
 
       // Each record type degrades independently — a denied permission or missing
       // data source must not blank out the other metrics.
+      //
+      // Steps/calories go through Health Connect's day-sliced aggregation so
+      // overlapping phone + wearable data is de-duplicated by the platform (see
+      // aggregateTotal above); the raw-record path is only a fallback.
+      //
+      // Bucket startTime is a LocalDateTime already in the device's timezone
+      // ("2026-08-16T00:00"), so its first 10 chars are the local calendar day —
+      // no Date parsing, no UTC-shift bugs.
+      const daySlicer = { period: 'DAYS' as const, length: 1 };
+      const aggWindow = {
+        operator: 'between' as const,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+      };
       try {
-        for (const r of await readRange('Steps', start, end)) {
-          const d = dayOf(r.startTime);
-          if (d) d.steps = (d.steps ?? 0) + r.count;
+        const buckets = await HC.aggregateGroupByPeriod({
+          recordType: 'Steps',
+          timeRangeFilter: aggWindow,
+          timeRangeSlicer: daySlicer,
+        });
+        for (const b of buckets) {
+          const d = byDate.get(b.startTime.slice(0, 10));
+          if (d && b.result.COUNT_TOTAL > 0) d.steps = Math.round(b.result.COUNT_TOTAL);
         }
-      } catch {}
+      } catch {
+        try {
+          const byDaySource = new Map<string, Map<string, number>>();
+          for (const r of await readRange('Steps', start, end)) {
+            const d = dayOf(r.startTime);
+            if (!d) continue;
+            const source = r.metadata?.dataOrigin ?? 'unknown';
+            const perSource = byDaySource.get(d.date) ?? new Map<string, number>();
+            perSource.set(source, (perSource.get(source) ?? 0) + r.count);
+            byDaySource.set(d.date, perSource);
+          }
+          for (const [date, perSource] of byDaySource) {
+            const d = byDate.get(date);
+            if (d) d.steps = Math.max(...perSource.values());
+          }
+        } catch {}
+      }
       try {
-        for (const r of await readRange('ActiveCaloriesBurned', start, end)) {
-          const d = dayOf(r.startTime);
-          if (d) d.activeCalories = (d.activeCalories ?? 0) + r.energy.inKilocalories;
+        const buckets = await HC.aggregateGroupByPeriod({
+          recordType: 'ActiveCaloriesBurned',
+          timeRangeFilter: aggWindow,
+          timeRangeSlicer: daySlicer,
+        });
+        for (const b of buckets) {
+          const d = byDate.get(b.startTime.slice(0, 10));
+          const kcal = b.result.ACTIVE_CALORIES_TOTAL?.inKilocalories ?? 0;
+          if (d && kcal > 0) d.activeCalories = kcal;
         }
-      } catch {}
+      } catch {
+        try {
+          const byDaySource = new Map<string, Map<string, number>>();
+          for (const r of await readRange('ActiveCaloriesBurned', start, end)) {
+            const d = dayOf(r.startTime);
+            if (!d) continue;
+            const source = r.metadata?.dataOrigin ?? 'unknown';
+            const perSource = byDaySource.get(d.date) ?? new Map<string, number>();
+            perSource.set(source, (perSource.get(source) ?? 0) + r.energy.inKilocalories);
+            byDaySource.set(d.date, perSource);
+          }
+          for (const [date, perSource] of byDaySource) {
+            const d = byDate.get(date);
+            if (d) d.activeCalories = Math.max(...perSource.values());
+          }
+        } catch {}
+      }
       // Distance is iOS-only — READ_DISTANCE isn't declared on Android.
       try {
         // Attribute a sleep session to the day it ended (the "night of" that morning).
