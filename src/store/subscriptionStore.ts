@@ -50,10 +50,24 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   lifetimeSlotsRemaining: LIFETIME_SLOTS_TOTAL,
 
   initialize: async (userId) => {
+    // Resolve the signed-in email ONCE, from the locally cached session rather
+    // than auth.getUser() — getUser() is a network round-trip, and when it failed
+    // the beta-tester override below silently lost premium for whitelisted users.
+    let email: string | null = null;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      email = session?.user?.email ?? null;
+    } catch { /* non-critical */ }
+
     try {
       const apiKey = Platform.OS === 'ios' ? REVENUECAT_API_KEY_IOS : REVENUECAT_API_KEY_ANDROID;
       Purchases.configure({ apiKey });
       await Purchases.logIn(userId);
+      // RevenueCat only knows users by the Supabase UUID we log in with, which
+      // makes granting promotional entitlements (free weeks/months) a
+      // UUID-lookup chore. Attaching the email makes customers searchable by it
+      // in the RevenueCat dashboard.
+      if (email) Purchases.setEmail(email).catch(() => {});
       const info = await Purchases.getCustomerInfo();
       const isPremium = info.entitlements.active[ENTITLEMENT_PREMIUM] !== undefined;
       set({ isPremium, customerInfo: info, initialized: true });
@@ -64,12 +78,9 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     }
 
     // Beta tester override — grant premium to whitelisted emails regardless of RC
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email && BETA_TESTERS.includes(user.email.toLowerCase())) {
-        set({ isPremium: true });
-      }
-    } catch { /* non-critical */ }
+    if (email && BETA_TESTERS.includes(email.toLowerCase())) {
+      set({ isPremium: true });
+    }
 
     get().fetchLifetimeSlots();
     get().fetchOfferings();
