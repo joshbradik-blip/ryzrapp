@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { StatTile } from '../../components/ui/StatTile';
 import { Colors } from '../../constants/theme';
+import { useFunnelStep } from '../../lib/funnel';
 import { CoachChatSheet } from './CoachChatSheet';
 import { PremiumModal } from '../../components/ui/PremiumModal';
 import { ReadinessCard } from '../../components/today/ReadinessCard';
@@ -43,6 +44,8 @@ import { generateWorkoutPlan, generatePreWorkoutChallenge, generateDailyCoachMes
 import { getOrGenerateCoachNotice } from '../../lib/coachNotices';
 
 export function TodayScreen() {
+  // End of funnel: the user is in the app and can train.
+  useFunnelStep('activated_home_viewed');
   const navigation = useNavigation<NativeStackNavigationProp<TodayStackParamList>>();
   const { profile, injuries, disabilities, schedulePrefs, goals, equipment } = useProfileStore();
   const {

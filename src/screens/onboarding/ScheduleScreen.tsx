@@ -7,6 +7,7 @@ import { OnboardingStackParamList } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { useProfileStore } from '../../store/profileStore';
 import { Colors } from '../../constants/theme';
+import { useFunnelStep } from '../../lib/funnel';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'Schedule'>;
@@ -27,6 +28,7 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
 }
 
 export function ScheduleScreen({ navigation }: Props) {
+  useFunnelStep('onboarding_schedule_viewed');
   const { setSchedulePrefs } = useProfileStore();
   const [daysPerWeek, setDaysPerWeek] = useState(4);
   const [minutesPerSession, setMinutesPerSession] = useState(45);
