@@ -16,12 +16,14 @@ import { Input } from '../../components/ui/Input';
 import { useAuthStore } from '../../store/authStore';
 import { setPendingReferralCode } from '../../lib/referrals';
 import { Colors } from '../../constants/theme';
+import { logFunnelStep, useFunnelStep } from '../../lib/funnel';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'SignUp'>;
 };
 
 export function SignUpScreen({ navigation }: Props) {
+  useFunnelStep('signup_viewed');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -41,9 +43,11 @@ export function SignUpScreen({ navigation }: Props) {
 
   const handleSignUp = async () => {
     if (!validate()) return;
+    logFunnelStep('signup_submitted');
     try {
       if (inviteCode.trim()) await setPendingReferralCode(inviteCode);
       await signUp(email.trim(), password, name.trim());
+      logFunnelStep('signup_completed');
     } catch (e: any) {
       Alert.alert('Sign Up Failed', e.message ?? 'Please try again.');
     }

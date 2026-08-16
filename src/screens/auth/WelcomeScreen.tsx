@@ -14,12 +14,14 @@ import { AuthStackParamList } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { Colors } from '../../constants/theme';
+import { useFunnelStep } from '../../lib/funnel';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Welcome'>;
 };
 
 export function WelcomeScreen({ navigation }: Props) {
+  useFunnelStep('auth_welcome_viewed');
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
       <StatusBar barStyle="light-content" />

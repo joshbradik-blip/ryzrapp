@@ -15,6 +15,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useProfileStore } from '../../store/profileStore';
 import { Colors } from '../../constants/theme';
+import { useFunnelStep } from '../../lib/funnel';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'ProfileBasics'>;
@@ -48,6 +49,7 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
 }
 
 export function ProfileBasicsScreen({ navigation }: Props) {
+  useFunnelStep('onboarding_basics_viewed');
   const { profile, setProfile } = useProfileStore();
 
   const [name, setName] = useState(profile?.name ?? '');

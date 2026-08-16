@@ -13,6 +13,7 @@ import { OnboardingStackParamList, Injury, InjurySeverity } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { useProfileStore } from '../../store/profileStore';
 import { Colors } from '../../constants/theme';
+import { useFunnelStep } from '../../lib/funnel';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'Injuries'>;
@@ -61,6 +62,7 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
 }
 
 export function InjuriesScreen({ navigation }: Props) {
+  useFunnelStep('onboarding_injuries_viewed');
   const { setInjuries, setDisabilities } = useProfileStore();
   const [selected, setSelected] = useState<Record<string, InjurySeverity>>({});
   const [noInjuries, setNoInjuries] = useState(false);

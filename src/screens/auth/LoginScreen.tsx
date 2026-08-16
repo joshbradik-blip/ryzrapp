@@ -16,6 +16,7 @@ import { Input } from '../../components/ui/Input';
 import { useAuthStore } from '../../store/authStore';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/theme';
+import { logFunnelStep } from '../../lib/funnel';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
@@ -55,6 +56,7 @@ export function LoginScreen({ navigation }: Props) {
     if (!validate()) return;
     try {
       await signIn(email.trim(), password);
+      logFunnelStep('login_completed');
     } catch (e: any) {
       Alert.alert('Login Failed', e.message ?? 'Invalid email or password.');
     }
