@@ -24,6 +24,7 @@
     },
     "ios": {
       "supportsTablet": false,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.ryzr.app",
       "buildNumber": "31",
       "infoPlist": {
@@ -69,6 +70,13 @@
       "./plugins/withAdiRegistration",
       "expo-font",
       "expo-secure-store",
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.REPLACE_WITH_IOS_CLIENT_ID"
+        }
+      ],
       [
         "expo-camera",
         {

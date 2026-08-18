@@ -18,6 +18,8 @@ Measures where people fall out between installing RYZR and actually training.
 | `signup_submitted` | Tapped Sign Up with a valid form |
 | `signup_completed` | Account actually created |
 | `login_completed` | Existing user signed in |
+| `social_signin_started` | Tapped Continue with Apple/Google — `props.provider`, `props.context` |
+| `social_signin_completed` | Provider sign-in produced a Supabase session — same props |
 | `onboarding_basics_viewed` | Profile basics |
 | `onboarding_injuries_viewed` | Injuries |
 | `onboarding_schedule_viewed` | Schedule |

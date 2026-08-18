@@ -34,6 +34,8 @@ export type FunnelStep =
   | 'signup_submitted'
   | 'signup_completed'
   | 'login_completed'
+  | 'social_signin_started'
+  | 'social_signin_completed'
   // Onboarding questionnaire
   | 'onboarding_basics_viewed'
   | 'onboarding_injuries_viewed'

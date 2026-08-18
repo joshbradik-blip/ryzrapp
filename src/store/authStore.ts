@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import { useSubscriptionStore } from './subscriptionStore';
+import * as socialAuth from '../lib/socialAuth';
 
 interface AuthState {
   session: Session | null;
@@ -11,6 +12,8 @@ interface AuthState {
   passwordRecovery: boolean;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithApple: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   setSession: (session: Session | null) => void;
@@ -51,6 +54,25 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  // Provider sign-in doubles as sign-up: Supabase creates the user on first use.
+  signInWithApple: async () => {
+    set({ loading: true });
+    try {
+      await socialAuth.signInWithApple();
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  signInWithGoogle: async () => {
+    set({ loading: true });
+    try {
+      await socialAuth.signInWithGoogle();
     } finally {
       set({ loading: false });
     }
