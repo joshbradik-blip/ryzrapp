@@ -61,7 +61,8 @@ export function GoalsScreen({ navigation }: Props) {
       target_weeks: targetWeeks,
     };
     setGoals([goal]);
-    navigation.navigate('ChoosePlan');
+    // Straight to the payoff. The paywall now comes after the plan exists.
+    navigation.navigate('GeneratingPlan');
   };
 
   return (

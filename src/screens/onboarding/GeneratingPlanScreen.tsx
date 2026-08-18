@@ -69,7 +69,10 @@ export function GeneratingPlanScreen({ navigation }: Props) {
         setWorkouts(workouts);
         if (workouts.length > 0) setTodayWorkout(workouts[0]);
         setStepIndex(STEPS.length - 1);
-        completeOnboarding();
+        // Plan exists — now show the offer, with something concrete to point at.
+        // ChoosePlan owns completeOnboarding() so the user always lands in the
+        // app whether they subscribe or continue free.
+        navigation.replace('ChoosePlan');
       } catch (e: any) {
         console.error('[GeneratingPlan] failed:', e?.message);
         setError(e?.message ?? 'Could not generate your plan. Please check your connection and try again.');

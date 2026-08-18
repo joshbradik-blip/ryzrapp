@@ -13,6 +13,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types';
 import { Colors } from '../../constants/theme';
 import { SubscriptionTerms } from '../../components/ui/SubscriptionTerms';
+import { useProfileStore } from '../../store/profileStore';
 import {
   useSubscriptionStore,
   PRICE_MONTHLY,
@@ -52,6 +53,7 @@ export function ChoosePlanScreen({ navigation }: Props) {
     packages,
     fetchOfferings,
   } = useSubscriptionStore();
+  const { completeOnboarding } = useProfileStore();
 
   const slotsGone = lifetimeSlotsRemaining <= 0;
 
@@ -74,7 +76,10 @@ export function ChoosePlanScreen({ navigation }: Props) {
     if (packages.length === 0) fetchOfferings();
   }, []);
 
-  const proceed = () => navigation.navigate('GeneratingPlan');
+  // Last step of onboarding now — the plan is already generated and waiting, so
+  // every exit from this screen (subscribe, restore, or continue free) drops the
+  // user into the app.
+  const proceed = () => completeOnboarding();
 
   // Never sell to someone who already owns it. Reinstalling subscribers and
   // comped/beta accounts arrive here already premium; showing them a price
@@ -84,11 +89,11 @@ export function ChoosePlanScreen({ navigation }: Props) {
   }, [isPremium]);
 
   // A restored subscriber must not be left staring at the paywall they just
-  // proved they don't need — carry them straight on into plan generation.
+  // proved they don't need — carry them straight into the app.
   const handleRestore = async () => {
     const restored = await restorePurchases();
     if (restored) {
-      Alert.alert('Purchases restored!', "Your subscription is active. Let's build your plan.", [
+      Alert.alert('Purchases restored!', "Your subscription is active — your plan is waiting.", [
         { text: 'Continue', onPress: proceed },
       ]);
     } else {
@@ -112,7 +117,7 @@ export function ChoosePlanScreen({ navigation }: Props) {
     if (slotsGone) return;
     const ok = await purchaseLifetime();
     if (ok) {
-      Alert.alert('You\'re a RYZR Founding Member! 🏆', 'Lifetime access is yours. Let\'s build your plan.', [
+      Alert.alert('You\'re a RYZR Founding Member! 🏆', 'Lifetime access is yours. Your plan is waiting.', [
         { text: 'Let\'s go!', onPress: proceed },
       ]);
     }
@@ -134,10 +139,10 @@ export function ChoosePlanScreen({ navigation }: Props) {
             <Ionicons name="flash" size={36} color={Colors.primary} />
           </View>
           <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900', textAlign: 'center' }}>
-            Choose your plan
+            Your plan is ready
           </Text>
           <Text style={{ color: Colors.textSecondary, fontSize: 15, textAlign: 'center', marginTop: 6, lineHeight: 22 }}>
-            Your first workout plan is on us. Upgrade anytime to unlock everything.
+            Your first plan is on us — it's waiting inside. Upgrade anytime to unlock everything.
           </Text>
         </View>
 
