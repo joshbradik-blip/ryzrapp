@@ -57,7 +57,7 @@ function timeAgo(iso: string): string {
 }
 
 export function WearablesScreen() {
-  const { connected, toggle, disconnect, today, bodyComp, lastSyncedAt, syncing, sync, clearLive } = useWearablesStore();
+  const { connected, toggle, disconnect, today, bodyComp, history, lastSyncedAt, syncing, sync, clearLive } = useWearablesStore();
   const profile = useProfileStore((s) => s.profile);
   const userId = useAuthStore((s) => s.session?.user?.id);
   const latestBody = useBodyStore((s) => s.latest);
@@ -147,14 +147,53 @@ export function WearablesScreen() {
   };
 
   const weightKg = latestBody?.weight_kg ?? profile?.weight_kg ?? null;
+
+  // A blank tile has two very different causes, and conflating them misleads:
+  // the metric may simply not have synced yet (sleep did exactly this — absent
+  // for hours, then it appeared), or the connected app may never write it at
+  // all (Samsung Health publishes no active-calorie or resting-HR records).
+  //
+  // Treat a metric as unsupported only once we have synced history and it has
+  // NEVER appeared in it. Anything else stays a neutral dash, so a slow sync is
+  // never mislabelled as an unsupported device.
+  const hasHistory = history.length > 0;
+  const neverSeen = (pick: (d: (typeof history)[number]) => number | null | undefined) =>
+    hasHistory && !history.some((d) => pick(d) != null);
+
+  const NOT_SHARED = 'Not shared';
+  const fmt = (
+    value: string | null,
+    unsupported: boolean,
+  ): string => (value != null ? value : unsupported ? NOT_SHARED : '—');
+
   const tiles: { label: string; value: string }[] = [
-    { label: 'STEPS TODAY', value: today?.steps != null ? today.steps.toLocaleString() : '—' },
-    { label: 'ACTIVE KCAL', value: today?.activeCalories != null ? today.activeCalories.toLocaleString() : '—' },
-    { label: 'RESTING HR', value: today?.restingHr != null ? `${today.restingHr} bpm` : '—' },
-    { label: 'SLEEP', value: today?.sleepMinutes != null ? fmtSleep(today.sleepMinutes) : '—' },
+    {
+      label: 'STEPS TODAY',
+      value: fmt(today?.steps != null ? today.steps.toLocaleString() : null, neverSeen((d) => d.steps)),
+    },
+    {
+      label: 'ACTIVE KCAL',
+      value: fmt(
+        today?.activeCalories != null ? today.activeCalories.toLocaleString() : null,
+        neverSeen((d) => d.activeCalories),
+      ),
+    },
+    {
+      label: 'RESTING HR',
+      value: fmt(today?.restingHr != null ? `${today.restingHr} bpm` : null, neverSeen((d) => d.restingHr)),
+    },
+    {
+      label: 'SLEEP',
+      value: fmt(today?.sleepMinutes != null ? fmtSleep(today.sleepMinutes) : null, neverSeen((d) => d.sleepMinutes)),
+    },
+    // Weight and body fat come from scale readings rather than the daily
+    // history, so "never seen" can't be derived the same way — a plain dash
+    // stays the honest answer.
     { label: 'WEIGHT', value: weightKg != null ? `${kgToDisplay(weightKg, unit)} ${weightLabel(unit)}` : '—' },
     { label: 'BODY FAT', value: bodyComp?.bodyFatPct != null ? `${bodyComp.bodyFatPct.value}%` : '—' },
   ];
+
+  const unsupportedCount = tiles.filter((t) => t.value === NOT_SHARED).length;
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
@@ -192,6 +231,12 @@ export function WearablesScreen() {
                   </View>
                 ))}
               </View>
+              {unsupportedCount > 0 && (
+                <Text style={{ color: Colors.muted, fontSize: 11, lineHeight: 16, marginTop: 10 }}>
+                  "{NOT_SHARED}" means {HUB.name} isn't receiving that metric from your device or
+                  health app — it isn't missing from RYZR. Some watches don't publish every type.
+                </Text>
+              )}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
                 <TouchableOpacity onPress={() => userId && sync(userId)} disabled={syncing}
                   style={{ flex: 1, flexDirection: 'row', gap: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 11 }}>
