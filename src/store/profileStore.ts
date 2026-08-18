@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserProfile, Injury, SchedulePrefs, Goal } from '../types';
+import { useWorkoutStore } from './workoutStore';
+import { FULL_GYM_PLAN } from '../constants/plans/fullGymPlan';
+import { BODYWEIGHT_PLAN } from '../constants/plans/bodyweightPlan';
 
 interface ProfileState {
   profile: UserProfile | null;
@@ -20,6 +23,10 @@ interface ProfileState {
   setEquipment: (equipment: string[]) => void;
   setOnboardingStep: (step: number) => void;
   completeOnboarding: () => void;
+  // Skip the AI questionnaire: apply one of the hand-authored static plans
+  // and mark onboarding complete, filling in a default profile if the user
+  // hasn't gone through ProfileBasics yet.
+  applyStaticPlan: (planType: 'full_gym' | 'bodyweight', userId?: string) => void;
   reset: () => void;
 }
 
@@ -70,6 +77,19 @@ export const useProfileStore = create<ProfileState>()(
             ? { ...s.profile, onboarding_complete: true }
             : null,
         })),
+
+      applyStaticPlan: (planType, userId) => {
+        const plan = planType === 'full_gym' ? FULL_GYM_PLAN : BODYWEIGHT_PLAN;
+        set((s) => ({
+          profile: {
+            ...(s.profile ?? DEFAULT_PROFILE),
+            id: userId ?? s.profile?.id ?? '',
+            onboarding_complete: true,
+          },
+        }));
+        useWorkoutStore.getState().setWorkouts(plan);
+        useWorkoutStore.getState().setTodayWorkout(plan[0] ?? null);
+      },
 
       reset: () =>
         set({

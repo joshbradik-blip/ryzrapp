@@ -429,6 +429,18 @@ export function ProfileScreen() {
             onPress={openEquipmentModal}
           />
           <SettingRow icon="flag-outline" label="Goals" value={goals[0]?.category?.replace(/_/g, ' ') ?? '—'} onPress={openGoalsModal} />
+          <SettingRow
+            icon="hardware-chip-outline"
+            label="Edit training profile"
+            value={isPremium ? undefined : 'Premium'}
+            onPress={() => {
+              if (isPremium) {
+                navigation.navigate('ProfileBasics');
+              } else {
+                setPremiumOpen(true);
+              }
+            }}
+          />
         </View>
 
         {/* Devices */}

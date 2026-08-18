@@ -154,6 +154,7 @@ export type AuthStackParamList = {
 };
 
 export type OnboardingStackParamList = {
+  PlanChoice: undefined;
   ProfileBasics: undefined;
   Injuries: undefined;
   Schedule: undefined;
@@ -175,6 +176,16 @@ export type ProfileStackParamList = {
   ProfileHome: undefined;
   Wearables: undefined;
   Referral: undefined;
+  // Shared with OnboardingStackParamList — same route names/param shapes so
+  // the onboarding questionnaire screens typecheck when reused here (see
+  // ProfileNavigator.tsx) to let premium users re-run the AI questionnaire.
+  ProfileBasics: undefined;
+  Injuries: undefined;
+  Schedule: undefined;
+  Equipment: undefined;
+  Goals: undefined;
+  ChoosePlan: undefined;
+  GeneratingPlan: undefined;
 };
 
 export type TodayStackParamList = {

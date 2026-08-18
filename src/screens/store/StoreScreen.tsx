@@ -7,6 +7,8 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Platform,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -85,8 +87,27 @@ function groupGear(rows: GearRow[]): GearSection[] {
 export function StoreScreen() {
   const {
     isPremium, packages, fetchOfferings, purchasePackage, purchaseLifetime,
-    restorePurchases, loading, lifetimeSlotsRemaining,
+    restorePurchases, loading, lifetimeSlotsRemaining, redeemCode, checkPremium,
   } = useSubscriptionStore();
+
+  const [redeemVisible, setRedeemVisible] = useState(false);
+  const [redeemInput, setRedeemInput] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
+
+  const handleRedeem = async () => {
+    setRedeeming(true);
+    try {
+      await redeemCode(Platform.OS === 'android' ? redeemInput.trim() : undefined);
+      await checkPremium();
+      setRedeemInput('');
+      setRedeemVisible(false);
+      Alert.alert('All set', "If your code was valid, your account will update in a moment.");
+    } catch {
+      Alert.alert('Could not redeem code', 'Please check the code and try again.');
+    } finally {
+      setRedeeming(false);
+    }
+  };
 
   const slotsGone = lifetimeSlotsRemaining <= 0;
 
@@ -344,6 +365,62 @@ export function StoreScreen() {
                 <TouchableOpacity onPress={handleRestore} style={{ alignItems: 'center', paddingVertical: 10 }}>
                   <Text style={{ color: Colors.muted, fontSize: 13 }}>Restore purchases</Text>
                 </TouchableOpacity>
+
+                {Platform.OS === 'ios' ? (
+                  <TouchableOpacity
+                    onPress={handleRedeem}
+                    disabled={redeeming}
+                    style={{ alignItems: 'center', paddingVertical: 10 }}
+                  >
+                    <Text style={{ color: Colors.muted, fontSize: 13 }}>
+                      {redeeming ? 'Opening…' : 'Redeem code'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : redeemVisible ? (
+                  <View style={{ gap: 10, marginTop: 4 }}>
+                    <TextInput
+                      value={redeemInput}
+                      onChangeText={setRedeemInput}
+                      placeholder="Enter code"
+                      placeholderTextColor={Colors.muted}
+                      autoCapitalize="characters"
+                      style={{
+                        backgroundColor: Colors.surface2,
+                        borderWidth: 1,
+                        borderColor: Colors.border,
+                        borderRadius: 10,
+                        color: Colors.text,
+                        fontSize: 15,
+                        paddingHorizontal: 14,
+                        paddingVertical: 12,
+                      }}
+                    />
+                    <TouchableOpacity
+                      onPress={handleRedeem}
+                      disabled={redeeming || !redeemInput.trim()}
+                      style={{
+                        backgroundColor: Colors.surface2,
+                        borderRadius: 10,
+                        paddingVertical: 12,
+                        alignItems: 'center',
+                        borderWidth: 1,
+                        borderColor: Colors.border,
+                        opacity: redeeming || !redeemInput.trim() ? 0.5 : 1,
+                      }}
+                    >
+                      {redeeming ? <ActivityIndicator color={Colors.text} /> : (
+                        <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 14 }}>Redeem</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setRedeemVisible(true)}
+                    style={{ alignItems: 'center', paddingVertical: 10 }}
+                  >
+                    <Text style={{ color: Colors.muted, fontSize: 13 }}>Redeem code</Text>
+                  </TouchableOpacity>
+                )}
 
                 <SubscriptionTerms />
               </>

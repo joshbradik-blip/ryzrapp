@@ -18,7 +18,9 @@ Measures where people fall out between installing RYZR and actually training.
 | `signup_submitted` | Tapped Sign Up with a valid form |
 | `signup_completed` | Account actually created |
 | `login_completed` | Existing user signed in |
-| `onboarding_basics_viewed` | Profile basics |
+| `plan_choice_viewed` | Plan-choice screen (Full Gym / Bodyweight / Custom Workout) |
+| `plan_choice_selected` | Tapped one of the three — `props.choice` is `full_gym` / `bodyweight` / `custom` |
+| `onboarding_basics_viewed` | Profile basics — only reached via the Custom Workout path |
 | `onboarding_injuries_viewed` | Injuries |
 | `onboarding_schedule_viewed` | Schedule |
 | `onboarding_equipment_viewed` | Equipment |
