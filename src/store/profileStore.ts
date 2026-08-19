@@ -23,9 +23,10 @@ interface ProfileState {
   setEquipment: (equipment: string[]) => void;
   setOnboardingStep: (step: number) => void;
   completeOnboarding: () => void;
-  // Skip the AI questionnaire: apply one of the hand-authored static plans
-  // and mark onboarding complete, filling in a default profile if the user
-  // hasn't gone through ProfileBasics yet.
+  // Skip the AI questionnaire: load one of the hand-authored static plans,
+  // filling in a default profile if the user hasn't gone through ProfileBasics
+  // yet. Deliberately does NOT complete onboarding — PlanReadyScreen shows the
+  // user what they got first, and completing there is what enters the app.
   applyStaticPlan: (planType: 'full_gym' | 'bodyweight', userId?: string) => void;
   reset: () => void;
 }
@@ -84,7 +85,6 @@ export const useProfileStore = create<ProfileState>()(
           profile: {
             ...(s.profile ?? DEFAULT_PROFILE),
             id: userId ?? s.profile?.id ?? '',
-            onboarding_complete: true,
           },
         }));
         useWorkoutStore.getState().setWorkouts(plan);

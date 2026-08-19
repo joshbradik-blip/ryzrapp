@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Modal,
   View,
@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { SubscriptionTerms } from './SubscriptionTerms';
+import { logFunnelStep } from '../../lib/funnel';
 import {
   useSubscriptionStore,
   PRICE_MONTHLY,
@@ -40,11 +41,22 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
 
   const slotsGone = lifetimeSlotsRemaining <= 0;
 
+  // This modal — not ChoosePlanScreen — is where onboarding now asks for money:
+  // a free user tapping "Custom Workout" on PlanChoice lands here. Funnel steps
+  // are tagged with the trigger so paywalls raised by feature gates elsewhere
+  // stay distinguishable from the onboarding one.
+  const source = featureTitle ?? 'unspecified';
+
+  useEffect(() => {
+    if (visible) logFunnelStep('paywall_viewed', { source }, false);
+  }, [visible, source]);
+
   // Dismiss the paywall on a successful restore — leaving it up in front of a
   // now-paying user reads as the purchase not having worked.
   const handleRestore = async () => {
     const restored = await restorePurchases();
     if (restored) {
+      logFunnelStep('paywall_restored', { source }, false);
       Alert.alert('Purchases restored!', 'Your subscription is active — enjoy.', [
         { text: 'Continue', onPress: onClose },
       ]);
@@ -77,7 +89,11 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
       return;
     }
     const ok = await purchasePackage(monthlyPkg);
-    if (ok) { Alert.alert('Welcome to RYZR Premium!', 'All features are now unlocked.'); onClose(); }
+    if (ok) {
+      logFunnelStep('paywall_purchased', { plan: 'monthly', source }, false);
+      Alert.alert('Welcome to RYZR Premium!', 'All features are now unlocked.');
+      onClose();
+    }
   };
 
   const handleAnnual = async () => {
@@ -86,7 +102,11 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
       return;
     }
     const ok = await purchasePackage(annualPkg);
-    if (ok) { Alert.alert('Welcome to RYZR Premium!', 'All features are now unlocked.'); onClose(); }
+    if (ok) {
+      logFunnelStep('paywall_purchased', { plan: 'annual', source }, false);
+      Alert.alert('Welcome to RYZR Premium!', 'All features are now unlocked.');
+      onClose();
+    }
   };
 
   const handleLifetime = async () => {
@@ -96,7 +116,11 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
       return;
     }
     const ok = await purchaseLifetime();
-    if (ok) { Alert.alert("You're a RYZR Founding Member!", 'Lifetime access is yours.'); onClose(); }
+    if (ok) {
+      logFunnelStep('paywall_purchased', { plan: 'lifetime', source }, false);
+      Alert.alert("You're a RYZR Founding Member!", 'Lifetime access is yours.');
+      onClose();
+    }
   };
 
   return (

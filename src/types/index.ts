@@ -155,6 +155,7 @@ export type AuthStackParamList = {
 
 export type OnboardingStackParamList = {
   PlanChoice: undefined;
+  PlanReady: { choice: 'full_gym' | 'bodyweight' };
   ProfileBasics: undefined;
   Injuries: undefined;
   Schedule: undefined;

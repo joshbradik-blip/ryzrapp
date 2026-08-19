@@ -22,20 +22,54 @@ Measures where people fall out between installing RYZR and actually training.
 | `social_signin_completed` | Provider sign-in produced a Supabase session — same props |
 | `plan_choice_viewed` | Plan-choice screen (Full Gym / Bodyweight / Custom Workout) |
 | `plan_choice_selected` | Tapped one of the three — `props.choice` is `full_gym` / `bodyweight` / `custom` |
-| `onboarding_basics_viewed` | Profile basics — only reached via the Custom Workout path |
+| `static_plan_ready_viewed` | **Free path.** Plan-ready screen — `props.choice` is the plan they got |
+| `static_plan_started` | **Free path.** Tapped Start training — same props. End of the free funnel |
+| `paywall_viewed` | `PremiumModal` opened — `props.source` is the trigger that raised it |
+| `paywall_purchased` | Subscribed — `props.plan` is monthly/annual/lifetime, plus `props.source` |
+| `paywall_restored` | Restored an existing subscription — `props.source` |
+| `onboarding_basics_viewed` | **Premium path.** Profile basics — only reached after paying |
 | `onboarding_injuries_viewed` | Injuries |
 | `onboarding_schedule_viewed` | Schedule |
 | `onboarding_equipment_viewed` | Equipment |
 | `onboarding_goals_viewed` | Goals |
-| `paywall_viewed` | Choose-plan screen |
-| `paywall_start_free` | Chose the free tier |
-| `paywall_purchased` | Subscribed — `props.plan` is monthly/annual/lifetime |
-| `paywall_restored` | Restored an existing subscription |
-| `paywall_skipped_already_premium` | Skipped automatically (existing subscriber / comped) |
+| `paywall_skipped_already_premium` | `ChoosePlanScreen` auto-skipped for an existing subscriber |
 | `plan_generation_started` | Generation screen opened |
 | `plan_ready` | Plan generated — `props.workouts` is the count |
 | `plan_generation_failed` | Generation errored (**not** deduped — every failure is recorded) |
 | `activated_home_viewed` | Reached the Today tab — end of funnel |
+
+## The two paths
+
+Onboarding forks at `plan_choice_selected`, and the two branches answer
+different questions. Don't read them as one sequence.
+
+**Free path** — `full_gym` or `bodyweight`. A hand-authored plan loads
+instantly, no questionnaire and no AI:
+
+```
+plan_choice_selected → static_plan_ready_viewed → static_plan_started → activated_home_viewed
+```
+
+**Premium path** — `custom`. The plan-choice card raises `PremiumModal`, and
+only a paying user continues into the questionnaire:
+
+```
+plan_choice_selected → paywall_viewed → paywall_purchased
+  → onboarding_basics_viewed → … → onboarding_goals_viewed
+  → plan_generation_started → plan_ready → activated_home_viewed
+```
+
+The conversion rate worth watching is `paywall_viewed` → `paywall_purchased`
+with `props.source` = `Custom AI Workout Plans`, since that is the onboarding
+paywall specifically rather than a feature gate hit later in the app.
+
+### Steps that no longer fire during onboarding
+
+`ChoosePlanScreen` still emits `paywall_viewed`, `paywall_start_free`, and the
+`paywall_*` purchase steps, but as of the fast-path onboarding change it is
+only reachable from the Profile tab's re-run flow — and an already-premium user
+hitting it is auto-skipped. Treat any `paywall_start_free` as re-run traffic,
+not new-user traffic.
 
 ## Identity
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../types';
 import { PlanChoiceScreen } from '../screens/onboarding/PlanChoiceScreen';
+import { PlanReadyScreen } from '../screens/onboarding/PlanReadyScreen';
 import { ProfileBasicsScreen } from '../screens/onboarding/ProfileBasicsScreen';
 import { InjuriesScreen } from '../screens/onboarding/InjuriesScreen';
 import { ScheduleScreen } from '../screens/onboarding/ScheduleScreen';
