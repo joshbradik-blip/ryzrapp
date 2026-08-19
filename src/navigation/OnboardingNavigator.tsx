@@ -1,6 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../types';
+import { PlanChoiceScreen } from '../screens/onboarding/PlanChoiceScreen';
 import { ProfileBasicsScreen } from '../screens/onboarding/ProfileBasicsScreen';
 import { InjuriesScreen } from '../screens/onboarding/InjuriesScreen';
 import { ScheduleScreen } from '../screens/onboarding/ScheduleScreen';
@@ -19,6 +20,7 @@ export function OnboardingNavigator() {
         animation: 'slide_from_right',
       }}
     >
+      <Stack.Screen name="PlanChoice" component={PlanChoiceScreen} />
       <Stack.Screen name="ProfileBasics" component={ProfileBasicsScreen} />
       <Stack.Screen name="Injuries" component={InjuriesScreen} />
       <Stack.Screen name="Schedule" component={ScheduleScreen} />

@@ -164,6 +164,26 @@ export function GeneratingPlanScreen({ navigation }: Props) {
           </View>
         ))}
       </View>
+
+      {/* Onboarding-flow users are swapped to the main app automatically by
+          RootNavigator once onboarding completes; when reached from the
+          Profile tab (re-running the questionnaire), this is the only way
+          back, so surface it explicitly. */}
+      {!error && stepIndex === STEPS.length - 1 && navigation.canGoBack() && (
+        <TouchableOpacity
+          onPress={() => navigation.popToTop()}
+          style={{
+            marginTop: 32,
+            backgroundColor: Colors.primary,
+            borderRadius: 14,
+            paddingVertical: 14,
+            paddingHorizontal: 40,
+            alignItems: 'center',
+          }}
+        >
+          <Text style={{ color: '#000', fontWeight: '800', fontSize: 16 }}>Done</Text>
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 }

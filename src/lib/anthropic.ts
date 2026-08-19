@@ -83,6 +83,12 @@ export async function generateWorkoutPlan(params: GeneratePlanParams): Promise<W
 - Mention the recovery adjustment in the affected workout's exercise notes so the user knows why.`
     : '';
 
+  // Rough coaching heuristic: ~5 min warm-up + ~8 min per exercise (sets ×
+  // work+rest + transition). This is the number the prompt below builds its
+  // hard time budget from — without a concrete target, the model tends to
+  // return similarly-sized sessions regardless of the requested duration.
+  const targetExerciseCount = Math.max(3, Math.min(8, Math.round((schedule.minutes_per_session - 5) / 8)));
+
   const userPrompt = `Generate a ${schedule.days_per_week * 2}-workout (2-week) training plan.
 
 USER PROFILE:
@@ -90,7 +96,7 @@ USER PROFILE:
 - Height: ${profile.height_cm}cm, Weight: ${profile.weight_kg}kg
 - Injuries: ${injuryNote}
 - Disabilities / adaptive needs: ${disabilityNote}
-- Days/week: ${schedule.days_per_week}, Minutes/session: ${schedule.minutes_per_session}, Preferred time: ${schedule.preferred_time}
+- Days/week: ${schedule.days_per_week}, Minutes/session: ${schedule.minutes_per_session}
 - Goals: ${goalDesc}
 - Equipment: ${equipment.join(', ') || 'bodyweight only'}
 ${readinessSection}
@@ -129,10 +135,10 @@ RULES:
 - For disabilities: choose exercises from the available list that CAN be performed given the condition — do NOT rename or modify the exercise name. A wheelchair user can do Push-Up, Overhead Press, Lateral Raise, Dumbbell Bicep Curl, Face Pull, Band Pull-Apart, Pallof Press, Single-Arm Dumbbell Row, Barbell Bench Press, Tricep Dip. Use these exact names.
 - CRITICAL: exercise_id must be EXACTLY one of the quoted names from the available list above — copy-paste the name, do not modify it in any way. Wrong: "Seated Overhead Press". Right: "Overhead Press".
 - Only use exercises from the available list
-- Keep sessions within the time limit
+- TIME BUDGET (this is the biggest complaint users have when it's ignored — take it seriously): the user asked for ${schedule.minutes_per_session}-minute sessions. Include ${targetExerciseCount} exercises per workout as your starting point (fewer for a short session, more for a long one) and estimate each session's real time as 5 min warm-up + for each exercise (target_sets × (~45 sec work + rest_seconds)) + ~90 sec transition. Adjust exercise count, sets, and rest_seconds until that estimate lands within 5 minutes of ${schedule.minutes_per_session}. Set estimated_duration_min to your actual estimate — it must be within 5 minutes of ${schedule.minutes_per_session} for every workout. A 15-minute session and a 45-minute session for the same person should look meaningfully different — don't return the same shape of workout regardless of the time given.
 - Apply progressive overload across the 2 weeks
 - Match exercise difficulty, volume, and rest periods to the user's fitness level and age — beginners get beginner-difficulty exercises with more rest; experienced/advanced users get appropriately harder selections and denser sessions
-- Choose exercises and rep ranges that directly serve the stated goals (e.g. hypertrophy ranges for build_muscle, higher-rep circuits for lose_fat, movement-specific work for specific_activity)${readinessRule}`;
+- Choose exercises and rep ranges that directly serve the stated goals: hypertrophy ranges for build_muscle; higher-rep circuits for lose_fat; for specific_activity (e.g. surfing, running, climbing, a sport), don't just pick generic strength work — actively include conditioning/cardio exercises (category "cardio") AND mobility exercises (category "mobility") from the available list alongside strength work whenever the equipment and injury constraints allow it, since sport performance depends on more than raw strength${readinessRule}`;
 
   const data = await callAnthropic({
     model: 'claude-sonnet-4-6',

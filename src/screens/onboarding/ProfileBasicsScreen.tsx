@@ -132,6 +132,9 @@ export function ProfileBasicsScreen({ navigation }: Props) {
           contentContainerStyle={{ flexGrow: 1, padding: 24 }}
           keyboardShouldPersistTaps="handled"
         >
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 8 }}>
+            <Ionicons name="chevron-back" size={28} color={Colors.text} />
+          </TouchableOpacity>
           <ProgressBar step={1} total={5} />
 
           <Text style={{ fontSize: 28, fontWeight: '900', color: Colors.text, marginBottom: 8 }}>
