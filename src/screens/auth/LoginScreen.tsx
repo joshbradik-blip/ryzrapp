@@ -13,6 +13,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../types';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { Input } from '../../components/ui/Input';
+import { SocialAuthButtons } from '../../components/auth/SocialAuthButtons';
 import { useAuthStore } from '../../store/authStore';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/theme';
@@ -111,6 +112,8 @@ export function LoginScreen({ navigation }: Props) {
           <View style={{ marginTop: 8 }}>
             <GradientButton title="Log In" onPress={handleLogin} loading={loading} />
           </View>
+
+          <SocialAuthButtons context="login" disabled={loading} />
 
           <View style={{ flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 24, marginTop: 40 }}>
             <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>

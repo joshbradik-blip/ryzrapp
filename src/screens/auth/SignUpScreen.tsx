@@ -13,6 +13,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../types';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { Input } from '../../components/ui/Input';
+import { SocialAuthButtons } from '../../components/auth/SocialAuthButtons';
 import { useAuthStore } from '../../store/authStore';
 import { setPendingReferralCode } from '../../lib/referrals';
 import { Colors } from '../../constants/theme';
@@ -116,6 +117,8 @@ export function SignUpScreen({ navigation }: Props) {
             />
           </View>
 
+          <SocialAuthButtons context="signup" disabled={loading} />
+
           <Text
             style={{
               color: Colors.muted,
@@ -125,7 +128,7 @@ export function SignUpScreen({ navigation }: Props) {
               lineHeight: 18,
             }}
           >
-            By signing up you agree to our Terms of Service and Privacy Policy.
+            By continuing you agree to our Terms of Service and Privacy Policy.
           </Text>
 
           <View style={{ flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 24, marginTop: 32 }}>
