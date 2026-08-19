@@ -316,6 +316,11 @@ function createHealthConnectProvider(): HealthProvider {
           { accessType: 'read', recordType: 'Weight' },
           { accessType: 'read', recordType: 'BodyFat' },
           { accessType: 'read', recordType: 'RestingHeartRate' },
+          // Samsung Health writes raw HeartRate samples but no RestingHeartRate
+          // record, so on Samsung devices resting HR is derived from these (see
+          // restingFromRawSamples). Devices that do publish RestingHeartRate
+          // still take precedence.
+          { accessType: 'read', recordType: 'HeartRate' },
           { accessType: 'read', recordType: 'HeartRateVariabilityRmssd' },
           { accessType: 'read', recordType: 'SleepSession' },
           { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
@@ -473,6 +478,39 @@ function createHealthConnectProvider(): HealthProvider {
         for (const [key, { sum, n }] of rhrAgg) {
           const d = byDate.get(key);
           if (d) d.restingHr = Math.round(sum / n);
+        }
+      } catch {}
+      // Fall back to deriving resting HR from raw HeartRate samples for any day
+      // the device published no RestingHeartRate record. Samsung Health is the
+      // motivating case: it writes HeartRate but never RestingHeartRate, which
+      // left the readiness score with no resting-HR input at all.
+      try {
+        const byDaySamples = new Map<string, number[]>();
+        for (const r of await readRange('HeartRate', start, end)) {
+          for (const s of r.samples ?? []) {
+            const key = localDateKey(new Date(s.time));
+            const d = byDate.get(key);
+            // Skip days a real RestingHeartRate record already covered.
+            if (!d || d.restingHr != null) continue;
+            const bpm = s.beatsPerMinute;
+            // Guard against the artifacts optical sensors produce on a loose strap.
+            if (!(bpm > 25 && bpm < 220)) continue;
+            const arr = byDaySamples.get(key) ?? [];
+            arr.push(bpm);
+            byDaySamples.set(key, arr);
+          }
+        }
+        for (const [key, samples] of byDaySamples) {
+          const d = byDate.get(key);
+          // Too few readings can't distinguish "at rest" from "briefly still",
+          // and a wrong resting HR skews readiness more than a missing one.
+          if (!d || samples.length < 20) continue;
+          samples.sort((a, b) => a - b);
+          // 5th percentile rather than the minimum: true resting HR is a
+          // sustained floor, and a single spurious low reading would otherwise
+          // define the whole day.
+          const idx = Math.floor(samples.length * 0.05);
+          d.restingHr = Math.round(samples[idx]);
         }
       } catch {}
       try {
