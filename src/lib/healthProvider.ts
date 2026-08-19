@@ -311,20 +311,37 @@ function createHealthConnectProvider(): HealthProvider {
         // permission dialog and stops showing it after repeated asks; the old
         // code fired a second "fallback" request on every tap, burning that
         // budget twice as fast and leaving the prompt permanently suppressed.
-        const granted = await HC.requestPermission([
+        const CORE_READS = [
           { accessType: 'read', recordType: 'Steps' },
           { accessType: 'read', recordType: 'Weight' },
           { accessType: 'read', recordType: 'BodyFat' },
           { accessType: 'read', recordType: 'RestingHeartRate' },
-          // Samsung Health writes raw HeartRate samples but no RestingHeartRate
-          // record, so on Samsung devices resting HR is derived from these (see
-          // restingFromRawSamples). Devices that do publish RestingHeartRate
-          // still take precedence.
-          { accessType: 'read', recordType: 'HeartRate' },
           { accessType: 'read', recordType: 'HeartRateVariabilityRmssd' },
           { accessType: 'read', recordType: 'SleepSession' },
           { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
-        ]);
+        ] as const;
+
+        // Samsung Health writes raw HeartRate samples but no RestingHeartRate
+        // record, so on Samsung devices resting HR is derived from these.
+        // Devices that do publish RestingHeartRate still take precedence.
+        //
+        // Kept separate because READ_HEART_RATE was added to the manifest later
+        // than the rest: an EAS Update can land on a build whose manifest
+        // predates it, and Health Connect throws for an undeclared type. Asking
+        // for everything at once would fail the WHOLE request there and leave
+        // health sync dead for anyone who hadn't granted yet. The retry only
+        // ever runs on such a build — once the matching native build ships, the
+        // first call succeeds and the permission dialog is shown exactly once.
+        let granted: Awaited<ReturnType<typeof HC.requestPermission>>;
+        try {
+          granted = await HC.requestPermission([
+            ...CORE_READS,
+            { accessType: 'read', recordType: 'HeartRate' },
+          ]);
+        } catch {
+          console.warn('[health] HeartRate not declared in this build — requesting core types only');
+          granted = await HC.requestPermission([...CORE_READS]);
+        }
         if (granted.length > 0) return 'granted';
 
         // The dialog may have been suppressed entirely — re-read the real state
