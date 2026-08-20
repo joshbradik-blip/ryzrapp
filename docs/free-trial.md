@@ -22,15 +22,51 @@ under the price for `"3 days free, then $14.99/mo · cancel anytime"`.
 
 ## Store setup
 
-- **App Store Connect** → Subscriptions → group → product → *Introductory
-  Offers* → Free trial, 3 days, all territories. Three days is Apple's minimum.
-- **Play Console** → Monetize → Subscriptions → base plan → *Offers* → free
-  trial phase, 3 days, new customers only — then **activate** it. Google's
-  offers are separate objects and a created-but-inactive offer does nothing.
-- **RevenueCat** picks intro offers up from both stores automatically. Confirm
-  the products show the trial and the offering is still marked *Current*.
+### App Store Connect
 
-Propagation is not instant; a new offer can take a few hours to reach the app.
+Verified against Apple's current help docs — the offer lives *inside* subscription
+pricing, not in a section of its own.
+
+1. **Apps** → your app → sidebar **Subscriptions**
+2. Choose the **subscription group**, then the subscription
+3. In **Subscription Prices**, click **View all Subscription pricing**
+4. **Set up Introductory Offer**
+5. Pick countries/regions → **Next**
+6. Set start date (today = starts immediately) and leave the end date blank so it
+   does not expire
+7. Type: **Free** (not *Pay as you go* / *Pay up front*)
+8. Duration: **3 Days**
+9. **Confirm**
+
+Repeat for each subscription you want to carry the trial. 3 Days is offered for
+every standard duration, so both monthly and annual can have it.
+
+Needs the Account Holder, Admin, App Manager, or Marketing role. No separate
+review — the offer goes live for eligible customers on its own. Sandbox can take
+up to an hour to catch up.
+
+> **One offer per subscription group, per customer.** Monthly and annual almost
+> certainly share a group, so a customer who trials monthly cannot then trial
+> annual. Putting the trial on both plans is therefore safe — it widens which
+> plan someone can start on, it does not hand anyone two free periods.
+
+### Play Console
+
+1. **Monetize** → **Subscriptions** → your subscription
+2. On the auto-recurring **base plan**, click **Add offer**
+3. Choose the base plan, give the offer an **offer ID**
+4. Under **Phases**, **Add phase** → free trial, **3 days**
+5. Set eligibility (new customers only)
+6. **Save changes**, then **activate** the offer
+
+Google models offers as separate objects from the base plan, and a saved but
+inactive offer does nothing. Free trial phases run from 3 days to 3 years.
+
+### RevenueCat
+
+Picks intro offers up from both stores automatically. Confirm the products show
+the trial and the offering is still marked **Current**. Propagation is not
+instant.
 
 ## Compliance
 
