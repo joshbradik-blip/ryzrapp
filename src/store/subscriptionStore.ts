@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { Platform, Linking } from 'react-native';
 import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 import { supabase } from '../lib/supabase';
+import { getFreeTrial } from '../lib/trial';
+import { logFunnelStep } from '../lib/funnel';
 
 export const REVENUECAT_API_KEY_IOS = 'appl_ncBNRQuNkRYHyRUGOxYRenoKvGA';
 export const REVENUECAT_API_KEY_ANDROID = 'goog_SqmsQvDGeXhkJJrdDoFDeQAiyeP';
@@ -132,6 +134,16 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       const { customerInfo } = await Purchases.purchasePackage(pkg);
       const isPremium = customerInfo.entitlements.active[ENTITLEMENT_PREMIUM] !== undefined;
       set({ isPremium, customerInfo });
+      // Logged here rather than in each paywall so every purchase surface is
+      // covered by one call site and none can drift out of sync.
+      const trial = getFreeTrial(pkg);
+      if (isPremium && trial) {
+        logFunnelStep(
+          'trial_started',
+          { plan: pkg.packageType, days: trial.count, unit: trial.unit },
+          false
+        );
+      }
       return isPremium;
     } catch (e: any) {
       if (e?.userCancelled) return false;

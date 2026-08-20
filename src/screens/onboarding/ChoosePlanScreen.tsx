@@ -13,6 +13,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types';
 import { Colors } from '../../constants/theme';
 import { SubscriptionTerms } from '../../components/ui/SubscriptionTerms';
+import { TrialBadge } from '../../components/ui/TrialBadge';
+import { getFreeTrial, trialPriceLine } from '../../lib/trial';
 import {
   useSubscriptionStore,
   PRICE_MONTHLY,
@@ -70,6 +72,9 @@ export function ChoosePlanScreen({ navigation }: Props) {
     ? annualPkg.product.priceString.replace(/[\d.,]+/, (annualPkg.product.price / 12).toFixed(2))
     : `$${(PRICE_ANNUAL / 12).toFixed(2)}`;
   const lifetimePrice = lifetimePkg?.product.priceString ?? `$${PRICE_LIFETIME}`;
+
+  const monthlyTrial = getFreeTrial(monthlyPkg);
+  const annualTrial = getFreeTrial(annualPkg);
 
   const offeringsLoading = loading && packages.length === 0;
 
@@ -252,12 +257,21 @@ export function ChoosePlanScreen({ navigation }: Props) {
                 borderColor: slotsGone ? Colors.primary : Colors.border,
               }}
             >
+              {annualTrial && (
+                <TrialBadge
+                  trial={annualTrial}
+                  variant={slotsGone ? 'outline' : 'solid'}
+                  style={{ alignSelf: 'center', marginBottom: 6 }}
+                />
+              )}
               <Text style={{ color: slotsGone ? '#00000099' : Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>AUTO-RENEWING SUBSCRIPTION</Text>
               <Text style={{ color: slotsGone ? '#000' : Colors.text, fontWeight: '800', fontSize: 16, marginTop: 3 }}>
                 Annual — {annualPrice}/yr
               </Text>
-              <Text style={{ color: slotsGone ? '#00000088' : Colors.muted, fontSize: 12, marginTop: 2 }}>
-                {annualPerMonth}/mo · billed yearly, auto-renews
+              <Text style={{ color: slotsGone ? '#00000088' : Colors.muted, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
+                {annualTrial
+                  ? trialPriceLine(annualTrial, annualPrice, 'yr')
+                  : `${annualPerMonth}/mo · billed yearly, auto-renews`}
               </Text>
             </TouchableOpacity>
 
@@ -274,11 +288,18 @@ export function ChoosePlanScreen({ navigation }: Props) {
                 borderColor: Colors.border,
               }}
             >
+              {monthlyTrial && (
+                <TrialBadge trial={monthlyTrial} style={{ alignSelf: 'center', marginBottom: 6 }} />
+              )}
               <Text style={{ color: Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>AUTO-RENEWING SUBSCRIPTION</Text>
               <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16, marginTop: 3 }}>
                 Monthly — {monthlyPrice}/mo
               </Text>
-              <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 2 }}>Billed monthly, auto-renews · cancel anytime</Text>
+              <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
+                {monthlyTrial
+                  ? trialPriceLine(monthlyTrial, monthlyPrice, 'mo')
+                  : 'Billed monthly, auto-renews · cancel anytime'}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -314,7 +335,7 @@ export function ChoosePlanScreen({ navigation }: Props) {
           <Text style={{ color: Colors.muted, fontSize: 13 }}>Restore purchases</Text>
         </TouchableOpacity>
 
-        <SubscriptionTerms />
+        <SubscriptionTerms hasTrial={!!(monthlyTrial || annualTrial)} />
       </ScrollView>
     </SafeAreaView>
   );
