@@ -86,17 +86,21 @@ counts. `plan_generation_failed` is exempt — repeated failures are the signal.
 Run these in the Supabase SQL editor (service role bypasses RLS; the table is
 deliberately write-only for clients).
 
-**The funnel, last 30 days, by unique install:**
+**⚠️ The funnel branches.** `PlanChoice` splits into a fast path (Full Gym /
+Bodyweight → a static plan, no questionnaire) and a Custom path (the five
+questionnaire screens → AI generation). Treating those as one straight line
+makes the fast path look like a mass drop-off at `onboarding_basics_viewed`
+when it is in fact the intended shortcut. Read the spine first, then each
+branch separately.
+
+**1. The spine — every user passes through these, last 30 days:**
 
 ```sql
 with ordered(step, position) as (values
   ('intro_viewed', 1), ('auth_welcome_viewed', 2), ('signup_viewed', 3),
   ('signup_submitted', 4), ('signup_completed', 5),
-  ('onboarding_basics_viewed', 6), ('onboarding_injuries_viewed', 7),
-  ('onboarding_schedule_viewed', 8), ('onboarding_equipment_viewed', 9),
-  ('onboarding_goals_viewed', 10), ('paywall_viewed', 11),
-  ('plan_generation_started', 12), ('plan_ready', 13),
-  ('activated_home_viewed', 14)
+  ('plan_choice_viewed', 6), ('plan_choice_selected', 7),
+  ('activated_home_viewed', 8)
 )
 select
   o.position,
@@ -117,13 +121,69 @@ order by o.position;
 `pct_of_previous` is the column to read: the biggest drop between two adjacent
 rows is where to spend effort.
 
+**2. Which path people choose:**
+
+```sql
+select props->>'choice' as choice, count(distinct device_id) as devices
+from public.funnel_events
+where step = 'plan_choice_selected' and created_at > now() - interval '30 days'
+group by 1 order by devices desc;
+```
+
+**3. The Custom sub-funnel** — denominator is people who chose `custom`, not all
+installs, so this is the only fair way to judge the questionnaire:
+
+```sql
+with custom_devices as (
+  select distinct device_id
+  from public.funnel_events
+  where step = 'plan_choice_selected'
+    and props->>'choice' = 'custom'
+    and created_at > now() - interval '30 days'
+),
+ordered(step, position) as (values
+  ('onboarding_basics_viewed', 1), ('onboarding_injuries_viewed', 2),
+  ('onboarding_schedule_viewed', 3), ('onboarding_equipment_viewed', 4),
+  ('onboarding_goals_viewed', 5), ('plan_generation_started', 6),
+  ('plan_ready', 7)
+)
+select
+  o.position,
+  o.step,
+  count(distinct f.device_id) as devices,
+  round(100.0 * count(distinct f.device_id)
+        / nullif(lag(count(distinct f.device_id)) over (order by o.position), 0), 1) as pct_of_previous
+from ordered o
+left join public.funnel_events f
+  on f.step = o.step
+ and f.created_at > now() - interval '30 days'
+ and f.device_id in (select device_id from custom_devices)
+group by o.position, o.step
+order by o.position;
+```
+
+**4. Social sign-in adoption vs. email:**
+
+```sql
+select
+  coalesce(props->>'provider', 'email') as method,
+  count(distinct device_id) as devices
+from public.funnel_events
+where step in ('social_signin_completed', 'signup_completed')
+  and created_at > now() - interval '30 days'
+group by 1 order by devices desc;
+```
+
 **Paywall outcomes:**
 
 ```sql
-select step, props->>'plan' as plan, count(distinct device_id) as devices
+select step,
+       props->>'source' as raised_by,   -- which gate opened it (PremiumModal tags this)
+       props->>'plan'   as plan,
+       count(distinct device_id) as devices
 from public.funnel_events
 where step like 'paywall%' and created_at > now() - interval '30 days'
-group by 1, 2
+group by 1, 2, 3
 order by devices desc;
 ```
 
