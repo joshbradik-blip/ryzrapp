@@ -22,6 +22,7 @@ export function OnboardingNavigator() {
       }}
     >
       <Stack.Screen name="PlanChoice" component={PlanChoiceScreen} />
+      <Stack.Screen name="PlanReady" component={PlanReadyScreen} />
       <Stack.Screen name="ProfileBasics" component={ProfileBasicsScreen} />
       <Stack.Screen name="Injuries" component={InjuriesScreen} />
       <Stack.Screen name="Schedule" component={ScheduleScreen} />
