@@ -45,6 +45,20 @@ Needs the Account Holder, Admin, App Manager, or Marketing role. No separate
 review — the offer goes live for eligible customers on its own. Sandbox can take
 up to an hour to catch up.
 
+> **Offers cannot be edited after creation.** The ASC page says "You can edit an
+> offer by clicking the date" — it is wrong. Changing anything, including the end
+> date, means hovering the offer row, clicking the remove (—) button, and
+> creating it again.
+>
+> **Offers cannot overlap in the same territory.** A second offer covering
+> territories an existing one already covers fails with a bare "An error has
+> occurred. Try again later." — a conflict, reported uselessly. Check the
+> Introductory Offers tab before assuming a save failed.
+>
+> **Leave the end date blank.** The form may pre-fill roughly six months out. An
+> expiry is silent: the app reads the offer live, so the trial simply stops
+> appearing on every paywall that day with no error anywhere.
+
 > **One offer per subscription group, per customer.** Monthly and annual almost
 > certainly share a group, so a customer who trials monthly cannot then trial
 > annual. Putting the trial on both plans is therefore safe — it widens which
