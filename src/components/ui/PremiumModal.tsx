@@ -11,6 +11,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { SubscriptionTerms } from './SubscriptionTerms';
+import { TrialBadge } from './TrialBadge';
+import { getFreeTrial, trialPriceLine } from '../../lib/trial';
 import { logFunnelStep } from '../../lib/funnel';
 import {
   useSubscriptionStore,
@@ -72,6 +74,11 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
   const monthlyPrice = monthlyPkg?.product.priceString ?? `$${PRICE_MONTHLY}`;
   const annualPrice = annualPkg?.product.priceString ?? `$${PRICE_ANNUAL}`;
   const lifetimePrice = lifetimePkg?.product.priceString ?? `$${PRICE_LIFETIME}`;
+
+  // Live off the store's introductory offer — absent until one is configured,
+  // in which case every trial affordance below simply does not render.
+  const monthlyTrial = getFreeTrial(monthlyPkg);
+  const annualTrial = getFreeTrial(annualPkg);
   const annualPerMonth = annualPkg
     ? annualPkg.product.priceString.replace(/[\d.,]+/, (annualPkg.product.price / 12).toFixed(2))
     : `$${(PRICE_ANNUAL / 12).toFixed(2)}`;
@@ -249,12 +256,21 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
                     borderColor: slotsGone ? Colors.primary : Colors.border,
                   }}
                 >
+                  {annualTrial && (
+                    <TrialBadge
+                      trial={annualTrial}
+                      variant={slotsGone ? 'outline' : 'solid'}
+                      style={{ alignSelf: 'center', marginBottom: 6 }}
+                    />
+                  )}
                   <Text style={{ color: slotsGone ? '#00000099' : Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>AUTO-RENEWING SUBSCRIPTION</Text>
                   <Text style={{ color: slotsGone ? '#000' : Colors.text, fontWeight: '800', fontSize: 15, marginTop: 3 }}>
                     Annual — {annualPrice}/yr
                   </Text>
-                  <Text style={{ color: slotsGone ? '#00000099' : Colors.muted, fontSize: 12, marginTop: 2 }}>
-                    {annualPerMonth}/mo · billed yearly, auto-renews
+                  <Text style={{ color: slotsGone ? '#00000099' : Colors.muted, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
+                    {annualTrial
+                      ? trialPriceLine(annualTrial, annualPrice, 'yr')
+                      : `${annualPerMonth}/mo · billed yearly, auto-renews`}
                   </Text>
                 </TouchableOpacity>
 
@@ -271,11 +287,18 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
                     borderColor: Colors.border,
                   }}
                 >
+                  {monthlyTrial && (
+                    <TrialBadge trial={monthlyTrial} style={{ alignSelf: 'center', marginBottom: 6 }} />
+                  )}
                   <Text style={{ color: Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>AUTO-RENEWING SUBSCRIPTION</Text>
                   <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 15, marginTop: 3 }}>
                     Monthly — {monthlyPrice}/mo
                   </Text>
-                  <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 2 }}>Billed monthly, auto-renews · cancel anytime</Text>
+                  <Text style={{ color: Colors.muted, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
+                    {monthlyTrial
+                      ? trialPriceLine(monthlyTrial, monthlyPrice, 'mo')
+                      : 'Billed monthly, auto-renews · cancel anytime'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -284,7 +307,7 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
               <Text style={{ color: Colors.muted, fontSize: 13 }}>Restore purchases</Text>
             </TouchableOpacity>
 
-            <SubscriptionTerms />
+            <SubscriptionTerms hasTrial={!!(monthlyTrial || annualTrial)} />
           </ScrollView>
         </View>
       </View>

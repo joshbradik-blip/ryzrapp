@@ -26,6 +26,7 @@ Measures where people fall out between installing RYZR and actually training.
 | `static_plan_started` | **Free path.** Tapped Start training — same props. End of the free funnel |
 | `paywall_viewed` | `PremiumModal` opened — `props.source` is the trigger that raised it |
 | `paywall_purchased` | Subscribed — `props.plan` is monthly/annual/lifetime, plus `props.source` |
+| `trial_started` | The purchased package carried a free trial — `props.plan`, `props.days`, `props.unit` |
 | `paywall_restored` | Restored an existing subscription — `props.source` |
 | `onboarding_basics_viewed` | **Premium path.** Profile basics — only reached after paying |
 | `onboarding_injuries_viewed` | Injuries |

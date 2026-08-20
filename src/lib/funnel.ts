@@ -52,6 +52,7 @@ export type FunnelStep =
   | 'paywall_viewed'
   | 'paywall_start_free'
   | 'paywall_purchased'
+  | 'trial_started'
   | 'paywall_restored'
   | 'paywall_skipped_already_premium'
   // Payoff

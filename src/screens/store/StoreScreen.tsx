@@ -15,6 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { SubscriptionTerms } from '../../components/ui/SubscriptionTerms';
+import { TrialBadge } from '../../components/ui/TrialBadge';
+import { getFreeTrial, trialPriceLine } from '../../lib/trial';
 import { PromoCodeRow } from '../../components/ui/PromoCodeRow';
 import {
   useSubscriptionStore,
@@ -161,6 +163,9 @@ export function StoreScreen() {
   const monthlyPrice = monthlyPkg?.product.priceString ?? `$${PRICE_MONTHLY}`;
   const annualPrice = annualPkg?.product.priceString ?? `$${PRICE_ANNUAL}`;
   const lifetimePrice = lifetimePkg?.product.priceString ?? `$${PRICE_LIFETIME}`;
+
+  const monthlyTrial = getFreeTrial(monthlyPkg);
+  const annualTrial = getFreeTrial(annualPkg);
 
   // Per-month equivalent for the annual plan — reuse the annual package's own
   // currency formatting so non-USD locales render correctly.
@@ -331,11 +336,16 @@ export function StoreScreen() {
                     )}
                     <Text style={{ color: Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>AUTO-RENEWING SUBSCRIPTION</Text>
                     <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900', marginTop: 4 }}>Annual Plan</Text>
+                    {annualTrial && <TrialBadge trial={annualTrial} style={{ marginTop: 6 }} />}
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
                       <Text style={{ color: slotsGone ? Colors.primary : Colors.text, fontSize: 32, fontWeight: '900' }}>{annualPrice}</Text>
                       <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>/ year</Text>
                     </View>
-                    <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 2 }}>{annualPerMonth}/month · billed annually, auto-renews</Text>
+                    <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 2 }}>
+                      {annualTrial
+                        ? trialPriceLine(annualTrial, annualPrice, 'year')
+                        : `${annualPerMonth}/month · billed annually, auto-renews`}
+                    </Text>
                   </TouchableOpacity>
 
                   {/* Monthly */}
@@ -352,11 +362,16 @@ export function StoreScreen() {
                   >
                     <Text style={{ color: Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>AUTO-RENEWING SUBSCRIPTION</Text>
                     <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900', marginTop: 4 }}>Monthly Plan</Text>
+                    {monthlyTrial && <TrialBadge trial={monthlyTrial} style={{ marginTop: 6 }} />}
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
                       <Text style={{ color: Colors.text, fontSize: 32, fontWeight: '900' }}>{monthlyPrice}</Text>
                       <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>/ month</Text>
                     </View>
-                    <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 2 }}>Billed monthly, auto-renews · cancel anytime</Text>
+                    <Text style={{ color: Colors.muted, fontSize: 13, marginTop: 2 }}>
+                      {monthlyTrial
+                        ? trialPriceLine(monthlyTrial, monthlyPrice, 'month')
+                        : 'Billed monthly, auto-renews · cancel anytime'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
@@ -422,7 +437,7 @@ export function StoreScreen() {
                   </TouchableOpacity>
                 )}
 
-                <SubscriptionTerms />
+                <SubscriptionTerms hasTrial={!!(monthlyTrial || annualTrial)} />
               </>
             )}
           </View>
