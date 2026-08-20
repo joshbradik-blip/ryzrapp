@@ -61,6 +61,7 @@ export function PlanChoiceScreen({ navigation }: Props) {
 
     if (choice === 'full_gym' || choice === 'bodyweight') {
       applyStaticPlan(choice, userId);
+      navigation.navigate('PlanReady', { choice });
       return;
     }
 

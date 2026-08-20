@@ -39,6 +39,9 @@ export type FunnelStep =
   // Plan choice (fast-path onboarding)
   | 'plan_choice_viewed'
   | 'plan_choice_selected'
+  // Static-plan payoff — the free tier's activation moment
+  | 'static_plan_ready_viewed'
+  | 'static_plan_started'
   // Onboarding questionnaire
   | 'onboarding_basics_viewed'
   | 'onboarding_injuries_viewed'
