@@ -88,8 +88,13 @@ export async function findSubstitutes(
     .map((e) => toSubstituteOption(e, userEquipment, userInjuries));
 
   // --- ExerciseDB substitutes ---
+  // Best-effort: the local library above needs no network, so a missing API key,
+  // an exhausted RapidAPI quota, or a flaky connection must not take the whole
+  // screen down with it. Each target degrades to an empty list on its own.
   const targets = categoryToTargets(currentExercise.category);
-  const dbResults = await Promise.all(targets.map((t) => getExercisesByTarget(t)));
+  const dbResults = await Promise.all(
+    targets.map((t) => getExercisesByTarget(t).catch(() => [] as ExerciseDBExercise[]))
+  );
 
   const seen = new Set<string>(localOptions.map((o) => o.name.toLowerCase()));
   seen.add(currentExercise.name.toLowerCase());
