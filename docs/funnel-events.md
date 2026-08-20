@@ -187,6 +187,27 @@ group by 1, 2, 3
 order by devices desc;
 ```
 
+**Free trials started, and on which plan:**
+
+```sql
+select props->>'plan' as plan,
+       props->>'days' as trial_days,
+       props->>'unit' as unit,
+       count(distinct device_id) as devices
+from public.funnel_events
+where step = 'trial_started' and created_at > now() - interval '30 days'
+group by 1, 2, 3 order by devices desc;
+```
+
+`trial_started` fires from `purchasePackage`, so it covers every paywall surface.
+The trial length is read off the store's introductory offer rather than
+hardcoded, which is why `days`/`unit` are recorded per event — change the offer
+in App Store Connect and old rows still say what that customer actually got.
+
+Conversion is not measurable from `funnel_events` alone: nothing fires when a
+trial converts to paid. Pair `trial_started` with RevenueCat's own charts, or
+with the entitlement still being active once the trial window has elapsed.
+
 **Which intro slide loses people:**
 
 ```sql
