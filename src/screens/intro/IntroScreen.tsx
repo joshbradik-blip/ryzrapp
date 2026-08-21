@@ -1,13 +1,11 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
-  Dimensions,
   StatusBar,
-  ListRenderItem,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,283 +16,176 @@ import { useIntroStore } from '../../store/introStore';
 import { logFunnelStep, useFunnelStep } from '../../lib/funnel';
 import type { RootStackParamList } from '../../types';
 
-const { width: SW, height: SH } = Dimensions.get('window');
-
-type Slide = {
-  id: string;
+// One screen, not a carousel. Four swipes before a signup form is four chances
+// to put the phone down, and the deck was mostly restating the same promise.
+// Everything worth saying fits here, and the CTA is visible from the first frame.
+type Feature = {
   icon: React.ComponentProps<typeof Ionicons>['name'];
-  tag: string;
   title: string;
   body: string;
-  quote?: string;
 };
 
-const SLIDES: Slide[] = [
+const FEATURES: Feature[] = [
   {
-    id: '1',
-    icon: 'flash',
-    tag: 'WELCOME TO RYZR',
-    title: 'Train Smarter,\nNot Harder',
-    body: 'Your AI-powered personal trainer — built around your goals, your body, and your schedule. No templates. No guesswork. Just workouts that work for you.',
+    icon: 'barbell-outline',
+    title: 'Custom workouts',
+    body: 'A plan built around your goals, equipment, schedule and any injuries — not a template.',
   },
   {
-    id: '2',
-    icon: 'hardware-chip-outline',
-    tag: 'AI TRAINING PLANS',
-    title: 'A Plan Built\nJust for You',
-    body: 'Tell us your goals, available equipment, schedule, and any injuries. Our AI generates a personalized weekly program and adapts it week by week as you improve.',
-    quote: 'A goal without a plan is just a dream.',
+    icon: 'pulse-outline',
+    title: 'Knows when to push you',
+    body: 'Reads your sleep, recovery, calories and past sessions, then adjusts today’s training to match.',
   },
   {
-    id: '3',
+    icon: 'play-circle-outline',
+    title: 'See every exercise',
+    body: 'Short demo clips in the app, so you never have to guess what a movement looks like.',
+  },
+  {
     icon: 'camera-outline',
-    tag: 'FORM COACH',
-    title: 'Perfect Form,\nEvery Rep',
-    body: "The Form Coach uses your phone's camera to give real-time technique feedback. Catch errors before they become injuries. Train with confidence.",
+    title: 'Point your camera at it',
+    body: 'Snap gym equipment to learn how to use it safely, or a meal to get its calories and macros.',
   },
   {
-    id: '4',
-    icon: 'trophy-outline',
-    tag: 'TRACK YOUR PROGRESS',
-    title: 'Watch Yourself\nLevel Up',
-    body: 'Log workouts, set personal records, track body composition, and compete in community challenges. Every rep — counted, measured, and celebrated.',
+    icon: 'chatbubble-ellipses-outline',
+    title: 'Ask your coach anything',
+    body: 'Swap an exercise, work around a sore shoulder, or ask why today looks the way it does.',
   },
 ];
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Intro'>;
 
 export default function IntroScreen(_props: Props) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const listRef = useRef<FlatList<Slide>>(null);
   const { markSeen } = useIntroStore();
-
-  const isLast = currentIndex === SLIDES.length - 1;
 
   useFunnelStep('intro_viewed');
 
-  // Records which slide people bail on, so the deck can be cut to the slides
-  // that actually earn their place.
-  const finish = useCallback(async (skipped: boolean) => {
-    logFunnelStep(skipped ? 'intro_skipped' : 'intro_completed', { slide: currentIndex });
+  const finish = useCallback(async () => {
+    // No slide index to record any more — there is only one screen to leave.
+    logFunnelStep('intro_completed');
     await SecureStore.setItemAsync('intro_seen', 'true');
     markSeen();
-  }, [markSeen, currentIndex]);
-
-  const handleNext = useCallback(() => {
-    if (isLast) {
-      finish(false);
-    } else {
-      listRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
-    }
-  }, [isLast, currentIndex, finish]);
-
-  const onViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
-      if (viewableItems.length > 0 && viewableItems[0].index != null) {
-        setCurrentIndex(viewableItems[0].index);
-      }
-    },
-    []
-  );
-
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
-
-  const renderItem: ListRenderItem<Slide> = useCallback(({ item }) => (
-    <View style={styles.slide}>
-      <View style={styles.iconRing}>
-        <View style={styles.iconInner}>
-          <Ionicons name={item.icon} size={72} color={Colors.primary} />
-        </View>
-      </View>
-      <Text style={styles.tag}>{item.tag}</Text>
-      <Text style={styles.title}>{item.title}</Text>
-      <Text style={styles.body}>{item.body}</Text>
-      {item.quote && (
-        <View style={styles.quoteBlock}>
-          <View style={styles.quoteBar} />
-          <Text style={styles.quoteText}>"{item.quote}"</Text>
-        </View>
-      )}
-    </View>
-  ), []);
+  }, [markSeen]);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
-      {!isLast && (
-        <SafeAreaView style={styles.skipArea} pointerEvents="box-none">
-          <TouchableOpacity
-            onPress={() => finish(true)}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Text style={styles.skipText}>Skip</Text>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <View style={styles.header}>
+            <View style={styles.iconRing}>
+              <Ionicons name="flash" size={44} color={Colors.primary} />
+            </View>
+            <Text style={styles.tag}>WELCOME TO RYZR</Text>
+            <Text style={styles.title}>Your AI personal trainer</Text>
+            <Text style={styles.subtitle}>
+              Everything you need to train smarter — in one app.
+            </Text>
+          </View>
+
+          <View style={styles.features}>
+            {FEATURES.map((f) => (
+              <View key={f.title} style={styles.feature}>
+                <View style={styles.featureIcon}>
+                  <Ionicons name={f.icon} size={20} color={Colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.featureTitle}>{f.title}</Text>
+                  <Text style={styles.featureBody}>{f.body}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.cta} onPress={finish} activeOpacity={0.85}>
+            <Text style={styles.ctaText}>Get Started</Text>
+            <Ionicons name="arrow-forward" size={16} color={Colors.background} style={{ marginLeft: 8 }} />
           </TouchableOpacity>
-        </SafeAreaView>
-      )}
-
-      <FlatList
-        ref={listRef}
-        data={SLIDES}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        bounces={false}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        getItemLayout={(_, index) => ({ length: SW, offset: SW * index, index })}
-      />
-
-      <SafeAreaView edges={['bottom']} style={styles.footer}>
-        <View style={styles.dots}>
-          {SLIDES.map((_, i) => (
-            <View key={i} style={[styles.dot, i === currentIndex && styles.dotActive]} />
-          ))}
         </View>
-
-        <TouchableOpacity style={styles.nextBtn} onPress={handleNext} activeOpacity={0.85}>
-          <Text style={styles.nextBtnText}>{isLast ? "Let's Go" : 'Next'}</Text>
-          {!isLast && (
-            <Ionicons
-              name="arrow-forward"
-              size={16}
-              color={Colors.background}
-              style={{ marginLeft: 8 }}
-            />
-          )}
-        </TouchableOpacity>
       </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  skipArea: {
-    position: 'absolute',
-    top: 0,
-    right: Spacing.lg,
-    zIndex: 10,
-    alignItems: 'flex-end',
-  },
-  skipText: {
-    color: Colors.textSecondary,
-    fontSize: FontSize.md,
-    paddingVertical: Spacing.sm,
-  },
-  slide: {
-    width: SW,
-    height: SH,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: 220,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
+  scroll: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: Spacing.lg },
+  header: { alignItems: 'center', marginBottom: Spacing.xl },
   iconRing: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    borderWidth: 1,
-    borderColor: Colors.primary + '35',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.xl,
-  },
-  iconInner: {
-    width: 148,
-    height: 148,
-    borderRadius: 74,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     backgroundColor: Colors.primary + '18',
+    borderWidth: 1,
+    borderColor: Colors.primary + '55',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: Spacing.md,
   },
   tag: {
     color: Colors.primary,
     fontSize: FontSize.xs,
     fontWeight: '700',
     letterSpacing: 3,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   title: {
     color: Colors.text,
-    fontSize: FontSize.xxl,
-    fontWeight: '800',
+    fontSize: 30,
+    fontWeight: '900',
     textAlign: 'center',
-    lineHeight: 42,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
-  body: {
+  subtitle: {
     color: Colors.textSecondary,
     fontSize: FontSize.md,
     textAlign: 'center',
-    lineHeight: 26,
-    maxWidth: 320,
-  },
-  quoteBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: Spacing.xl,
-    maxWidth: 300,
-    gap: Spacing.md,
-  },
-  quoteBar: {
-    width: 3,
-    height: '100%',
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primary,
-    minHeight: 36,
-  },
-  quoteText: {
-    flex: 1,
-    color: Colors.text,
-    fontSize: FontSize.sm,
-    fontStyle: 'italic',
     lineHeight: 22,
+    maxWidth: 300,
   },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-    gap: Spacing.lg,
-    backgroundColor: Colors.background + 'E6',
-  },
-  dots: {
+  features: { gap: Spacing.md },
+  feature: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+  },
+  featureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '1A',
     alignItems: 'center',
-    gap: Spacing.sm,
-    paddingTop: Spacing.lg,
+    justifyContent: 'center',
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.surface3,
+  featureTitle: { color: Colors.text, fontWeight: '800', fontSize: 15, marginBottom: 3 },
+  featureBody: { color: Colors.textSecondary, fontSize: 13, lineHeight: 19 },
+  footer: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.background,
   },
-  dotActive: {
-    width: 28,
-    backgroundColor: Colors.primary,
-  },
-  nextBtn: {
+  cta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.lg,
     paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  nextBtnText: {
-    color: Colors.background,
-    fontSize: FontSize.md,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
+  ctaText: { color: Colors.background, fontSize: 16, fontWeight: '900' },
 });
