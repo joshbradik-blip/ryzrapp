@@ -122,7 +122,9 @@ export function StoreScreen() {
     }
   };
 
-  const [tab, setTab] = useState<'membership' | 'gear' | 'faq'>('membership');
+  // Opens on Gear, not Membership: landing a browsing user on a price sheet
+  // reads as a sales pitch, and premium is already offered at every real gate.
+  const [tab, setTab] = useState<'membership' | 'gear' | 'faq'>('gear');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const toggleFaq = useCallback((i: number) => setExpandedFaq((prev: number | null) => (prev === i ? null : i)), []);
 
