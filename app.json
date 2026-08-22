@@ -1,7 +1,4 @@
 {
-  "cli": {
-    "appVersionSource": "app.json"
-  },
   "expo": {
     "name": "RYZR",
     "slug": "ryzrapp",
@@ -33,8 +30,12 @@
         "NSPhotoLibraryUsageDescription": "RYZR can save workout clips to your photo library.",
         "ITSAppUsesNonExemptEncryption": false,
         "SKAdNetworkItems": [
-          { "SKAdNetworkIdentifier": "v9wttpbfk9.skadnetwork" },
-          { "SKAdNetworkIdentifier": "n38lu8286q.skadnetwork" }
+          {
+            "SKAdNetworkIdentifier": "v9wttpbfk9.skadnetwork"
+          },
+          {
+            "SKAdNetworkIdentifier": "n38lu8286q.skadnetwork"
+          }
         ]
       }
     },
@@ -89,7 +90,9 @@
         {
           "microphonePermission": "RYZR uses your microphone so you can talk to your AI coach.",
           "speechRecognitionPermission": "RYZR uses speech recognition to turn what you say into text for your AI coach.",
-          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
         }
       ],
       [
