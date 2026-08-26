@@ -9,6 +9,7 @@
     "web": "expo start --web",
     "cli": "node ./scripts/cli.mjs",
     "test:cli": "node --test ./scripts/cli.test.mjs",
+    "test:pose": "node --import ./scripts/ts-resolve-hook.mjs --test ./src/lib/pose/pose.test.ts",
     "postinstall": "patch-package"
   },
   "bin": {

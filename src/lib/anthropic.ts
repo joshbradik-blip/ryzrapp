@@ -449,6 +449,70 @@ Respond with ONLY valid JSON (no markdown, no commentary):
   }
 }
 
+export interface SetCoachInput {
+  exerciseName: string;
+  reps: number;
+  averageScore: number;
+  /** Cue text → how many reps it fired on. */
+  topIssues: { cue: string; count: number }[];
+  averageRepMs: number;
+  averageEccentricMs: number;
+  /** 0..1, where 1 is a full-depth rep. */
+  averagePeakDepth: number;
+  /** 0..1 mean pose-tracking confidence over the set. */
+  trackingQuality: number;
+  repScores: number[];
+}
+
+/**
+ * Turn a finished set into one short piece of coaching.
+ *
+ * This is the replacement for per-frame image analysis. The pose pipeline has
+ * already measured what the body did — depth, tempo, symmetry, which faults
+ * fired and how often — so Claude gets numbers rather than a dim JPEG, and is
+ * asked to do the thing it is actually good at: pick the one correction that
+ * matters and say it like a coach. One call per set instead of one per frame.
+ */
+export async function summarizeSetForCoach(input: SetCoachInput): Promise<string> {
+  const issues = input.topIssues.length > 0
+    ? input.topIssues.map(i => `- "${i.cue}" (flagged on ${i.count} of ${input.reps} reps)`).join('\n')
+    : '- none detected';
+
+  const lowConfidence = input.trackingQuality < 0.5;
+
+  const data = await callAnthropic({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 220,
+    messages: [
+      {
+        role: 'user',
+        content: `You are a strength coach who just watched a set. You have measurements, not video.
+
+Exercise: ${input.exerciseName}
+Reps completed: ${input.reps}
+Average form score: ${input.averageScore}/100
+Per-rep scores: ${input.repScores.join(', ')}
+Average depth reached: ${Math.round(input.averagePeakDepth * 100)}% of a full-range rep
+Average rep time: ${(input.averageRepMs / 1000).toFixed(1)}s (lowering phase ${(input.averageEccentricMs / 1000).toFixed(1)}s)
+Pose-tracking confidence: ${Math.round(input.trackingQuality * 100)}%
+
+Faults detected:
+${issues}
+${lowConfidence ? '\nNOTE: tracking confidence was low, so these numbers may be unreliable. Acknowledge that briefly rather than coaching hard off them.' : ''}
+
+Write 2-3 sentences of coaching, spoken directly to the lifter:
+- Lead with the single most important correction (or genuine praise if the set was clean).
+- Reference the actual numbers where they help — depth, tempo, or consistency across reps.
+- End with one concrete thing to do on the next set.
+- No markdown, no lists, no preamble. Just the coaching.`,
+      },
+    ],
+  });
+
+  return data.content?.[0]?.text?.trim()
+    ?? 'Solid work. Keep your tempo controlled on the next set.';
+}
+
 export async function analyzeFormFromImage(
   exerciseName: string,
   imageBase64: string,

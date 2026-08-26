@@ -101,7 +101,7 @@
           "cameraPermissionText": "RYZR uses your camera to analyze your workout form in real-time.",
           "enableMicrophonePermission": false,
           "enableLocation": false,
-          "enableFrameProcessors": false
+          "enableFrameProcessors": true
         }
       ],
       [
