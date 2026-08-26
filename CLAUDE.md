@@ -11,6 +11,7 @@ RYZR is a React Native + Expo workout app with AI-generated training plans, a re
 - **Backend**: Supabase (auth + postgres + storage) — see `src/lib/supabase.ts`
 - **Styling**: Inline StyleSheet objects (dark theme, no NativeWind classes in JSX yet)
 - **AI**: Anthropic Claude API — `claude-sonnet-4-6` for plans, `claude-haiku-4-5-20251001` for form feedback
+- **Form Coach**: on-device pose pipeline in `src/lib/pose/` (keypoints → rep detection → deterministic form rules). Pure TS, no RN imports, tested via `npm run test:pose`. See `docs/form-coach.md`.
 - **Subscriptions**: RevenueCat (`react-native-purchases`) — configure keys in `src/store/subscriptionStore.ts`
 - **Camera**: `expo-camera`
 - **Voice**: `expo-speech` (TTS, on-device) + `expo-speech-recognition` (STT, on-device, native module — requires a new native build to ship, does NOT work via EAS Update/OTA)
