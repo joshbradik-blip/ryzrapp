@@ -6,4 +6,5 @@ export * from './framing';
 export * from './repDetector';
 export * from './formRules';
 export * from './session';
+export * from './movenet';
 export { loadPosePlugin, isNativePoseAvailable, normalizeLandmarks } from './nativePose';
