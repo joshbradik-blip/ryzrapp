@@ -157,13 +157,16 @@ export function TodayScreen() {
     }
   }, [userId]);
 
-  // Energy balance: food logged today vs calories burned. Only meaningful once
-  // something's been eaten; active calories come from the wearable when today's
-  // day has synced, otherwise the burn falls back to an estimate.
+  // Energy balance: food logged today vs calories burned. Shown as soon as
+  // either side has a real number — food logged, or active calories synced from
+  // the wearable. Gating it on food alone hid the burn half of the card (and
+  // with it the only place active calories are used) until the user happened to
+  // log a meal.
   const caloriesInToday = useMemo(() => sumEntries(nutritionEntries).calories, [nutritionEntries]);
   const energyBalance = useMemo(() => {
-    if (!profile || caloriesInToday <= 0) return null;
+    if (!profile) return null;
     const activeToday = wearableToday?.date === localDayKey() ? wearableToday.activeCalories : null;
+    if (caloriesInToday <= 0 && activeToday == null) return null;
     return computeEnergyBalance({ profile, schedule: schedulePrefs, caloriesIn: caloriesInToday, activeCalories: activeToday });
   }, [profile, schedulePrefs, caloriesInToday, wearableToday]);
 
@@ -246,7 +249,8 @@ export function TodayScreen() {
         {/* Predictive injury risk (shows only when a joint has an elevated signal) */}
         <InjuryRiskCard signals={riskSignals} />
 
-        {/* Energy balance — food in vs calories burned (shows once food is logged today) */}
+        {/* Energy balance — food in vs calories burned (shows once food is logged
+            today, or as soon as the wearable reports active calories) */}
         {energyBalance && <EnergyBalanceCard balance={energyBalance} goalCategory={goals[0]?.category} />}
 
         {/* Today's workout hero card */}
