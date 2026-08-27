@@ -625,9 +625,17 @@ export function FormCoachScreen({ navigation, route }: Props) {
           <>
             {!poseMode && (
               <View style={styles.modeNotice}>
-                <Ionicons name="information-circle-outline" size={15} color={Colors.info} />
+                <Ionicons
+                  name={coach.poseStatus === 'loading' ? 'hourglass-outline' : 'information-circle-outline'}
+                  size={15}
+                  color={Colors.info}
+                />
                 <Text style={styles.modeNoticeText}>
-                  Basic mode — update the app for live on-device tracking.
+                  {coach.poseStatus === 'loading'
+                    ? 'Warming up on-device tracking…'
+                    : coach.poseStatus === 'error'
+                      ? `Basic mode — pose model didn't load. ${coach.poseDetail ?? ''}`.trim()
+                      : 'Basic mode — update the app for live on-device tracking.'}
                 </Text>
               </View>
             )}

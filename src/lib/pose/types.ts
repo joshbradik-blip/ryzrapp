@@ -44,6 +44,14 @@ export interface PoseFrame {
   t: number;
   landmarks: Landmarks;
   /**
+   * Maximum x coordinate for this frame, i.e. the frame's aspect ratio.
+   *
+   * Landmarks are normalized so that y spans 0..1 and x spans 0..xMax, which
+   * keeps both axes on the same physical scale so joint angles are true. For
+   * a square frame this is 1, which is why it defaults to 1 everywhere.
+   */
+  xMax?: number;
+  /**
    * Mean scene luminance 0..1, when the detector or frame processor can
    * cheaply supply it. Used to distinguish "too dark to see you" from
    * "you're out of frame", which are very different fixes for the user.
@@ -65,6 +73,10 @@ export function isVisible(
 }
 
 /** True when the joint is both confidently detected and inside the frame. */
-export function isInFrame(kp: Keypoint | undefined, minScore = MIN_KEYPOINT_SCORE): kp is Keypoint {
-  return isVisible(kp, minScore) && kp.x >= 0 && kp.x <= 1 && kp.y >= 0 && kp.y <= 1;
+export function isInFrame(
+  kp: Keypoint | undefined,
+  minScore = MIN_KEYPOINT_SCORE,
+  xMax = 1
+): kp is Keypoint {
+  return isVisible(kp, minScore) && kp.x >= 0 && kp.x <= xMax && kp.y >= 0 && kp.y <= 1;
 }

@@ -11,7 +11,11 @@ import assert from 'node:assert/strict';
 
 import type { Landmarks, PoseFrame } from './types';
 import { OneEuroFilter, Debouncer } from './filter';
-import { angleAt, boundingBox, torsoScale } from './geometry';
+import { angleAt, boundingBox, torsoScale, jointAngle } from './geometry';
+import {
+  planLetterbox, letterboxInto, decodeMoveNet,
+  orientationToRotation, rotatedSize,
+} from './movenet';
 import { profileFor, depthFromAngle, measureAngle } from './profiles';
 import { RepDetector } from './repDetector';
 import { analyzeFraming } from './framing';
@@ -512,6 +516,154 @@ test('manual rep adjustment keeps the counter in sync', () => {
   assert.equal(session.adjustReps(1), 2);
   assert.equal(session.adjustReps(-1), 1);
   assert.equal(session.adjustReps(-5), 0);
+});
+
+// ── MoveNet input/output ──────────────────────────────────────────────────
+
+test('planLetterbox preserves aspect ratio and centres the content', () => {
+  // 16:9 landscape frame.
+  const wide = planLetterbox(1920, 1080, 192);
+  assert.equal(wide.width, 192);
+  assert.equal(wide.height, 108);
+  assert.equal(wide.padX, 0);
+  assert.equal(wide.padY, 42);
+
+  // 9:16 portrait frame.
+  const tall = planLetterbox(1080, 1920, 192);
+  assert.equal(tall.width, 108);
+  assert.equal(tall.height, 192);
+  assert.equal(tall.padX, 42);
+  assert.equal(tall.padY, 0);
+
+  // Square frame needs no padding at all.
+  const square = planLetterbox(720, 720, 192);
+  assert.equal(square.padX, 0);
+  assert.equal(square.padY, 0);
+});
+
+test('letterboxInto centres pixels in a zero-padded square', () => {
+  // 2x1 frame → plan of width 4, height 2 in a 4x4 square (padY = 1).
+  const plan = { width: 4, height: 2, padX: 0, padY: 1, size: 4 };
+  const pixels = new Uint8Array(4 * 2 * 3).fill(255);
+  const out = letterboxInto(pixels, plan);
+
+  assert.equal(out.length, 4 * 4 * 3);
+  // Row 0 is padding.
+  assert.equal(out[0], 0);
+  // Row 1 is content.
+  assert.equal(out[4 * 3], 255);
+  // Last row is padding again.
+  assert.equal(out[3 * 4 * 3], 0);
+  // Values stay in 0..255, NOT normalized — MoveNet expects the raw range.
+  assert.equal(Math.max(...out), 255);
+});
+
+test('letterboxInto reuses the supplied buffer', () => {
+  const plan = planLetterbox(1920, 1080, 192);
+  const pixels = new Uint8Array(plan.width * plan.height * 3).fill(7);
+  const buf = new Float32Array(192 * 192 * 3);
+  const out = letterboxInto(pixels, plan, buf);
+  assert.equal(out, buf, 'should write into the provided buffer, not allocate');
+
+  // A second call must clear the previous frame's content, not blend with it.
+  const empty = new Uint8Array(plan.width * plan.height * 3).fill(0);
+  letterboxInto(empty, plan, buf);
+  assert.equal(Math.max(...buf), 0);
+});
+
+test('orientation maps to the rotation that brings a frame upright', () => {
+  assert.equal(orientationToRotation('portrait'), '0deg');
+  assert.equal(orientationToRotation('landscape-left'), '90deg');
+  assert.equal(orientationToRotation('portrait-upside-down'), '180deg');
+  assert.equal(orientationToRotation('landscape-right'), '270deg');
+  // Unknown or absent orientation must not rotate.
+  assert.equal(orientationToRotation(undefined), '0deg');
+  assert.equal(orientationToRotation('nonsense'), '0deg');
+});
+
+test('rotatedSize swaps width and height on quarter turns', () => {
+  assert.deepEqual(rotatedSize(1920, 1080, '0deg'), { width: 1920, height: 1080 });
+  assert.deepEqual(rotatedSize(1920, 1080, '180deg'), { width: 1920, height: 1080 });
+  assert.deepEqual(rotatedSize(1920, 1080, '90deg'), { width: 1080, height: 1920 });
+  assert.deepEqual(rotatedSize(1920, 1080, '270deg'), { width: 1080, height: 1920 });
+});
+
+test('a sideways sensor frame letterboxes as portrait once rotated', () => {
+  // Phone held portrait, sensor hands us a landscape buffer.
+  const rotation = orientationToRotation('landscape-left');
+  const upright = rotatedSize(1920, 1080, rotation);
+  const plan = planLetterbox(upright.width, upright.height, 192);
+  // Portrait content: full height, padded left and right.
+  assert.equal(plan.height, 192);
+  assert.ok(plan.padX > 0 && plan.padY === 0);
+});
+
+test('decodeMoveNet undoes the letterbox and corrects aspect', () => {
+  const plan = planLetterbox(1920, 1080, 192);   // padY = 42, content 192x108
+  const aspect = 1920 / 1080;
+
+  // A keypoint at the exact centre of the square is the centre of the frame.
+  const out = new Float32Array(17 * 3);
+  out[0] = 0.5;   // y
+  out[1] = 0.5;   // x
+  out[2] = 0.9;   // score
+
+  const lm = decodeMoveNet(out, { plan, aspect });
+  assert.ok(lm.nose);
+  assert.ok(Math.abs(lm.nose!.y - 0.5) < 1e-6, `y ${lm.nose!.y}`);
+  // x spans 0..aspect, so frame-centre x is aspect/2.
+  assert.ok(Math.abs(lm.nose!.x - aspect / 2) < 1e-6, `x ${lm.nose!.x}`);
+  // Float32Array rounds, so compare approximately.
+  assert.ok(Math.abs(lm.nose!.score - 0.9) < 1e-6);
+});
+
+test('decodeMoveNet maps a keypoint on the padding outside the frame', () => {
+  const plan = planLetterbox(1920, 1080, 192);
+  // y = 0.05 of the square sits inside the top padding band (padY/size ≈ 0.219).
+  const out = new Float32Array(17 * 3);
+  out[0] = 0.05;
+  out[1] = 0.5;
+  out[2] = 0.9;
+
+  const lm = decodeMoveNet(out, { plan, aspect: 1920 / 1080 });
+  assert.ok(lm.nose!.y < 0, `padding should map above the frame, got ${lm.nose!.y}`);
+});
+
+test('decoded angles are correct on a non-square frame', () => {
+  // A true right angle, expressed as fractions of a 16:9 frame. Because the
+  // frame is wider than it is tall, equal *normalized* offsets are NOT equal
+  // distances — this is the bug the aspect correction exists to prevent.
+  const aspect = 16 / 9;
+  const plan = planLetterbox(1920, 1080, 192);
+
+  // Build model-space coords for: shoulder above elbow, wrist horizontally
+  // out from elbow, with both limbs the same PHYSICAL length.
+  const limb = 0.2;                       // in height units
+  const cx = 0.5, cy = 0.5;               // elbow at frame centre
+  const toModel = (x: number, y: number) => {
+    // frame-normalized (x in 0..1, y in 0..1) → model square coords
+    const u = x * (plan.width / plan.size) + plan.padX / plan.size;
+    const v = y * (plan.height / plan.size) + plan.padY / plan.size;
+    return [v, u];
+  };
+
+  const out = new Float32Array(17 * 3);
+  const put = (i: number, x: number, y: number) => {
+    const [v, u] = toModel(x, y);
+    out[i * 3] = v; out[i * 3 + 1] = u; out[i * 3 + 2] = 0.9;
+  };
+  // shoulder(5) directly above elbow(7); wrist(9) directly right of elbow.
+  put(5, cx, cy - limb);
+  put(7, cx, cy);
+  put(9, cx + limb / aspect, cy);   // same physical length, so fewer x units
+
+  const lm = decodeMoveNet(out, { plan, aspect });
+  const angle = jointAngle(lm, 'left_shoulder', 'left_elbow', 'left_wrist');
+  assert.ok(angle !== null);
+  assert.ok(
+    Math.abs(angle! - 90) < 1,
+    `a physical right angle should decode as 90°, got ${angle!.toFixed(1)}°`
+  );
 });
 
 // ── Native adapter ────────────────────────────────────────────────────────

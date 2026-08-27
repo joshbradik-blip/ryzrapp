@@ -30,8 +30,8 @@ looking at pixels to coaching on measurements.
 
 ```
 camera frame
-   ↓ (native frame-processor plugin, ~30fps, on device)
-33 pose keypoints  →  normalizeLandmarks()
+   ↓ (resize → MoveNet via TFLite, 15fps, all on device)
+17 pose keypoints  →  decodeMoveNet()
    ↓
 framing.ts       — can I track THIS exercise right now? if not, what should the user change?
    ↓ (trackable only)
@@ -93,33 +93,93 @@ ankles, darkness, cropped joints, and each form rule.
 `useFormCoach.ts` and `nativePose.ts` are the only React-Native-aware files in
 `src/lib/pose/`, and they contain no decision logic.
 
-## Status: what is and is not live
+## The detector
 
-**Shipped and working:** the entire pipeline above, its tests, the framing
-coach, the rewritten screen, and per-set Claude coaching.
+On-device pose comes from **MoveNet SinglePose Lightning** run through TFLite:
 
-**Not yet live:** `loadPosePlugin()` currently returns `null`, because **no
-native pose-detection plugin is installed yet**. Until one is added, the app
-runs the legacy snapshot path (kept deliberately, so an OTA update does not
-leave existing builds without a Form Coach — it shows a "Basic mode" notice).
+| Piece | Version | Role |
+|---|---|---|
+| `react-native-fast-tflite` | `^1.6.1` | runs the model |
+| `vision-camera-resize-plugin` | `^3.2.0` | frame → RGB uint8, inside the worklet |
+| `assets/models/movenet_lightning.tflite` | — | 1×192×192×3 float32 in, 1×1×17×3 out |
 
-### To light up on-device pose
+MoveNet's 17 COCO keypoints are exactly the landmark set the pipeline expects.
 
-1. Add a VisionCamera frame-processor pose plugin as a dependency. It must
-   register under one of the names in `CANDIDATE_PLUGINS` (`poseLandmarks`,
-   `poseDetection`, `pose`) — or add its name to that list.
-2. `app.json` already sets `enableFrameProcessors: true` for
-   `react-native-vision-camera`.
-3. Take a **new native build** — this cannot ship via EAS Update / OTA.
-4. Confirm the plugin's output shape is handled by `normalizeLandmarks()`. It
-   already understands keyed objects, 33-point BlazePose arrays, and 17-point
-   MoveNet arrays; anything else needs a branch there.
-5. If the plugin can cheaply supply mean scene luminance, pass it as
-   `brightness` on the `PoseFrame` — that is what separates "too dark" from
-   "you're out of frame" in the framing coach.
+### Why these versions and not the newest
 
-Once the plugin is present, `poseAvailable` flips to true on its own and the
-screen switches to the live path with no further changes.
+VisionCamera **5.2.3** and `fast-tflite` **3.x** are the current releases, and
+neither is usable here yet: both need `react-native-worklets`, which declares
+`react-native: 0.83 - 0.87`. This app is on **RN 0.81 / Expo SDK 54**, so
+moving to them requires an Expo SDK upgrade first. Until then the pinned
+versions above are the ones that pair with VisionCamera 4 + `worklets-core`.
+
+The community ML Kit pose plugins were rejected: the only one advertising
+VisionCamera 4 support was last published in **July 2024** and is a fork of an
+abandoned v3 package — two years stale, predating this app's RN and New
+Architecture versions.
+
+### Three details that are easy to get silently wrong
+
+1. **`uint8`, not `float32`.** The resize plugin's `float32` output is
+   `0.0..1.0`, but this MoveNet variant expects `0..255`. Feeding it a 0..1
+   tensor yields confident nonsense rather than an obvious failure, so we ask
+   for `uint8` (unambiguously 0..255) and widen to float ourselves.
+
+2. **Letterbox, not squash or crop.** Omitting `crop` makes the plugin
+   centre-crop to a square, throwing away the top and bottom of a portrait
+   frame — the exact field of view a squat needs. Squashing instead distorts
+   the person and costs keypoint accuracy. We pass an explicit full-frame crop,
+   scale to an aspect-preserving size, and pad to the square ourselves; the
+   padding is then undone at decode, so a keypoint on the padding maps outside
+   0..1 and reads as "cropped out of frame".
+
+3. **Rotation.** VisionCamera delivers frames in *sensor* orientation, which
+   on most Android devices is landscape even when the phone is held portrait.
+   Unrotated, the person is lying on their side: joint angles still look
+   plausible while torso lean, hip sag and the framing box are all wrong.
+   `orientationToRotation()` maps `frame.orientation` to the rotation that
+   brings the frame upright.
+
+Landmarks come back with `y` in `0..1` and `x` in `0..aspect` (reported as
+`PoseFrame.xMax`) so both axes share a scale. Without that, a physical 90°
+elbow on a 16:9 frame decodes as about 62°.
+
+The detector is throttled to **15fps**. Rep phases last hundreds of
+milliseconds, so nothing is lost, and it roughly halves inference cost over a
+workout.
+
+## Shipping it
+
+The pose modules are **native** — this cannot go out over EAS Update / OTA.
+
+```
+npm install
+npx expo prebuild --clean
+eas build --profile development --platform ios   # or android
+```
+
+`app.json` already sets `enableFrameProcessors: true`, and `metro.config.js`
+already lists `tflite` in `assetExts`.
+
+If the native modules are missing from a build, `useTflitePose()` reports
+`unavailable` and the screen falls back to the legacy snapshot path, labelled
+"Basic mode" — so an OTA JS update never leaves an older binary with no Form
+Coach at all.
+
+### Verify on device
+
+The pure logic is unit-tested, but three things can only be confirmed on real
+hardware:
+
+1. **Orientation.** Stand upright in frame. If the framing coach insists you
+   are out of frame while you are plainly centred, or torso-lean cues fire on
+   a clean rep, the rotation mapping is off for that device — adjust
+   `orientationToRotation()`.
+2. **The model loads.** The start screen shows "Warming up on-device tracking…"
+   briefly and then the Start button; if it stays on "Basic mode — pose model
+   didn't load", the detail text carries the reason.
+3. **Frame rate.** The tracking pill should sit near 15fps. Much lower means
+   inference is not keeping up and `TARGET_FPS` should come down.
 
 ## Adding an exercise
 

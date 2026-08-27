@@ -50,10 +50,15 @@ export interface FramingResult {
  * i.e. below the bottom edge. Treating that as "visible" is how the old coach
  * ended up confidently tracking a body it could only half see.
  */
-export function jointVisible(lm: Landmarks, base: string, minScore = MIN_KEYPOINT_SCORE): boolean {
+export function jointVisible(
+  lm: Landmarks,
+  base: string,
+  minScore = MIN_KEYPOINT_SCORE,
+  xMax = 1
+): boolean {
   return (
-    isInFrame(lm[`left_${base}` as keyof Landmarks], minScore) ||
-    isInFrame(lm[`right_${base}` as keyof Landmarks], minScore)
+    isInFrame(lm[`left_${base}` as keyof Landmarks], minScore, xMax) ||
+    isInFrame(lm[`right_${base}` as keyof Landmarks], minScore, xMax)
   );
 }
 
@@ -67,7 +72,8 @@ export function jointVisible(lm: Landmarks, base: string, minScore = MIN_KEYPOIN
 export function missingJoints(
   lm: Landmarks,
   profile: ExerciseProfile,
-  minScore = MIN_KEYPOINT_SCORE
+  minScore = MIN_KEYPOINT_SCORE,
+  xMax = 1
 ): string[] {
   let best: string[] | null = null;
 
@@ -80,7 +86,7 @@ export function missingJoints(
       ...chain,
       ...profile.requiredJoints.filter(j => chain.includes(j)),
     ]);
-    const missing = [...needed].filter(base => !jointVisible(lm, base, minScore));
+    const missing = [...needed].filter(base => !jointVisible(lm, base, minScore, xMax));
     if (missing.length === 0) return [];
     if (best === null || missing.length < best.length) best = missing;
   }
@@ -125,6 +131,7 @@ export function analyzeFraming(
   const minSubjectHeight = opts.minSubjectHeight ?? 0.18;
 
   const lm = frame.landmarks;
+  const xMax = frame.xMax ?? 1;
   const box = boundingBox(lm);
   const confidence = meanScore(lm);
   const dark = frame.brightness !== undefined && frame.brightness < DARK_BRIGHTNESS;
@@ -153,7 +160,7 @@ export function analyzeFraming(
     };
   }
 
-  const missing = missingJoints(lm, profile);
+  const missing = missingJoints(lm, profile, MIN_KEYPOINT_SCORE, xMax);
 
   // ── Darkness, when it is actually costing us the skeleton ───────────────
   // Dark alone is fine if the detector is still confident — plenty of gyms
@@ -190,7 +197,7 @@ export function analyzeFraming(
     const cropped = missing.some(base => {
       const l = lm[`left_${base}` as keyof Landmarks];
       const r = lm[`right_${base}` as keyof Landmarks];
-      return [l, r].some(kp => kp && (kp.x < 0 || kp.x > 1 || kp.y < 0 || kp.y > 1));
+      return [l, r].some(kp => kp && (kp.x < 0 || kp.x > xMax || kp.y < 0 || kp.y > 1));
     });
 
     return {
@@ -210,7 +217,7 @@ export function analyzeFraming(
   // never stop the rep counter.
 
   // ── Drifting toward the edge ────────────────────────────────────────────
-  const nearEdge = box.x0 < 0.02 || box.x1 > 0.98 || box.y0 < 0.02 || box.y1 > 0.98;
+  const nearEdge = box.x0 < 0.02 * xMax || box.x1 > 0.98 * xMax || box.y0 < 0.02 || box.y1 > 0.98;
   if (nearEdge) {
     return {
       code: 'edge_of_frame',
