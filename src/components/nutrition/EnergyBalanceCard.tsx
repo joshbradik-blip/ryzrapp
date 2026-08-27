@@ -36,10 +36,17 @@ export function EnergyBalanceCard({ balance, goalCategory }: Props) {
   const magnitude = Math.abs(net);
   const nearMaintenance = magnitude < 100;
 
+  // Nothing eaten yet: the card is showing the burn side only, so a
+  // deficit verdict would be meaningless ("on track for fat loss" at 8am).
+  const noFoodLogged = caloriesIn <= 0;
+
   // Goal-aware, non-judgemental descriptor.
   let descriptor = deficit ? 'Calorie deficit' : 'Calorie surplus';
   let tone = deficit ? Colors.success : Colors.info;
-  if (nearMaintenance) {
+  if (noFoodLogged) {
+    descriptor = 'Burned so far today';
+    tone = Colors.info;
+  } else if (nearMaintenance) {
     descriptor = 'Around maintenance';
     tone = Colors.textSecondary;
   } else if (goalCategory === 'lose_fat') {
@@ -62,17 +69,23 @@ export function EnergyBalanceCard({ balance, goalCategory }: Props) {
 
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Ionicons name={deficit ? 'trending-down' : 'trending-up'} size={16} color={tone} />
+          <Ionicons
+            name={noFoodLogged ? 'flame' : deficit ? 'trending-down' : 'trending-up'}
+            size={16}
+            color={tone}
+          />
           <Text style={{ color: tone, fontSize: 14, fontWeight: '800' }}>{descriptor}</Text>
         </View>
         <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '900' }}>
-          {net > 0 ? '+' : ''}{net.toLocaleString()} kcal
+          {noFoodLogged
+            ? `${caloriesOut.toLocaleString()} kcal`
+            : `${net > 0 ? '+' : ''}${net.toLocaleString()} kcal`}
         </Text>
       </View>
 
       <Text style={{ color: Colors.muted, fontSize: 11, marginTop: 12, lineHeight: 16 }}>
         {usedWearable
-          ? `Burn = ${bmr.toLocaleString()} resting + ${(activeCalories ?? 0).toLocaleString()} active from your wearable.`
+          ? `Burn = ${bmr.toLocaleString()} resting + ${(activeCalories ?? 0).toLocaleString()} active calories read from your wearable.${noFoodLogged ? ' Log a meal to see your balance for the day.' : ''}`
           : `Burn is estimated from your profile — connect a wearable in Profile → Wearables for your real active calories.`}
       </Text>
     </View>
