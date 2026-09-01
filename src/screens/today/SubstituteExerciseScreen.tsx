@@ -31,14 +31,19 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
   const { exerciseId, workoutId, workoutExerciseId } = route.params;
   const exercise = getExerciseById(exerciseId);
   const { swapForSession, swapForPlan } = useWorkoutStore();
-  const { profile } = useProfileStore();
+  const { equipment, injuries } = useProfileStore();
 
   const [results, setResults] = useState<SubstituteResults | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const userEquipment: string[] = (profile as any)?.equipment ?? [];
-  const userInjuries: string[] = (profile as any)?.injuries ?? [];
+  // Equipment and injuries live at the root of the profile store, NOT on the
+  // nested `profile` object — UserProfile has neither field. Reading them off
+  // `profile` (behind an `as any` that silenced the type error) always yielded
+  // undefined, so every non-bodyweight exercise failed the equipment check and
+  // the whole list rendered as "requires other equipment".
+  const userEquipment: string[] = equipment;
+  const userInjuries: string[] = injuries.map((i) => i.body_part);
 
   useEffect(() => {
     if (!exercise) return;
@@ -46,7 +51,9 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
       .then(setResults)
       .catch(() => setError('Could not load substitutes. Check your connection.'))
       .finally(() => setLoading(false));
-  }, [exerciseId]);
+    // Re-run when the user's kit changes: the store rehydrates from
+    // AsyncStorage, so equipment can arrive after the first render.
+  }, [exerciseId, equipment, injuries]);
 
   const handleSelect = useCallback((option: SubstituteOption) => {
     const replacement = option.source === 'local' ? option.localExercise! : option.dbExercise!;
