@@ -96,8 +96,7 @@
     "video": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260613_152239_365e35e0-1470-474b-bbcf-a6f23df34147.mp4"
   },
   "box_jump": {
-    "image": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260613_075932_b889a069-4683-4391-9a65-c2f301de235e.png",
-    "video": null
+    "video": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260901_043809_7db0d87a-7580-4cf6-82e9-185b66172287.mp4"
   },
   "lunge": {
     "image": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260613_080049_253001bf-94e6-486b-98cb-6e5409e0d541.png",
@@ -114,5 +113,23 @@
   "kb_swing": {
     "image": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260613_080144_3342c388-4752-46d5-9d2f-5f0e54c9ddbc.png",
     "video": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260613_153909_4856bc7c-accf-49a5-a63b-ef31a1cf1f2f.mp4"
+  },
+  "worlds_greatest_stretch": {
+    "video": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260901_043809_f9c852f4-1d04-4608-b5af-d87874e3c95a.mp4"
+  },
+  "ninety_ninety_hip_stretch": {
+    "video": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260901_043808_39358682-6356-454e-a8ba-680e30e13b61.mp4"
+  },
+  "thoracic_rotation": {
+    "video": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260901_043808_195888d8-aa47-48ac-98de-242525b90c47.mp4"
+  },
+  "shoulder_dislocates": {
+    "video": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260901_043808_34399e15-40da-4922-abb5-647f26709e82.mp4"
+  },
+  "burpee": {
+    "video": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260901_043808_d98b02af-64f6-4212-8336-87e52e2ec035.mp4"
+  },
+  "high_knees": {
+    "video": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260901_043808_14580207-9277-4c31-a97c-3b31430b7e83.mp4"
   }
 }
