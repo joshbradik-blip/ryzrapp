@@ -4,6 +4,8 @@ These prompts generate the stylized hero images shown on the Exercise Detail scr
 
 ## Workflow
 
+> **Current pipeline:** we no longer generate a separate still per exercise. Follow `docs/higgsfield-media-recipe.md` — generate the demo *clip*, and the upload script derives `{id}.png` from a mid-clip frame. The per-exercise wording below is still the source of truth for the pose and the house style; feed it into the clip prompt. The steps below describe the older still-only path, kept for reference.
+
 1. Generate each image with your image tool (Higgsfield Soul, OpenAI gpt-image-1, etc.) using the prompt below.
 2. Export as **PNG**, square (1:1).
 3. Rename the file to the exercise's id, e.g. `squat.png`, `goblet_squat.png` (the filename is listed with each prompt).
