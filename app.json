@@ -2,7 +2,7 @@
   "expo": {
     "name": "RYZR",
     "slug": "ryzrapp",
-    "version": "1.0.17",
+    "version": "1.0.18",
     "scheme": "ryzr",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -23,7 +23,7 @@
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.ryzr.app",
-      "buildNumber": "33",
+      "buildNumber": "34",
       "infoPlist": {
         "NSCameraUsageDescription": "RYZR uses your camera to analyze your workout form in real-time.",
         "NSMicrophoneUsageDescription": "RYZR uses audio for voice coaching feedback.",
@@ -41,7 +41,7 @@
     },
     "android": {
       "package": "com.ryzr.app",
-      "versionCode": 35,
+      "versionCode": 36,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
@@ -118,7 +118,10 @@
         "expo-build-properties",
         {
           "android": {
-            "minSdkVersion": 26
+            "minSdkVersion": 26,
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "# --- RYZR release-build keep rules -------------------------------------\n# R8 is on (enableMinifyInReleaseBuilds). React Native, Expo modules,\n# Reanimated, Worklets, SVG, Health Connect, Notifications and Updates all\n# ship their own consumer rules, so they need nothing here. These are the\n# dependencies that ship NONE, and that reach classes by reflection.\n\n# Readable stack traces in Play Console after obfuscation.\n-keepattributes SourceFile,LineNumberTable,*Annotation*,Signature,InnerClasses,EnclosingMethod\n-renamesourcefileattribute SourceFile\n\n# JNI entry points: the native name must survive minification.\n-keepclasseswithmembernames class * { native <methods>; }\n\n# RevenueCat \u2014 purchase/entitlement models are deserialized reflectively.\n-keep class com.revenuecat.purchases.** { *; }\n\n# Facebook SDK \u2014 the RN bridge plus the SDK it calls into.\n-keep class com.facebook.reactnative.androidsdk.** { *; }\n-keep class com.facebook.** { *; }\n-dontwarn com.facebook.**\n\n# VisionCamera + its frame-processor plugins (loaded by name at runtime).\n-keep class com.mrousavy.camera.** { *; }\n\n# react-native-fast-tflite JNI bindings.\n-keep class com.tflite.** { *; }\n\n# expo-speech-recognition: native module, no consumer rules of its own.\n-keep class expo.modules.speechrecognition.** { *; }"
           }
         }
       ],
