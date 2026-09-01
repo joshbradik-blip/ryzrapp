@@ -21,6 +21,7 @@ import { RepDetector } from './repDetector';
 import { analyzeFraming } from './framing';
 import { FormCoachSession } from './session';
 import { normalizeLandmarks } from './nativePose';
+import { supportsFormCoach } from './coverage';
 
 // ── Synthetic skeleton ────────────────────────────────────────────────────
 
@@ -692,4 +693,74 @@ test('normalizeLandmarks handles the shapes detectors actually return', () => {
   // Garbage in must not throw.
   assert.deepEqual(normalizeLandmarks(null), {});
   assert.deepEqual(normalizeLandmarks([{ nope: 1 }]), {});
+});
+
+// ── Form Coach coverage ───────────────────────────────────────────────────
+
+test('the Form Coach is not offered on mobility work', () => {
+  // Our own library tags these.
+  for (const name of [
+    "World's Greatest Stretch",
+    '90/90 Hip Stretch',
+    'Open-Book Thoracic Rotation',
+    'Shoulder Dislocates',
+  ]) {
+    assert.equal(
+      supportsFormCoach({ name, category: 'mobility' }),
+      false,
+      `${name} should not offer the Form Coach`
+    );
+  }
+
+  // Swapped in from ExerciseDB, which labels by body part — the name is the
+  // only signal that this is a stretch.
+  assert.equal(
+    supportsFormCoach({ name: 'Standing Hamstring Stretch', category: 'upper legs' }),
+    false
+  );
+  assert.equal(supportsFormCoach({ name: 'Foam Roll IT Band', category: 'upper legs' }), false);
+
+  // Lifts the pipeline does score keep the button.
+  for (const [name, category] of [
+    ['Back Squat', 'lower_body'],
+    ['Bench Press', 'upper_body'],
+    ['Plank', 'core'],
+    ['Romanian Deadlift', 'lower_body'],
+  ] as const) {
+    assert.equal(supportsFormCoach({ name, category }), true, `${name} should offer the Form Coach`);
+  }
+
+  // Missing fields must not throw or hide a normal lift.
+  assert.equal(supportsFormCoach({}), true);
+  assert.equal(supportsFormCoach({ name: null, category: null }), true);
+});
+
+test('the Form Coach is not offered on cardio', () => {
+  for (const name of [
+    'Mountain Climber',
+    'Jumping Jack',
+    'Rowing Machine',
+    'Burpee',
+    'High Knees',
+  ]) {
+    assert.equal(
+      supportsFormCoach({ name, category: 'cardio' }),
+      false,
+      `${name} should not offer the Form Coach`
+    );
+  }
+
+  // Cardio that arrives without our category still gets caught by name.
+  for (const name of ['Treadmill Run', 'Stationary Bike', 'Jump Rope', 'Sprint Intervals']) {
+    assert.equal(supportsFormCoach({ name, category: 'full body' }), false, name);
+  }
+
+  // The near-misses: these are lifts, and the coach does score them.
+  for (const name of ['Barbell Row', 'Bent-Over Row', 'Box Jump', 'Jump Squat', 'Seated Cable Row']) {
+    assert.equal(
+      supportsFormCoach({ name, category: 'upper_body' }),
+      true,
+      `${name} should still offer the Form Coach`
+    );
+  }
 });

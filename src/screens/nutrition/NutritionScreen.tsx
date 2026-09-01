@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
@@ -251,8 +251,17 @@ export function NutritionScreen() {
 
         {/* Add food modal */}
         <Modal visible={addOpen} animationType="slide" transparent onRequestClose={() => setAddOpen(false)}>
-          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0A0A0Acc' }}>
-            <View style={{ backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36, borderWidth: 1, borderColor: Colors.border }}>
+          <KeyboardAvoidingView
+            behavior="padding"
+            style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0A0A0Acc' }}
+          >
+            <View style={{ backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 36, borderWidth: 1, borderColor: Colors.border, maxHeight: '88%' }}>
+              <ScrollView
+                style={{ flexShrink: 1 }}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
+                showsVerticalScrollIndicator={false}
+              >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={{ color: Colors.text, fontSize: 20, fontWeight: '900' }}>Log food</Text>
                 <TouchableOpacity onPress={() => setAddOpen(false)}>
@@ -314,8 +323,9 @@ export function NutritionScreen() {
               </View>
 
               <GradientButton title="Add entry" onPress={handleSave} loading={saving} />
+              </ScrollView>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {userId && (

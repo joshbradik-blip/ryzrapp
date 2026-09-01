@@ -2,6 +2,7 @@ export * from './types';
 export * from './geometry';
 export * from './filter';
 export * from './profiles';
+export * from './coverage';
 export * from './framing';
 export * from './repDetector';
 export * from './formRules';

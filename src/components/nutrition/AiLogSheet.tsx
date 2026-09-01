@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Modal, ScrollView, Image, Platform, ActionSheetIOS, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Modal, ScrollView, Image, Platform, ActionSheetIOS, Alert, KeyboardAvoidingView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../constants/theme';
@@ -151,7 +151,10 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
-      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0A0A0Acc' }}>
+      <KeyboardAvoidingView
+        behavior="padding"
+        style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0A0A0Acc' }}
+      >
         <View style={{ backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 36, borderWidth: 1, borderColor: Colors.border, maxHeight: '88%' }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -164,7 +167,12 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
           </View>
 
           {!items ? (
-            <>
+            <ScrollView
+              style={{ flexShrink: 1 }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              showsVerticalScrollIndicator={false}
+            >
               <Text style={{ color: Colors.textSecondary, fontSize: 13, marginBottom: 14, lineHeight: 19 }}>
                 Snap a photo or type what you ate — we'll estimate the calories and macros for you to review.
               </Text>
@@ -194,9 +202,14 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
                 style={{ backgroundColor: Colors.surface2, borderRadius: 12, padding: 14, color: Colors.text, fontSize: 15, minHeight: 96, textAlignVertical: 'top', borderWidth: 1, borderColor: Colors.border, marginBottom: 18 }}
               />
               <GradientButton title={busy ? 'Estimating…' : 'Estimate nutrition'} icon="sparkles" onPress={estimate} loading={busy} disabled={busy || !text.trim()} />
-            </>
+            </ScrollView>
           ) : (
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ flexShrink: 1 }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              showsVerticalScrollIndicator={false}
+            >
               {/* Meal selector */}
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
                 {MEALS.map((m) => {
@@ -260,7 +273,7 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
             </ScrollView>
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

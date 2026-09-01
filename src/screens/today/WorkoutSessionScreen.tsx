@@ -24,6 +24,7 @@ import { Button } from '../../components/ui/Button';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { Colors } from '../../constants/theme';
 import { haptic } from '../../lib/feedback';
+import { supportsFormCoach } from '../../lib/pose/coverage';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutSession'>;
 
@@ -452,35 +453,37 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* Form coach (premium) */}
-        <TouchableOpacity
-          onPress={() => {
-            if (!isPremium) {
-              Alert.alert('Premium Feature', 'Upgrade to RYZR Premium to unlock the AI Form Coach.');
-              return;
-            }
-            navigation.navigate('FormCoach', {
-              exerciseId: currentExercise.exercise.id,
-              exerciseName: currentExercise.exercise.name,
-            });
-          }}
-          style={{
-            padding: 14,
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: isPremium ? Colors.border : Colors.primary + '44',
-            alignItems: 'center',
-            marginBottom: 12,
-            flexDirection: 'row',
-            justifyContent: 'center',
-            gap: 8,
-          }}
-        >
-          <Ionicons name={isPremium ? 'camera-outline' : 'lock-closed-outline'} size={18} color={isPremium ? Colors.text : Colors.primary} />
-          <Text style={{ color: isPremium ? Colors.text : Colors.primary, fontWeight: '700' }}>
-            {isPremium ? 'Check My Form' : 'Form Coach (Premium)'}
-          </Text>
-        </TouchableOpacity>
+        {/* Form coach (premium) — hidden on mobility work the pipeline cannot score. */}
+        {supportsFormCoach(currentExercise.exercise) && (
+          <TouchableOpacity
+            onPress={() => {
+              if (!isPremium) {
+                Alert.alert('Premium Feature', 'Upgrade to RYZR Premium to unlock the AI Form Coach.');
+                return;
+              }
+              navigation.navigate('FormCoach', {
+                exerciseId: currentExercise.exercise.id,
+                exerciseName: currentExercise.exercise.name,
+              });
+            }}
+            style={{
+              padding: 14,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: isPremium ? Colors.border : Colors.primary + '44',
+              alignItems: 'center',
+              marginBottom: 12,
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            <Ionicons name={isPremium ? 'camera-outline' : 'lock-closed-outline'} size={18} color={isPremium ? Colors.text : Colors.primary} />
+            <Text style={{ color: isPremium ? Colors.text : Colors.primary, fontWeight: '700' }}>
+              {isPremium ? 'Check My Form' : 'Form Coach (Premium)'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Skip remaining sets (mid-exercise) */}
         {completedCount < currentExercise.target_sets && !isLastExercise && (
