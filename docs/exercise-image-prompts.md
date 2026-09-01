@@ -118,3 +118,27 @@ STYLE, mid band pull-apart: arms extended at shoulder height, pulling a resistan
 
 ### Kettlebell Swing → `kb_swing.png`
 STYLE, top of a kettlebell swing: kettlebell floating at chest height, hips fully extended, arms straight, athletic standing posture.
+
+## Added after the first batch
+
+These six were added to the library after the original generation run, so they
+shipped with no media at all — the app fell back to the branded placeholder.
+Same STYLE block, same filename convention.
+
+### Burpee → `burpee.png`
+STYLE, mid burpee: driving up out of the floor into a vertical jump, arms reaching overhead, chest tall, explosive full-body extension.
+
+### High Knees → `high_knees.png`
+STYLE, mid high knees: running in place with one knee driven above hip height, opposite arm forward, tall posture, up on the ball of the standing foot.
+
+### World's Greatest Stretch → `worlds_greatest_stretch.png`
+STYLE, mid World's Greatest Stretch: deep lunge with the front knee at 90 degrees and the back leg straight, one hand planted on the floor inside the front foot, the other arm reaching straight toward the ceiling, torso rotated open, eyes following the reaching hand.
+
+### 90/90 Hip Stretch → `ninety_ninety_hip_stretch.png`
+STYLE, in the 90/90 hip stretch: seated on the floor, front shin and back shin each bent to 90 degrees, spine tall, hinging forward over the front shin.
+
+### Open-Book Thoracic Rotation → `thoracic_rotation.png`
+STYLE, mid open-book thoracic rotation: lying on one side with knees stacked and bent to 90 degrees, the top arm opened across the body toward the floor behind, chest rotated open, lower body still.
+
+### Shoulder Dislocates → `shoulder_dislocates.png`
+STYLE, mid shoulder dislocate: standing tall, arms locked straight in a wide grip on a resistance band, the band travelling overhead in a smooth arc behind the head.

@@ -734,3 +734,33 @@ test('the Form Coach is not offered on mobility work', () => {
   assert.equal(supportsFormCoach({}), true);
   assert.equal(supportsFormCoach({ name: null, category: null }), true);
 });
+
+test('the Form Coach is not offered on cardio', () => {
+  for (const name of [
+    'Mountain Climber',
+    'Jumping Jack',
+    'Rowing Machine',
+    'Burpee',
+    'High Knees',
+  ]) {
+    assert.equal(
+      supportsFormCoach({ name, category: 'cardio' }),
+      false,
+      `${name} should not offer the Form Coach`
+    );
+  }
+
+  // Cardio that arrives without our category still gets caught by name.
+  for (const name of ['Treadmill Run', 'Stationary Bike', 'Jump Rope', 'Sprint Intervals']) {
+    assert.equal(supportsFormCoach({ name, category: 'full body' }), false, name);
+  }
+
+  // The near-misses: these are lifts, and the coach does score them.
+  for (const name of ['Barbell Row', 'Bent-Over Row', 'Box Jump', 'Jump Squat', 'Seated Cable Row']) {
+    assert.equal(
+      supportsFormCoach({ name, category: 'upper_body' }),
+      true,
+      `${name} should still offer the Form Coach`
+    );
+  }
+});
