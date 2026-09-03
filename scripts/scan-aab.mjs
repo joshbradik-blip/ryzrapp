@@ -10,7 +10,9 @@
 //
 //   1. 16 KB page alignment of every 64-bit .so — the same gate as
 //      scripts/check-16kb.mjs, run from the same code, so one command covers
-//      both Play blockers.
+//      both Play blockers. Nothing is tolerated: 1.0.19 (38) passed this
+//      check and Play still rejected it, because two prebuilt x86_64 LiteRT
+//      libraries sat on an allowlist Play does not share.
 //   2. R8 survival. 1.0.18 was the first RYZR build with minification on, and
 //      a green build proves nothing: R8 strips classes that are only ever
 //      reached by reflection or JNI, which fails at runtime. Every keep rule
@@ -157,15 +159,11 @@ if (rows.length === 0) {
 } else {
   for (const r of rows) {
     const shown = r.align ? `${r.align / 1024} KB` : 'unreadable';
-    const label = r.ok ? 'PASS' : r.known ? 'KNOWN' : 'FAIL';
-    if (!r.ok && !r.known) failed = true;
-    console.log(`${label.padEnd(5)} ${shown.padStart(9)}  ${r.name}`);
+    if (!r.ok) failed = true;
+    console.log(`${(r.ok ? 'PASS' : 'FAIL').padEnd(5)} ${shown.padStart(9)}  ${r.name}`);
   }
   const good = rows.filter((r) => r.ok).length;
   console.log(`\n${good}/${rows.length} libraries aligned to 16 KB or more.`);
-  for (const r of rows.filter((r) => !r.ok && r.known)) {
-    console.log(`  known: ${r.name}\n    ${r.known}`);
-  }
 }
 
 // ---- 2. R8 survival --------------------------------------------------------

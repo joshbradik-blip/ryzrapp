@@ -226,14 +226,29 @@ Android SDK — so it runs on the Windows box where the downloaded AAB actually
 sits. `scripts/scan-aab.mjs` runs the same check plus the R8 keep-rule survival
 check; both share `scripts/lib/bundle.mjs`, so they cannot disagree.
 
-Two libraries are reported as `KNOWN` rather than `FAIL` and do not fail the
-run: the prebuilt `libtensorflowlite_jni.so` and `libtensorflowlite_gpu_jni.so`
-that `react-native-fast-tflite` extracts from
-`com.google.ai.edge.litert:{litert,litert-gpu}:1.0.1`. They are not compiled
-here, so no build flag reaches them, and they are under-aligned on **x86_64
-only** — an ABI with no 16 KB-page devices, so nothing that cares can fail to
-load them. Keeping the ABI also keeps the app installable on the emulators the
-pre-launch report's virtual devices run. Clearing them properly means the
+Nothing is tolerated: any under-aligned 64-bit library fails the run.
+
+That was not always true, and the exception is why 1.0.19 (38) was rejected.
+The scanner used to report two libraries as `KNOWN` rather than `FAIL` — the
+`x86_64` slices of the prebuilt `libtensorflowlite_jni.so` and
+`libtensorflowlite_gpu_jni.so` that `react-native-fast-tflite` 1.6.1 extracts
+from `com.google.ai.edge.litert:{litert,litert-gpu}:1.0.1`, which Google linked
+at 4 KB. They are not compiled here, so no build flag reaches them, and the
+reasoning was that `x86_64` has no 16 KB-page devices, so nothing that cares
+could fail to load them.
+
+That is true about hardware and wrong about Play. Play's check is a static
+sweep of every `.so` in the bundle across both 64-bit ABIs, with no
+device-plausibility carve-out, so the scanner reported a pass on the exact
+bundle Play then blocked with "Your app does not support 16 KB memory page
+sizes".
+
+1.0.19 (39) drops the `x86_64` and `x86` ABIs instead — see
+`plugins/withArm64Only.js`, which sets both `reactNativeArchitectures` and
+`ndk.abiFilters` (only the latter reaches prebuilt `.so` files inside AAR
+dependencies). No user impact, since Play serves no `x86_64` build to consumer
+phones, but a release AAB no longer installs on `x86_64` emulators — including
+the pre-launch report's virtual devices. Restoring the ABI means the
 fast-tflite 3.x migration, which changes the Form Coach inference path.
 
 When a library that is compiled here fails, the fix is a build flag rather than

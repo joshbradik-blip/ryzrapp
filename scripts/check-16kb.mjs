@@ -20,6 +20,11 @@
 // scan-aab.mjs runs this same check alongside the R8 keep-rule survival
 // check; both read the bundle through scripts/lib/bundle.mjs so they cannot
 // disagree.
+//
+// Nothing is tolerated. 1.0.19 (38) reported a pass here and was still
+// rejected by Play for 16 KB page sizes, because two prebuilt x86_64 LiteRT
+// libraries sat on an allowlist Play does not share. See the note in
+// scripts/lib/bundle.mjs.
 
 import { REQUIRED_ALIGN, ENFORCED_ABIS, readBundle, alignmentRows } from './lib/bundle.mjs';
 
@@ -55,34 +60,25 @@ if (rows.length === 0) {
 
 for (const r of rows) {
   const shown = r.align ? `${r.align / 1024} KB` : 'unreadable';
-  const label = r.ok ? 'PASS' : r.known ? 'KNOWN' : 'FAIL';
-  console.log(`${label.padEnd(5)} ${shown.padStart(12)}  ${r.name}`);
+  console.log(`${(r.ok ? 'PASS' : 'FAIL').padEnd(5)} ${shown.padStart(12)}  ${r.name}`);
 }
 
-const blocking = rows.filter((r) => !r.ok && !r.known);
-const tolerated = rows.filter((r) => !r.ok && r.known);
+const blocking = rows.filter((r) => !r.ok);
 
 console.log(`\n${rows.filter((r) => r.ok).length}/${rows.length} libraries aligned to 16 KB or more.`);
-
-if (tolerated.length) {
-  console.log('\nUnder-aligned, known and accepted:');
-  for (const r of tolerated) console.log(`  ${r.name}\n    ${r.known}`);
-}
 
 if (blocking.length) {
   console.log('\nUnder-aligned — Play will reject this bundle:');
   for (const r of blocking) console.log(`  ${r.name}`);
   console.log(
-    '\nThese are compiled here, so the fix is a build flag, not a version bump:\n' +
+    '\nFor a library compiled here the fix is a build flag, not a version bump:\n' +
       'pass -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON to the owning package\n' +
       '(NDK r27 does not align to 16 KB unless asked). See patches/ for two\n' +
-      'worked examples.',
+      'worked examples. For a prebuilt .so inside an AAR no flag reaches it,\n' +
+      'so the choice is a dependency upgrade or dropping the ABI — see\n' +
+      'plugins/withArm64Only.js.',
   );
   process.exit(1);
 }
 
-console.log(
-  tolerated.length
-    ? '\n16 KB page size: OK on every library that can be fixed here.'
-    : '\n16 KB page size: OK.',
-);
+console.log('\n16 KB page size: OK.');
