@@ -190,43 +190,22 @@ function loadAlignment(buf) {
   return max || null;
 }
 // ---------------------------------------------------------------------------
-// Known-unaligned libraries
+// No library is allowed to be under-aligned.
 //
-// These two are prebuilt binaries extracted from
-// com.google.ai.edge.litert:{litert,litert-gpu}:1.0.1 by
-// react-native-fast-tflite, not compiled here, so no CMake flag reaches them.
-// Google shipped that release's arm64-v8a aligned and its x86_64 at 4 KB.
+// Until 1.0.19 (38) two prebuilt LiteRT libraries were tolerated here — the
+// x86_64 slices of libtensorflowlite_jni.so and libtensorflowlite_gpu_jni.so
+// that react-native-fast-tflite extracts from
+// com.google.ai.edge.litert:{litert,litert-gpu}:1.0.1, which Google linked at
+// 4 KB. The reasoning was that no x86_64 Android device has 16 KB pages, so
+// nothing that cares could fail to load them.
 //
-// They are tolerated rather than fixed because 16 KB page sizes are an arm64
-// device property — no x86_64 Android device has 16 KB pages, so a 4 KB
-// x86_64 library cannot fail to load on hardware that cares. Keeping the ABI
-// also keeps the app installable on emulators, which is where the
-// pre-launch report's virtual devices run.
-//
-// Clearing them would mean the react-native-fast-tflite 1.6.1 -> 3.0.1
-// migration (a required `delegates` argument on loadTensorflowModel, a
-// narrowed runSync, its own config plugin, a new peer dependency) — a change
-// to the Form Coach inference path, not a version bump.
-//
-// An entry here suppresses the failure exit code but never the report line:
-// the run still prints the library and this reason.
+// True about hardware, wrong about Play: its check is a static sweep of every
+// .so in the bundle across both 64-bit ABIs, with no device-plausibility
+// carve-out. That allowlist is why this scanner reported a pass on the very
+// bundle Play then rejected for 16 KB page sizes, so the mechanism is gone
+// rather than merely emptied — a tolerated failure here is a rejected upload
+// there. plugins/withArm64Only.js removes the x86_64 ABI instead.
 // ---------------------------------------------------------------------------
-
-const KNOWN_UNALIGNED = [
-  {
-    pattern: /(^|\/)lib\/x86_64\/libtensorflowlite_jni\.so$/,
-    why: 'prebuilt in com.google.ai.edge.litert:litert:1.0.1; x86_64 has no 16 KB-page devices',
-  },
-  {
-    pattern: /(^|\/)lib\/x86_64\/libtensorflowlite_gpu_jni\.so$/,
-    why: 'prebuilt in com.google.ai.edge.litert:litert-gpu:1.0.1; x86_64 has no 16 KB-page devices',
-  },
-];
-
-/** The recorded reason this library is allowed to be under-aligned, or null. */
-function knownUnaligned(name) {
-  return KNOWN_UNALIGNED.find((k) => k.pattern.test(name))?.why ?? null;
-}
 
 // ---------------------------------------------------------------------------
 
@@ -237,7 +216,7 @@ function readBundle(path) {
 }
 
 /**
- * One row per 64-bit native library: { name, align, ok, known }.
+ * One row per 64-bit native library: { name, align, ok }.
  *
  * `align` is null when the library could not be read as a 64-bit ELF, which
  * counts as a failure rather than a skip — an unreadable library is not a
@@ -259,7 +238,7 @@ function alignmentRows(buf, entries) {
       console.error(`  ! ${lib.name}: ${err.message}`);
     }
     const ok = Boolean(align) && align >= REQUIRED_ALIGN;
-    rows.push({ name: lib.name, align, ok, known: ok ? null : knownUnaligned(lib.name) });
+    rows.push({ name: lib.name, align, ok });
   }
 
   rows.sort((a, b) => a.name.localeCompare(b.name));
@@ -272,7 +251,6 @@ export {
   listEntries,
   readEntry,
   loadAlignment,
-  knownUnaligned,
   readBundle,
   alignmentRows,
 };
