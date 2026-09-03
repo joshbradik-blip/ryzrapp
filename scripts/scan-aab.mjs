@@ -81,14 +81,18 @@ const KEPT_PACKAGES = [
 // runtime by name, so nothing references it statically and R8's resource
 // shrinker would see an unused blob.
 //
-// Deliberately matched by extension anywhere in the bundle rather than by one
-// hardcoded path. Metro rewrites an asset's name on the way in — sanitized,
-// lowercased, directories folded into underscores, a leading `assets_`
-// dropped — so assets/models/movenet_lightning.tflite lands as something like
-// res/raw/models_movenet_lightning.tflite. Asserting one guessed path here
+// Matched by name anywhere in the bundle rather than at one hardcoded path.
+// Metro rewrites an asset's name on the way in — sanitized, lowercased,
+// directories folded into underscores — so assets/models/movenet_lightning.tflite
+// ships as res/raw/assets_models_movenet_lightning.tflite. Asserting the path
 // only produces a FAIL that says nothing about whether the model shipped.
+//
+// Matched on `movenet` rather than on the .tflite extension alone: ML Kit's
+// barcode scanner (pulled in by expo-camera) contributes three .tflite models
+// of its own, and an extension-wide match would let those satisfy this check
+// with the pose model gone.
 const REQUIRED_ENTRIES = [
-  { pattern: /\.tflite$/, what: 'TFLite model (MoveNet)' },
+  { pattern: /movenet[^/]*\.tflite$/i, what: 'MoveNet model' },
 ];
 
 // --- dex ------------------------------------------------------------------
