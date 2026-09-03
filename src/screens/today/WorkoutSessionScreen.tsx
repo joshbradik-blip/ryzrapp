@@ -178,6 +178,8 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
 
     if (newSets.length < currentExercise.target_sets) {
       setSetIndex((i) => i + 1);
+    } else if (!isLastExercise) {
+      handleNextExercise();
     }
   };
 

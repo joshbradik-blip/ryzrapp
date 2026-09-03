@@ -71,6 +71,7 @@ export function NutritionScreen() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiMeal, setAiMeal] = useState<MealType>('breakfast');
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [meal, setMeal] = useState<MealType>('breakfast');
   const [name, setName] = useState('');
@@ -190,7 +191,11 @@ export function NutritionScreen() {
 
             {/* AI describe-a-meal (premium) */}
             <TouchableOpacity
-              onPress={() => (isPremium ? setAiOpen(true) : setPremiumOpen(true))}
+              onPress={() => {
+                if (!isPremium) { setPremiumOpen(true); return; }
+                setAiMeal(mealForNow());
+                setAiOpen(true);
+              }}
               style={{ marginHorizontal: 24, marginTop: 16, backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.primary + '55', flexDirection: 'row', alignItems: 'center', gap: 12 }}
             >
               <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center' }}>
@@ -212,15 +217,28 @@ export function NutritionScreen() {
                 const mealCals = mealEntries.reduce((s, e) => s + e.calories, 0);
                 return (
                   <View key={m} style={{ marginBottom: 16, backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: mealEntries.length ? 10 : 0 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                       <SectionLabel>{MEAL_LABEL[m]}</SectionLabel>
                       <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '700' }}>{mealCals} kcal</Text>
                     </View>
-                    {mealEntries.length === 0 ? (
-                      <TouchableOpacity onPress={() => { setMeal(m); setAddOpen(true); }} style={{ paddingVertical: 8 }}>
-                        <Text style={{ color: Colors.muted, fontSize: 13 }}>+ Add to {MEAL_LABEL[m].toLowerCase()}</Text>
+                    <View style={{ flexDirection: 'row', gap: 16, marginBottom: mealEntries.length ? 10 : 0 }}>
+                      <TouchableOpacity onPress={() => { setMeal(m); setAddOpen(true); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 }}>
+                        <Ionicons name="add" size={14} color={Colors.muted} />
+                        <Text style={{ color: Colors.muted, fontSize: 13 }}>Add to {MEAL_LABEL[m].toLowerCase()}</Text>
                       </TouchableOpacity>
-                    ) : (
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (!isPremium) { setPremiumOpen(true); return; }
+                          setAiMeal(m);
+                          setAiOpen(true);
+                        }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 }}
+                      >
+                        <Ionicons name={isPremium ? 'camera-outline' : 'lock-closed-outline'} size={14} color={Colors.primary} />
+                        <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '600' }}>Snap or describe</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {mealEntries.length > 0 && (
                       mealEntries.map((e, i) => (
                         <TouchableOpacity
                           key={e.id}
@@ -330,11 +348,12 @@ export function NutritionScreen() {
 
         {userId && (
           <AiLogSheet
+            key={aiMeal}
             visible={aiOpen}
             onClose={() => setAiOpen(false)}
             userId={userId}
             day={day}
-            defaultMeal={mealForNow()}
+            defaultMeal={aiMeal}
           />
         )}
 
