@@ -170,6 +170,27 @@ Step 5 is the one this rejection is about — hold on it long enough to read.
 - [ ] `node scripts/scan-aab.mjs <path-to.aab>` passes — covers both the 16 KB
       page size (see below) and R8 keep-rule survival
 
+## R8 and Health Connect
+
+Release builds minify (`enableMinifyInReleaseBuilds`), and `react-native-health-connect`
+ships exactly one consumer rule:
+
+```
+-keep class dev.matinzd.healthconnect.records.** { *; }
+```
+
+That covers the record wrappers the module builds with `Class.newInstance()`,
+and nothing else. The `androidx.health.connect:connect-client` library
+underneath it reaches the Health Connect provider app over a protobuf-lite IPC
+layer, which parses by reflected field metadata, so `app.json` keeps
+`androidx.health.connect.client.**`, `androidx.health.platform.client.**` and
+`dev.matinzd.healthconnect.**` by name on top of that.
+
+Those keeps are also what makes the `scan-aab.mjs` row for Health Connect a
+real test. The scan reads dex string tables, so it can only see a class that
+kept its original name — without a name-preserving rule the row reads zero
+whether R8 stripped the package or merely renamed it to `a/b/c`.
+
 ## 16 KB page size
 
 Separate issue, separate cause — it is not related to Health Connect, but Play
