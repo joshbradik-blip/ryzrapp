@@ -61,8 +61,16 @@ const KEPT_PACKAGES = [
   },
   {
     prefix: 'Landroidx/health/connect/client/',
-    rule: 'consumer rules shipped by react-native-health-connect',
+    rule: '-keep class androidx.health.connect.client.**',
     breaks: 'Health Connect sync fails — steps/HRV never arrive',
+  },
+  {
+    // react-native-health-connect's own consumer rule, covering the record
+    // wrappers it creates with Class.newInstance(). This row doubles as the
+    // test that consumer rules were applied to the build at all.
+    prefix: 'Ldev/matinzd/healthconnect/records/',
+    rule: 'consumer rules shipped by react-native-health-connect',
+    breaks: 'every Health Connect read throws — record wrappers built reflectively',
   },
   {
     prefix: 'Lexpo/modules/speech/',
@@ -72,10 +80,21 @@ const KEPT_PACKAGES = [
 ];
 
 // Resource shrinking is off precisely so this file survives: it is resolved at
-// runtime by Resources.getIdentifier(name, "raw", pkg) with the name coming
-// from the JS bundle, so nothing references it statically.
+// runtime by name, so nothing references it statically and R8's resource
+// shrinker would see an unused blob.
+//
+// Matched by name anywhere in the bundle rather than at one hardcoded path.
+// Metro rewrites an asset's name on the way in — sanitized, lowercased,
+// directories folded into underscores — so assets/models/movenet_lightning.tflite
+// ships as res/raw/assets_models_movenet_lightning.tflite. Asserting the path
+// only produces a FAIL that says nothing about whether the model shipped.
+//
+// Matched on `movenet` rather than on the .tflite extension alone: ML Kit's
+// barcode scanner (pulled in by expo-camera) contributes three .tflite models
+// of its own, and an extension-wide match would let those satisfy this check
+// with the pose model gone.
 const REQUIRED_ENTRIES = [
-  { pattern: /res\/raw\/movenet_lightning\.tflite$/, what: 'MoveNet model (res/raw)' },
+  { pattern: /movenet[^/]*\.tflite$/i, what: 'MoveNet model' },
 ];
 
 // --- dex ------------------------------------------------------------------
@@ -180,9 +199,13 @@ if (dexEntries.length === 0) {
 // ---- 3. Entries nothing references statically ------------------------------
 section('Entries kept only because resource shrinking is off');
 for (const req of REQUIRED_ENTRIES) {
-  const hit = entries.find((e) => req.pattern.test(e.name));
-  if (!hit) failed = true;
-  console.log(`${hit ? 'PASS' : 'FAIL'}  ${req.what}${hit ? `  ${hit.name}` : ''}`);
+  const hits = entries.filter((e) => req.pattern.test(e.name));
+  if (hits.length === 0) failed = true;
+  console.log(`${hits.length ? 'PASS' : 'FAIL'}  ${req.what}`);
+  for (const hit of hits) {
+    const kb = Math.round((hit.uncompressedSize ?? 0) / 1024);
+    console.log(`        ${hit.name}${kb ? `  ${kb} KB` : ''}`);
+  }
 }
 
 console.log(
