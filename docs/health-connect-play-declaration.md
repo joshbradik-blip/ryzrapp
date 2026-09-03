@@ -167,7 +167,8 @@ Step 5 is the one this rejection is about — hold on it long enough to read.
 - [ ] Store listing long description mentions the wearable-driven features
 - [ ] Privacy policy URL live and specific about health data
 - [ ] Demo video recorded against populated Health Connect data
-- [ ] `node scripts/check-16kb.mjs <path-to.aab>` passes (see below)
+- [ ] `node scripts/scan-aab.mjs <path-to.aab>` passes — covers both the 16 KB
+      page size (see below) and R8 keep-rule survival
 
 ## 16 KB page size
 
@@ -176,19 +177,43 @@ will reject updates for it independently ("App updates with these issues will be
 rejected", enforced 2025-10-31).
 
 Android 15+ devices with 16 KB memory pages require every bundled `.so` to be
-aligned to a 16384-byte boundary. Expo SDK 54 / React Native 0.81 build
-16 KB-aligned by default, and this project keeps the default uncompressed
-packaging, so the current dependency set is expected to pass. The Play Console
-warning is raised against the **uploaded artifact**, so the only answer that
-means anything is checking the AAB you are about to ship:
+aligned to a 16384-byte boundary.
+
+**The dependency set does not pass by default.** Measured against the real
+1.0.18 (36) bundle: 60 of 68 libraries aligned, 8 at 4 KB — the
+`vision-camera-resize-plugin` and `react-native-fast-tflite` libraries plus the
+vendored `libyuv`, on both 64-bit ABIs. The cause is not a stale NDK: both
+packages resolve `ndkVersion` through `getExtOrDefault`, so they build with the
+same r27 as everything else. **NDK r27 does not align to 16 KB unless asked**;
+it is opt-in through `ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES`. The libraries that
+pass belong to packages that took that opt-in upstream — React Native's own,
+Reanimated, Skia, Worklets, VisionCamera. `patches/` carries the two that had
+not.
+
+Do not treat a quiet Play upload dialog as a pass. Build 36 went to closed
+testing raising no 16 KB warning at all while carrying those eight libraries.
+Measure the artifact instead:
 
 ```
 node scripts/check-16kb.mjs ~/Downloads/ryzr-release.aab
 ```
 
-It unpacks the bundle, reads the ELF program headers of every native library and
-reports the alignment of each, exiting non-zero if any `arm64-v8a` or `x86_64`
-library is aligned below 16 KB. If something fails, the fix is almost always a
-version bump of the offending dependency — the script prints the library path,
-which names the module it came from. Play Console's own "View details" on the
-warning also lists the specific offending libraries for the bundle it flagged.
+It reads the ELF program headers of every 64-bit native library straight out of
+the bundle and reports the alignment of each, exiting non-zero if any
+`arm64-v8a` or `x86_64` library is under 16 KB. Node only — no `unzip`, no
+Android SDK — so it runs on the Windows box where the downloaded AAB actually
+sits. `scripts/scan-aab.mjs` runs the same check plus the R8 keep-rule survival
+check; both share `scripts/lib/bundle.mjs`, so they cannot disagree.
+
+Two libraries are reported as `KNOWN` rather than `FAIL` and do not fail the
+run: the prebuilt `libtensorflowlite_jni.so` and `libtensorflowlite_gpu_jni.so`
+that `react-native-fast-tflite` extracts from
+`com.google.ai.edge.litert:{litert,litert-gpu}:1.0.1`. They are not compiled
+here, so no build flag reaches them, and they are under-aligned on **x86_64
+only** — an ABI with no 16 KB-page devices, so nothing that cares can fail to
+load them. Keeping the ABI also keeps the app installable on the emulators the
+pre-launch report's virtual devices run. Clearing them properly means the
+fast-tflite 3.x migration, which changes the Form Coach inference path.
+
+When a library that is compiled here fails, the fix is a build flag rather than
+a version bump — see the two patches for worked examples.
