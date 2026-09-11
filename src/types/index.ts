@@ -190,6 +190,7 @@ export type ProfileStackParamList = {
 };
 
 export type TodayStackParamList = {
+  Home: undefined;
   TodayHome: undefined;
   WorkoutSession: { workoutId: string };
   ExerciseDetail: { exerciseId: string; workoutId?: string; workoutExerciseId?: string };
