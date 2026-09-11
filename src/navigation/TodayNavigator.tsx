@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { TodayStackParamList } from '../types';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { TodayScreen } from '../screens/today/TodayScreen';
+import { ExerciseLibraryScreen } from '../screens/today/ExerciseLibraryScreen';
 import { WorkoutSessionScreen } from '../screens/today/WorkoutSessionScreen';
 import { ExerciseDetailScreen } from '../screens/today/ExerciseDetailScreen';
 import { SubstituteExerciseScreen } from '../screens/today/SubstituteExerciseScreen';
@@ -33,6 +34,11 @@ export function TodayNavigator() {
           Today tab pops back to it. See src/screens/home/HomeScreen.tsx. */}
       <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="TodayHome" component={TodayScreen} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="ExerciseLibrary"
+        component={ExerciseLibraryScreen}
+        options={{ title: 'Exercise Library', headerBackTitle: '' }}
+      />
       <Stack.Screen
         name="WorkoutSession"
         component={WorkoutSessionScreen}

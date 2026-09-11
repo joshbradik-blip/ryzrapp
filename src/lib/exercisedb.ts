@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ExerciseDBExercise } from '../types';
+import { Exercise, ExerciseDBExercise } from '../types';
 
 const BASE_URL = 'https://exercisedb.p.rapidapi.com';
 const API_KEY = process.env.EXPO_PUBLIC_EXERCISEDB_KEY ?? '';
@@ -100,4 +100,59 @@ export function mapEquipmentToDB(ourEquipment: string[]): string[] {
   }
   result.add('body weight'); // always available
   return Array.from(result);
+}
+
+// Free-text name search, used by the Exercise Library. ExerciseDB matches on a
+// substring of the name, so "press" returns bench/overhead/leg press and so on.
+//
+// Unlike the by-target and by-bodyPart lookups above, a failure here is not
+// worth surfacing as an error: the library always has the curated 35 to show,
+// and the long tail is a bonus. A missing EXPO_PUBLIC_EXERCISEDB_KEY, an
+// offline phone and a RapidAPI quota error all land in the same place —
+// return nothing and let the caller render local results alone.
+export async function searchExercisesByName(name: string): Promise<ExerciseDBExercise[]> {
+  const q = name.trim().toLowerCase();
+  if (!q || !API_KEY) return [];
+
+  const cacheKey = `name_${q}`;
+  const cached = await readCache(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const data = await fetchJSON<ExerciseDBExercise[]>(
+      `/exercises/name/${encodeURIComponent(q)}?limit=25&offset=0`
+    );
+    await writeCache(cacheKey, data);
+    return data;
+  } catch {
+    return [];
+  }
+}
+
+// ExerciseDB record -> our Exercise shape.
+//
+// Extracted from workoutStore's buildReplacementExercise so the Exercise
+// Library and the swap flow agree on the mapping; workoutStore now delegates
+// here. The `edb_` id prefix is load-bearing: ExerciseDetail uses it to skip
+// looking for a Supabase demo clip, and historyMetrics uses it to exclude
+// these from muscle-group stats (they carry no reliable muscle data).
+//
+// ExerciseDB ships flat `instructions` and no mistakes list, so the first two
+// lines become setup and the rest execution, and common_mistakes stays empty —
+// consumers must handle an empty cue list rather than assume all three.
+export function exerciseFromDB(db: ExerciseDBExercise): Exercise {
+  return {
+    id: `edb_${db.id}`,
+    name: db.name,
+    category: db.bodyPart,
+    muscles_primary: [db.target],
+    muscles_secondary: db.secondaryMuscles ?? [],
+    equipment_required: [db.equipment],
+    difficulty: (db.difficulty as Exercise['difficulty']) ?? 'intermediate',
+    setup_cues: db.instructions.slice(0, 2),
+    execution_cues: db.instructions.slice(2),
+    common_mistakes: [],
+    media_url: db.gifUrl,
+    contraindications: [],
+  };
 }

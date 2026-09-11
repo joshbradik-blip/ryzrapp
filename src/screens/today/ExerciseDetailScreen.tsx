@@ -43,7 +43,9 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
     [...s.workouts.flatMap((w) => w.exercises), ...(s.todayWorkout?.exercises ?? [])]
       .find((we) => we.exercise.id === exerciseId)?.exercise
   );
-  const exercise = getExerciseById(exerciseId) ?? swapped;
+  // Third fallback: an ExerciseDB entry opened from the Exercise Library is in
+  // no plan, so it travels as a route param rather than being looked up.
+  const exercise = getExerciseById(exerciseId) ?? swapped ?? route.params.exercise;
   const { isPremium } = useSubscriptionStore();
   const [activeTab, setActiveTab] = useState<typeof TABS[number]>('Setup');
 
@@ -159,6 +161,13 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
 
           {/* Tab content */}
           <View style={{ gap: 12, marginBottom: 32 }}>
+            {tabContent[activeTab].length === 0 && (
+              <Text style={{ color: Colors.muted, fontSize: 14, lineHeight: 21 }}>
+                {activeTab === 'Mistakes'
+                  ? 'No common-mistake notes for this one yet — it comes from our wider database.'
+                  : 'No written steps for this one yet.'}
+              </Text>
+            )}
             {tabContent[activeTab].map((cue, i) => (
               <View key={i} style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
                 <View style={{
@@ -176,7 +185,8 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
             ))}
           </View>
 
-          {/* Swap exercise button */}
+          {/* Swap exercise button — hidden when browsing without a workout. */}
+          {canSwap && (
           <TouchableOpacity
             onPress={handleSwap}
             style={{
@@ -204,6 +214,7 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
             </View>
             <Ionicons name="chevron-forward" size={18} color={Colors.muted} />
           </TouchableOpacity>
+          )}
 
           {/* Form Coach CTA — hidden on mobility work the pipeline cannot score. */}
           {supportsFormCoach(exercise) && (
