@@ -192,8 +192,12 @@ export type ProfileStackParamList = {
 export type TodayStackParamList = {
   Home: undefined;
   TodayHome: undefined;
+  ExerciseLibrary: undefined;
   WorkoutSession: { workoutId: string };
-  ExerciseDetail: { exerciseId: string; workoutId?: string; workoutExerciseId?: string };
+  // `exercise` carries a full record for entries ExerciseDetail cannot resolve
+  // on its own — an ExerciseDB result browsed from the library that is in no
+  // plan, so neither getExerciseById nor the workout store knows it.
+  ExerciseDetail: { exerciseId: string; workoutId?: string; workoutExerciseId?: string; exercise?: Exercise };
   SubstituteExercise: { exerciseId: string; workoutId: string; workoutExerciseId: string };
   FormCoach: { exerciseId: string; exerciseName: string };
   WorkoutComplete: { sessionId: string };

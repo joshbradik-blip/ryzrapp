@@ -223,22 +223,43 @@ export function TodayScreen() {
               {profile?.name ?? 'Athlete'} 👋
             </Text>
           </View>
-          {/* Streak badge */}
-          <View style={{
-            backgroundColor: '#FF6B2222',
-            borderRadius: 20,
-            paddingHorizontal: 14,
-            paddingVertical: 8,
-            borderWidth: 1,
-            borderColor: '#FF6B22',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-          }}>
-            <Ionicons name="flame" size={20} color="#FF6B22" />
-            <View>
-              <Text style={{ color: '#FF6B22', fontSize: 18, fontWeight: '900' }}>{streak}</Text>
-              <Text style={{ color: '#FF6B22', fontSize: 10, fontWeight: '600' }}>STREAK</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {/* Exercise Library — look up any movement without a workout running. */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('ExerciseLibrary')}
+              accessibilityRole="button"
+              accessibilityLabel="Exercise library"
+              hitSlop={8}
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 21,
+                backgroundColor: Colors.surface,
+                borderWidth: 1,
+                borderColor: Colors.border,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons name="search" size={20} color={Colors.text} />
+            </TouchableOpacity>
+            {/* Streak badge */}
+            <View style={{
+              backgroundColor: '#FF6B2222',
+              borderRadius: 20,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderWidth: 1,
+              borderColor: '#FF6B22',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+            }}>
+              <Ionicons name="flame" size={20} color="#FF6B22" />
+              <View>
+                <Text style={{ color: '#FF6B22', fontSize: 18, fontWeight: '900' }}>{streak}</Text>
+                <Text style={{ color: '#FF6B22', fontSize: 10, fontWeight: '600' }}>STREAK</Text>
+              </View>
             </View>
           </View>
         </View>

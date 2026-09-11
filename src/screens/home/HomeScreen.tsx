@@ -178,6 +178,46 @@ export function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Sits below the grid rather than in it: the four above are tabs, this
+            is a screen inside the Today stack, and the shape says so. */}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('ExerciseLibrary')}
+          accessibilityRole="button"
+          accessibilityLabel="Exercise library"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: Spacing.md,
+            marginTop: Spacing.md,
+            backgroundColor: Colors.surface,
+            borderWidth: 1,
+            borderColor: Colors.border,
+            borderRadius: BorderRadius.lg,
+            padding: Spacing.md,
+          }}
+        >
+          <View
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: BorderRadius.md,
+              backgroundColor: Colors.surface2,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="search" size={26} color={Colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '800' }}>Exercise Library</Text>
+            <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '600', marginTop: 2 }}>
+              Look up any exercise & watch the demo
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.muted} />
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
