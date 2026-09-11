@@ -25,7 +25,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
   return (
     <Ionicons
       name={focused ? icons.active : icons.inactive}
-      size={24}
+      size={28}
       color={focused ? Colors.primary : Colors.muted}
     />
   );
@@ -48,7 +48,7 @@ export function MainTabNavigator() {
           paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: '600',
         },
       })}
