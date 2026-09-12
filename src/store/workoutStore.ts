@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Workout, WorkoutExercise, Session, SessionSet, Exercise, ExerciseDBExercise } from '../types';
 import { EXERCISES } from '../constants/exercises';
 import { supabase } from '../lib/supabase';
+import { exerciseFromDB } from '../lib/exercisedb';
 import { useHistoryStore } from './historyStore';
 import { generateExerciseChallenges, ChallengeInput } from '../lib/anthropic';
 import type { ReadinessResult } from '../lib/readiness';
@@ -87,21 +88,7 @@ function buildReplacementExercise(
   if (source === 'local') {
     return replacement as Exercise;
   }
-  const db = replacement as ExerciseDBExercise;
-  return {
-    id: `edb_${db.id}`,
-    name: db.name,
-    category: db.bodyPart,
-    muscles_primary: [db.target],
-    muscles_secondary: db.secondaryMuscles ?? [],
-    equipment_required: [db.equipment],
-    difficulty: (db.difficulty as Exercise['difficulty']) ?? 'intermediate',
-    setup_cues: db.instructions.slice(0, 2),
-    execution_cues: db.instructions.slice(2),
-    common_mistakes: [],
-    media_url: db.gifUrl,
-    contraindications: [],
-  };
+  return exerciseFromDB(replacement as ExerciseDBExercise);
 }
 
 function applySwapToWorkout(
