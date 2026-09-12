@@ -23,15 +23,6 @@ const MEAL_LABEL: Record<MealType, string> = {
   snack: 'Snacks',
 };
 
-/** Best-guess meal from the time of day, used as the AI sheet's default. */
-function mealForNow(): MealType {
-  const h = new Date().getHours();
-  if (h < 11) return 'breakfast';
-  if (h < 15) return 'lunch';
-  if (h < 20) return 'dinner';
-  return 'snack';
-}
-
 function shiftDay(day: string, delta: number): string {
   const d = new Date(`${day}T12:00:00`); // noon avoids DST edge cases on the shift
   d.setDate(d.getDate() + delta);
@@ -188,27 +179,6 @@ export function NutritionScreen() {
                 Targets estimated from your profile, training days, and goal — a starting point you can refine as you track.
               </Text>
             </View>
-
-            {/* AI describe-a-meal (premium) */}
-            <TouchableOpacity
-              onPress={() => {
-                if (!isPremium) { setPremiumOpen(true); return; }
-                setAiMeal(mealForNow());
-                setAiOpen(true);
-              }}
-              style={{ marginHorizontal: 24, marginTop: 16, backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.primary + '55', flexDirection: 'row', alignItems: 'center', gap: 12 }}
-            >
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="camera" size={20} color={Colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '800' }}>Snap or describe a meal</Text>
-                <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 1 }}>
-                  {isPremium ? 'Photo or text — AI estimates the calories & macros' : 'Premium — AI estimates calories from a photo or text'}
-                </Text>
-              </View>
-              <Ionicons name={isPremium ? 'chevron-forward' : 'lock-closed'} size={18} color={isPremium ? Colors.primary : Colors.muted} />
-            </TouchableOpacity>
 
             {/* Meals */}
             <View style={{ marginHorizontal: 24, marginTop: 24 }}>
