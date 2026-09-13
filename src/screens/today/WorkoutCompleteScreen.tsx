@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Animated, TouchableOpacity, Share, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,9 @@ import { useHistoryStore } from '../../store/historyStore';
 import { displayToKg, kgToDisplay, weightLabel } from '../../lib/units';
 import { Colors } from '../../constants/theme';
 import { haptic } from '../../lib/feedback';
+import { shouldAskForReview } from '../../lib/review';
+import { useReviewStore } from '../../store/reviewStore';
+import { ReviewPromptModal } from '../../components/ui/ReviewPromptModal';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutComplete'>;
 
@@ -23,6 +26,7 @@ interface SessionPR {
 export function WorkoutCompleteScreen({ navigation }: Props) {
   const { activeSession, activeSets, workouts, todayWorkout, reset, advanceWorkout, saveSession } = useWorkoutStore();
   const { profile } = useProfileStore();
+  const [reviewVisible, setReviewVisible] = useState(false);
   const scaleAnim = useRef(new Animated.Value(0.3)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -80,6 +84,18 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
     ]).start(() => {
       if (beatenPRs.length > 0) haptic.success();
     });
+  }, []);
+
+  // Ask for a review at the high point — a finished workout with the PRs on
+  // screen — but only once the celebration has landed, and only for someone
+  // the gate in lib/review says has earned the question.
+  useEffect(() => {
+    if (!shouldAskForReview()) return;
+    const timer = setTimeout(() => {
+      useReviewStore.getState().recordPrompt();
+      setReviewVisible(true);
+    }, 2200);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleShare = async () => {
@@ -235,6 +251,8 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
+
+      <ReviewPromptModal visible={reviewVisible} onClose={() => setReviewVisible(false)} />
     </SafeAreaView>
   );
 }
