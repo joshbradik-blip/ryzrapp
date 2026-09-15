@@ -22,6 +22,8 @@ import { useWorkoutStore } from '../../store/workoutStore';
 import { useHistoryStore } from '../../store/historyStore';
 import { useWearablesStore } from '../../store/wearablesStore';
 import { useSettingsStore } from '../../store/settingsStore';
+import { useReviewStore } from '../../store/reviewStore';
+import { openStoreListing, emailFeedback } from '../../lib/review';
 import { PremiumModal } from '../../components/ui/PremiumModal';
 import { VoicePickerSheet } from '../../components/settings/VoicePickerSheet';
 import { trainerVoiceName } from '../../constants/voices';
@@ -306,6 +308,14 @@ export function ProfileScreen() {
     ]);
   };
 
+  // An explicit tap goes straight to the listing: the native prompt is
+  // rate-limited by the OS and may show nothing at all, which reads as a
+  // broken button. Opting out stops the automatic sheet nagging them later.
+  const handleRate = () => {
+    useReviewStore.getState().optOut();
+    openStoreListing();
+  };
+
   const handleSignOut = () => {
     Alert.alert('Sign out?', '', [
       { text: 'Cancel', style: 'cancel' },
@@ -516,6 +526,13 @@ export function ProfileScreen() {
             }
           />
           {/* TODO: Notification settings — hidden for App Store review, not yet implemented */}
+        </View>
+
+        {/* Support */}
+        <SectionHeader title="SUPPORT" />
+        <View style={{ backgroundColor: Colors.surface, marginHorizontal: 16, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border }}>
+          <SettingRow icon="star-outline" label="Rate RYZR" onPress={handleRate} />
+          <SettingRow icon="mail-outline" label="Send feedback" onPress={emailFeedback} />
         </View>
 
         {/* Account */}
