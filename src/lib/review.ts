@@ -11,7 +11,7 @@ export const SUPPORT_EMAIL = 'support@ryzrapp.com';
 const MIN_SESSIONS = 3;
 /** Days since first launch before we'd consider asking. */
 const MIN_DAYS_INSTALLED = 3;
-/** Days to wait after a soft-ask before trying again. */
+/** Days to wait after a prompt before trying again. */
 const COOLDOWN_DAYS = 60;
 /** Apple only surfaces the native prompt ~3x/year, so never spend more than that. */
 const MAX_PROMPTS = 3;
@@ -22,11 +22,14 @@ const daysSince = (iso: string | null): number =>
   iso === null ? Infinity : (Date.now() - new Date(iso).getTime()) / DAY_MS;
 
 /**
- * Whether the "Enjoying RYZR?" sheet should be shown right now.
+ * Whether we're allowed to spend a review prompt right now.
  *
- * Deliberately conservative: a review prompt is a one-shot resource (iOS
- * silently swallows extra calls), so we only spend it on someone who has
- * actually stuck with the app and just finished a workout.
+ * Both stores rate-limit the prompt and give no signal about what happened,
+ * so it's a one-shot resource: we only spend it on someone who has stuck with
+ * the app and just finished a workout. Both stores also forbid asking the
+ * user anything first (Play's In-App Review guidelines name opinion questions
+ * like "Do you like the app?" explicitly), so there is no pre-prompt — the
+ * gate below is the whole decision.
  *
  * Side effect: starts the install clock the first time it's called.
  */
@@ -50,23 +53,35 @@ export const storeListingUrl = (): string =>
   Platform.OS === 'android' ? PLAY_STORE_URL : APP_STORE_URL;
 
 /**
- * Ask for a rating. Prefers the native in-app prompt (no app switch, and the
- * only path that can post a review without leaving RYZR); falls back to the
- * store listing with the review sheet pre-opened.
+ * Gate, then ask. This is the only automatic entry point: it checks
+ * eligibility, records the attempt, and hands off to the OS.
+ */
+export async function maybeRequestReview(): Promise<void> {
+  if (!shouldAskForReview()) return;
+  useReviewStore.getState().recordPrompt();
+  await requestReview();
+}
+
+/**
+ * Ask for a rating via the native in-app prompt.
  *
- * The native prompt gives no signal about what the user did — by design — so
- * callers should treat a resolved promise as "asked", not "rated".
+ * No store-listing fallback here on purpose: this fires unprompted after a
+ * workout, and throwing the user into the App Store when the OS declined to
+ * show its sheet would be a jarring app switch they never asked for. When the
+ * prompt is unavailable we simply do nothing — the attempt is still recorded,
+ * so the cooldown applies either way.
+ *
+ * The prompt gives no signal about what the user did, by design, so a resolved
+ * promise means "asked", never "rated".
  */
 export async function requestReview(): Promise<void> {
   try {
     if ((await StoreReview.hasAction()) && (await StoreReview.isAvailableAsync())) {
       await StoreReview.requestReview();
-      return;
     }
   } catch {
-    // fall through to the store listing
+    // the OS declined; nothing useful to do or report
   }
-  await openStoreListing();
 }
 
 /** Open the store listing directly, with the write-a-review sheet where supported. */

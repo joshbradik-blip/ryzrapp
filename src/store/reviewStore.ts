@@ -9,7 +9,7 @@ interface ReviewState {
   lastPromptedAt: string | null;
   /** How many times the soft-ask has been shown, ever. */
   promptCount: number;
-  /** Set once the user rates or sends feedback — we never ask again. */
+  /** Set once the user rates from Profile by hand — stop asking on our own. */
   optedOut: boolean;
 
   markSeen: () => void;
