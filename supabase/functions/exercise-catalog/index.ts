@@ -1,5 +1,5 @@
-// Authenticated server-side proxy for ExerciseDB. RAPIDAPI_EXERCISEDB_KEY must
-// be configured as a Supabase Edge Function secret and never shipped in Expo.
+// Authenticated server-side proxy for ExerciseDB. The RapidAPI key must be
+// configured as a Supabase Edge Function secret and never shipped in Expo.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const RAPIDAPI_URL = 'https://exercisedb.p.rapidapi.com';
@@ -30,7 +30,9 @@ Deno.serve(async (req) => {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return json({ error: 'Invalid session' }, 401);
 
-  const apiKey = Deno.env.get('RAPIDAPI_EXERCISEDB_KEY');
+  // `rapid_key` is the existing production secret. The uppercase fallback
+  // keeps local/new-project setup conventional without requiring a rename.
+  const apiKey = Deno.env.get('rapid_key') ?? Deno.env.get('RAPIDAPI_EXERCISEDB_KEY');
   if (!apiKey) return json({ error: 'Exercise catalog is not configured' }, 503);
 
   let body: { action?: string; query?: string; limit?: number; offset?: number };
