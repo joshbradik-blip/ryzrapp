@@ -44,7 +44,7 @@ function toSubstituteOption(
   };
 }
 
-function dbToSubstituteOption(
+export function dbToSubstituteOption(
   ex: ExerciseDBExercise,
   userDBEquipment: string[]
 ): SubstituteOption {
@@ -73,6 +73,7 @@ function sortOptions(options: SubstituteOption[]): SubstituteOption[] {
 export interface SubstituteResults {
   compatible: SubstituteOption[];   // equipment OK + injury safe
   incompatible: SubstituteOption[]; // equipment missing or injury risk
+  externalCatalogAvailable: boolean;
 }
 
 export async function findSubstitutes(
@@ -92,9 +93,10 @@ export async function findSubstitutes(
   // an exhausted RapidAPI quota, or a flaky connection must not take the whole
   // screen down with it. Each target degrades to an empty list on its own.
   const targets = categoryToTargets(currentExercise.category);
-  const dbResults = await Promise.all(
-    targets.map((t) => getExercisesByTarget(t).catch(() => [] as ExerciseDBExercise[]))
-  );
+  const requests = await Promise.allSettled(targets.map((t) => getExercisesByTarget(t)));
+  const dbResults = requests
+    .filter((result): result is PromiseFulfilledResult<ExerciseDBExercise[]> => result.status === 'fulfilled')
+    .map((result) => result.value);
 
   const seen = new Set<string>(localOptions.map((o) => o.name.toLowerCase()));
   seen.add(currentExercise.name.toLowerCase());
@@ -114,5 +116,6 @@ export async function findSubstitutes(
   return {
     compatible: all.filter((o) => o.isEquipmentCompatible && o.isInjurySafe),
     incompatible: all.filter((o) => !o.isEquipmentCompatible || !o.isInjurySafe),
+    externalCatalogAvailable: requests.some((result) => result.status === 'fulfilled'),
   };
 }

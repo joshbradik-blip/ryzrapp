@@ -30,9 +30,11 @@ import { Colors, BorderRadius, Spacing } from '../../constants/theme';
 //              pipeline covers it.
 //   More     — ExerciseDB's long tail. A GIF and flat instructions, no mistakes
 //              list. Strictly a fallback, and it degrades to nothing at all
-//              when the API key is missing or the phone is offline.
+//              when the authenticated catalog service is unavailable.
 // Keeping them visually separate sets the expectation that the second tier is
 // thinner, rather than burying a curated squat under ten ExerciseDB variants.
+// Remote requests go through an Edge Function so the RapidAPI key is never
+// embedded in the app bundle.
 
 const DEBOUNCE_MS = 350;
 const MIN_REMOTE_QUERY = 3;
@@ -52,6 +54,7 @@ export function ExerciseLibraryScreen() {
   const [query, setQuery] = useState('');
   const [remote, setRemote] = useState<Exercise[]>([]);
   const [searching, setSearching] = useState(false);
+  const [catalogError, setCatalogError] = useState(false);
 
   const q = query.trim().toLowerCase();
 
@@ -68,21 +71,25 @@ export function ExerciseLibraryScreen() {
     if (q.length < MIN_REMOTE_QUERY) {
       setRemote([]);
       setSearching(false);
+      setCatalogError(false);
       return;
     }
     const id = ++requestId.current;
     setSearching(true);
     const timer = setTimeout(async () => {
-      const results = await searchExercisesByName(q);
-      if (id !== requestId.current) return;
-      // Drop anything the curated tier already answered.
-      const localNames = new Set(EXERCISES.map((e) => e.name.toLowerCase()));
-      setRemote(
-        results
-          .filter((r) => !localNames.has(r.name.toLowerCase()))
-          .map(exerciseFromDB)
-      );
-      setSearching(false);
+      try {
+        const results = await searchExercisesByName(q);
+        if (id !== requestId.current) return;
+        const localNames = new Set(EXERCISES.map((e) => e.name.toLowerCase()));
+        setRemote(results.filter((r) => !localNames.has(r.name.toLowerCase())).map(exerciseFromDB));
+        setCatalogError(false);
+      } catch {
+        if (id !== requestId.current) return;
+        setRemote([]);
+        setCatalogError(true);
+      } finally {
+        if (id === requestId.current) setSearching(false);
+      }
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
@@ -216,6 +223,10 @@ export function ExerciseLibraryScreen() {
               <ActivityIndicator color={Colors.primary} />
               <Text style={{ color: Colors.muted, fontSize: 13 }}>Searching more exercises…</Text>
             </View>
+          ) : catalogError ? (
+            <Text style={{ color: Colors.warning, fontSize: 13, paddingVertical: Spacing.md }}>
+              The wider exercise catalog is unavailable. Curated RYZR results are still shown.
+            </Text>
           ) : null
         }
         ListEmptyComponent={

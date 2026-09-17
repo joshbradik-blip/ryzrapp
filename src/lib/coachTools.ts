@@ -10,7 +10,8 @@ import { useProfileStore } from '../store/profileStore';
 import { useAuthStore } from '../store/authStore';
 import { projectLiftTrend, projectBodyMetric } from './futureSelf';
 import { assessInjuryRisk } from './injuryRisk';
-import { Exercise, Workout, Injury, InjurySeverity, Goal, GoalCategory } from '../types';
+import { exerciseFromDB, searchExercisesByName } from './exercisedb';
+import { Exercise, ExerciseDBExercise, Workout, Injury, InjurySeverity, Goal, GoalCategory } from '../types';
 
 const BODY_PARTS = ['lower_back', 'knees', 'left_shoulder', 'right_shoulder', 'wrists', 'elbows', 'neck', 'hips', 'ankles'];
 const SEVERITIES: InjurySeverity[] = ['cautious', 'active_pain', 'avoid'];
@@ -18,15 +19,27 @@ const GOAL_CATEGORIES: GoalCategory[] = ['build_muscle', 'lose_fat', 'specific_a
 
 export const COACH_TOOLS = [
   {
+    name: 'search_exercises',
+    description:
+      'Search the wider ExerciseDB catalog by exercise name before adding or swapping an exercise that is not in the curated RYZR list.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Exercise name or a concise partial name, e.g. "cable lateral raise"' },
+      },
+      required: ['query'],
+    },
+  },
+  {
     name: 'swap_exercise',
     description:
-      "Replace an exercise in one of the user's workouts with a different exercise from the RYZR exercise library. The change persists in their plan.",
+      "Replace an exercise in one of the user's workouts with an exact exercise from the curated list or a result returned by search_exercises. The change persists in their plan.",
     input_schema: {
       type: 'object',
       properties: {
         workout_id: { type: 'string', description: "The workout's id from THE USER'S CURRENT PLAN list" },
         current_exercise_name: { type: 'string', description: 'Name of the exercise currently in the workout to replace' },
-        new_exercise_name: { type: 'string', description: 'Exact exercise name from the EXERCISE LIBRARY list' },
+        new_exercise_name: { type: 'string', description: 'Exact exercise name from the curated list or search_exercises result' },
       },
       required: ['workout_id', 'current_exercise_name', 'new_exercise_name'],
     },
@@ -34,12 +47,12 @@ export const COACH_TOOLS = [
   {
     name: 'add_exercise',
     description:
-      "Add an exercise from the RYZR exercise library to one of the user's workouts (e.g. after identifying equipment in a photo). Persists in their plan.",
+      "Add an exercise from the curated list or a result returned by search_exercises to one of the user's workouts.",
     input_schema: {
       type: 'object',
       properties: {
         workout_id: { type: 'string', description: "The workout's id from THE USER'S CURRENT PLAN list" },
-        exercise_name: { type: 'string', description: 'Exact exercise name from the EXERCISE LIBRARY list' },
+        exercise_name: { type: 'string', description: 'Exact exercise name from the curated list or search_exercises result' },
         target_sets: { type: 'integer', description: 'Sets to prescribe (default 3)' },
         target_reps: { type: 'string', description: "Rep target, e.g. '8-12' (default '8-12')" },
         position: {
@@ -131,9 +144,9 @@ export function buildPlanContext(): string {
   return `WORKOUTS (target tool calls by workout_id):
 ${lines.join('\n')}
 
-EXERCISE LIBRARY (the ONLY valid exercise names for tools — "avoid if" lists the body
-part(s)/injury this exercise stresses; "equipment" is what it requires, "bodyweight"
-means none):
+CURATED EXERCISE LIBRARY (use these exact names directly. For any other exercise, call
+search_exercises first and then use the exact returned name. "avoid if" lists the body
+part(s)/injury this exercise stresses; "equipment" is what it requires; "bodyweight" means none):
 ${library}`;
 }
 
@@ -170,8 +183,42 @@ function findLibraryExercise(name: string): Exercise | null {
   );
 }
 
+type CatalogExercise =
+  | { exercise: Exercise; source: 'local'; raw: Exercise }
+  | { exercise: Exercise; source: 'exercisedb'; raw: ExerciseDBExercise };
+
+async function findCatalogExercise(name: string): Promise<CatalogExercise | null> {
+  const local = findLibraryExercise(name);
+  if (local) return { exercise: local, source: 'local', raw: local };
+
+  const normalized = name.toLowerCase().trim();
+  if (!normalized) return null;
+  const matches = await searchExercisesByName(normalized);
+  const match =
+    matches.find((exercise) => exercise.name.toLowerCase() === normalized) ??
+    matches.find((exercise) => exercise.name.toLowerCase().includes(normalized));
+  return match ? { exercise: exerciseFromDB(match), source: 'exercisedb', raw: match } : null;
+}
+
 export async function executeCoachTool(tu: CoachToolUse): Promise<CoachToolOutcome> {
   try {
+    if (tu.name === 'search_exercises') {
+      const query = String(tu.input.query ?? '').trim();
+      if (!query) return fail(tu, 'Search query is required.');
+      const matches = await searchExercisesByName(query);
+      const choices = matches.slice(0, 12).map(
+        (exercise) => `${exercise.name} [equipment: ${exercise.equipment}; target: ${exercise.target}]`
+      );
+      return {
+        toolUseId: tu.id,
+        ok: true,
+        result: choices.length > 0
+          ? `Exact catalog results for "${query}":\n${choices.join('\n')}`
+          : `No wider-catalog exercises matched "${query}".`,
+        summary: `Searched exercises for ${query}`,
+      };
+    }
+
     if (tu.name === 'swap_exercise') {
       const workoutId = String(tu.input.workout_id ?? '');
       const currentName = String(tu.input.current_exercise_name ?? '');
@@ -185,15 +232,15 @@ export async function executeCoachTool(tu: CoachToolUse): Promise<CoachToolOutco
         (x) => x.exercise.name.toLowerCase().includes(currentName.toLowerCase().trim())
       );
       if (!we) return fail(tu, `"${currentName}" is not in ${workout.name}. Its exercises: ${workout.exercises.map((x) => x.exercise.name).join(', ')}.`);
-      const replacement = findLibraryExercise(newName);
-      if (!replacement) return fail(tu, `"${newName}" is not in the exercise library. Pick an exact name from the library list.`);
+      const resolved = await findCatalogExercise(newName);
+      if (!resolved) return fail(tu, `"${newName}" was not found. Search the wider catalog and use an exact result name.`);
 
-      await useWorkoutStore.getState().swapForPlan(workout.id, we.id, we.exercise.id, replacement, 'local');
+      await useWorkoutStore.getState().swapForPlan(workout.id, we.id, we.exercise.id, resolved.raw, resolved.source);
       return {
         toolUseId: tu.id,
         ok: true,
-        result: `Swapped "${we.exercise.name}" for "${replacement.name}" in ${workout.name} (Week ${workout.week_number} Day ${workout.day_number}). The change is saved to the plan.`,
-        summary: `Swapped ${we.exercise.name} → ${replacement.name} in ${workout.name}`,
+        result: `Swapped "${we.exercise.name}" for "${resolved.exercise.name}" in ${workout.name} (Week ${workout.week_number} Day ${workout.day_number}). The change is saved to the plan.`,
+        summary: `Swapped ${we.exercise.name} → ${resolved.exercise.name} in ${workout.name}`,
       };
     }
 
@@ -206,13 +253,13 @@ export async function executeCoachTool(tu: CoachToolUse): Promise<CoachToolOutco
 
       const workout = findWorkout(workoutId);
       if (!workout) return fail(tu, `No workout with id "${workoutId}" found in the plan.`);
-      const exercise = findLibraryExercise(exerciseName);
-      if (!exercise) return fail(tu, `"${exerciseName}" is not in the exercise library. Pick an exact name from the library list.`);
-      if (workout.exercises.some((x) => x.exercise.id === exercise.id)) {
-        return fail(tu, `${exercise.name} is already in ${workout.name}.`);
+      const resolved = await findCatalogExercise(exerciseName);
+      if (!resolved) return fail(tu, `"${exerciseName}" was not found. Search the wider catalog and use an exact result name.`);
+      if (workout.exercises.some((x) => x.exercise.id === resolved.exercise.id)) {
+        return fail(tu, `${resolved.exercise.name} is already in ${workout.name}.`);
       }
 
-      useWorkoutStore.getState().addExerciseToWorkout(workout.id, exercise, {
+      useWorkoutStore.getState().addExerciseToWorkout(workout.id, resolved.exercise, {
         targetSets: sets,
         targetReps: reps,
         position,
@@ -221,8 +268,8 @@ export async function executeCoachTool(tu: CoachToolUse): Promise<CoachToolOutco
       return {
         toolUseId: tu.id,
         ok: true,
-        result: `Added "${exercise.name}" (${sets}x${reps}) ${placement} in ${workout.name} (Week ${workout.week_number} Day ${workout.day_number}).`,
-        summary: `Added ${exercise.name} (${sets}×${reps}) to ${workout.name}`,
+        result: `Added "${resolved.exercise.name}" (${sets}x${reps}) ${placement} in ${workout.name} (Week ${workout.week_number} Day ${workout.day_number}).`,
+        summary: `Added ${resolved.exercise.name} (${sets}×${reps}) to ${workout.name}`,
       };
     }
 
