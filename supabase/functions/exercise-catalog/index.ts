@@ -30,9 +30,9 @@ Deno.serve(async (req) => {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return json({ error: 'Invalid session' }, 401);
 
-  // `rapid_key` is the existing production secret. The uppercase fallback
+  // `RAPID_KEY` is the existing production secret. The descriptive fallback
   // keeps local/new-project setup conventional without requiring a rename.
-  const apiKey = Deno.env.get('rapid_key') ?? Deno.env.get('RAPIDAPI_EXERCISEDB_KEY');
+  const apiKey = Deno.env.get('RAPID_KEY') ?? Deno.env.get('RAPIDAPI_EXERCISEDB_KEY');
   if (!apiKey) return json({ error: 'Exercise catalog is not configured' }, 503);
 
   let body: { action?: string; query?: string; limit?: number; offset?: number };
