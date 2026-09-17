@@ -8,13 +8,15 @@ import {
   ActionSheetIOS,
   Alert,
   Platform,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TodayStackParamList, SubstituteOption } from '../../types';
 import { getExerciseById } from '../../constants/exercises';
-import { findSubstitutes, SubstituteResults } from '../../utils/substitutions';
+import { dbToSubstituteOption, findSubstitutes, SubstituteResults } from '../../utils/substitutions';
+import { mapEquipmentToDB, searchExercisesByName } from '../../lib/exercisedb';
 import { useWorkoutStore } from '../../store/workoutStore';
 import { useProfileStore } from '../../store/profileStore';
 import { Colors } from '../../constants/theme';
@@ -36,6 +38,10 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
   const [results, setResults] = useState<SubstituteResults | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SubstituteOption[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState(false);
 
   // Equipment and injuries live at the root of the profile store, NOT on the
   // nested `profile` object — UserProfile has neither field. Reading them off
@@ -54,6 +60,42 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
     // Re-run when the user's kit changes: the store rehydrates from
     // AsyncStorage, so equipment can arrive after the first render.
   }, [exerciseId, equipment, injuries]);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 3) {
+      setSearchResults([]);
+      setSearching(false);
+      setSearchError(false);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const matches = await searchExercisesByName(q);
+        if (cancelled) return;
+        const userDBEquipment = mapEquipmentToDB(userEquipment);
+        setSearchResults(
+          matches
+            .filter((match) => match.name.toLowerCase() !== exercise?.name.toLowerCase())
+            .map((match) => dbToSubstituteOption(match, userDBEquipment))
+        );
+        setSearchError(false);
+      } catch {
+        if (!cancelled) {
+          setSearchResults([]);
+          setSearchError(true);
+        }
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, equipment, exercise?.name]);
 
   const handleSelect = useCallback((option: SubstituteOption) => {
     const replacement = option.source === 'local' ? option.localExercise! : option.dbExercise!;
@@ -136,6 +178,64 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
       {!loading && !error && results && (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
 
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            backgroundColor: Colors.surface,
+            borderWidth: 1,
+            borderColor: Colors.border,
+            borderRadius: 12,
+            paddingHorizontal: 14,
+            marginBottom: 12,
+          }}>
+            <Ionicons name="search" size={18} color={Colors.muted} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search all exercises (e.g. cable lateral raise)"
+              placeholderTextColor={Colors.muted}
+              autoCorrect={false}
+              autoCapitalize="none"
+              style={{ flex: 1, color: Colors.text, fontSize: 14, paddingVertical: 13 }}
+            />
+            {searching && <ActivityIndicator size="small" color={Colors.primary} />}
+          </View>
+
+          {(searchError || (!results.externalCatalogAvailable && query.trim().length < 3)) && (
+            <View style={{
+              backgroundColor: Colors.warning + '11',
+              borderColor: Colors.warning + '55',
+              borderWidth: 1,
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 12,
+            }}>
+              <Text style={{ color: Colors.warning, fontSize: 12, lineHeight: 17 }}>
+                The wider exercise catalog is unavailable. RYZR’s curated alternatives are still shown.
+              </Text>
+            </View>
+          )}
+
+          {query.trim().length >= 3 && !searching && !searchError && (
+            <>
+              <SectionHeader label="SEARCH RESULTS" color={Colors.info} count={searchResults.length} />
+              {searchResults.map((opt) => (
+                <SubstituteCard
+                  key={opt.id}
+                  option={opt}
+                  onSelect={handleSelect}
+                  dimmed={!opt.isEquipmentCompatible}
+                />
+              ))}
+              {searchResults.length === 0 && (
+                <Text style={{ color: Colors.muted, fontSize: 13, marginBottom: 18 }}>
+                  No wider-catalog matches found. Try a shorter exercise name.
+                </Text>
+              )}
+            </>
+          )}
+
           {/* Equipment info banner */}
           <View style={{
             backgroundColor: Colors.primary + '11',
@@ -158,7 +258,7 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
           </View>
 
           {/* Compatible section */}
-          {results.compatible.length > 0 && (
+          {query.trim().length < 3 && results.compatible.length > 0 && (
             <>
               <SectionHeader
                 label="WORKS WITH YOUR EQUIPMENT"
@@ -172,7 +272,7 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
           )}
 
           {/* Incompatible section */}
-          {results.incompatible.length > 0 && (
+          {query.trim().length < 3 && results.incompatible.length > 0 && (
             <>
               <SectionHeader
                 label="REQUIRES OTHER EQUIPMENT"
@@ -186,7 +286,7 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
             </>
           )}
 
-          {results.compatible.length === 0 && results.incompatible.length === 0 && (
+          {query.trim().length < 3 && results.compatible.length === 0 && results.incompatible.length === 0 && (
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
               <Ionicons name="search-outline" size={40} color={Colors.muted} />
               <Text style={{ color: Colors.muted, fontSize: 15, marginTop: 12 }}>

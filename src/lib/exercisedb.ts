@@ -1,15 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Exercise, ExerciseDBExercise } from '../types';
+import { supabase } from './supabase';
 
-const BASE_URL = 'https://exercisedb.p.rapidapi.com';
-const API_KEY = process.env.EXPO_PUBLIC_EXERCISEDB_KEY ?? '';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-const HEADERS = {
-  'x-rapidapi-host': 'exercisedb.p.rapidapi.com',
-  'x-rapidapi-key': API_KEY,
-  'Content-Type': 'application/json',
-};
+const DEFAULT_LIMIT = 50;
 
 interface CacheEntry {
   data: ExerciseDBExercise[];
@@ -37,34 +31,41 @@ async function writeCache(key: string, data: ExerciseDBExercise[]): Promise<void
   }
 }
 
-async function fetchJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, { headers: HEADERS });
-  if (!res.ok) throw new Error(`ExerciseDB ${res.status}: ${path}`);
-  return res.json();
+type CatalogAction = 'search' | 'target' | 'bodyPart';
+
+async function fetchCatalog(
+  action: CatalogAction,
+  query: string,
+  limit = DEFAULT_LIMIT,
+): Promise<ExerciseDBExercise[]> {
+  const { data, error } = await supabase.functions.invoke('exercise-catalog', {
+    body: { action, query, limit, offset: 0 },
+  });
+  if (error) throw new Error('The wider exercise catalog is temporarily unavailable.');
+  if (!data || !Array.isArray(data.exercises)) {
+    throw new Error('The wider exercise catalog returned an invalid response.');
+  }
+  return data.exercises as ExerciseDBExercise[];
 }
 
-// Fetch up to 20 exercises targeting a specific muscle, with caching.
+// Fetch exercises targeting a specific muscle, with caching.
 export async function getExercisesByTarget(target: string): Promise<ExerciseDBExercise[]> {
-  const cacheKey = `target_${target}`;
+  const cacheKey = `v2_target_${target}`;
   const cached = await readCache(cacheKey);
   if (cached) return cached;
 
-  const data = await fetchJSON<ExerciseDBExercise[]>(
-    `/exercises/target/${encodeURIComponent(target)}?limit=20&offset=0`
-  );
+  const data = await fetchCatalog('target', target);
   await writeCache(cacheKey, data);
   return data;
 }
 
 // Fetch exercises by body part, with caching.
 export async function getExercisesByBodyPart(bodyPart: string): Promise<ExerciseDBExercise[]> {
-  const cacheKey = `bodypart_${bodyPart}`;
+  const cacheKey = `v2_bodypart_${bodyPart}`;
   const cached = await readCache(cacheKey);
   if (cached) return cached;
 
-  const data = await fetchJSON<ExerciseDBExercise[]>(
-    `/exercises/bodyPart/${encodeURIComponent(bodyPart)}?limit=20&offset=0`
-  );
+  const data = await fetchCatalog('bodyPart', bodyPart);
   await writeCache(cacheKey, data);
   return data;
 }
@@ -105,28 +106,17 @@ export function mapEquipmentToDB(ourEquipment: string[]): string[] {
 // Free-text name search, used by the Exercise Library. ExerciseDB matches on a
 // substring of the name, so "press" returns bench/overhead/leg press and so on.
 //
-// Unlike the by-target and by-bodyPart lookups above, a failure here is not
-// worth surfacing as an error: the library always has the curated 35 to show,
-// and the long tail is a bonus. A missing EXPO_PUBLIC_EXERCISEDB_KEY, an
-// offline phone and a RapidAPI quota error all land in the same place —
-// return nothing and let the caller render local results alone.
 export async function searchExercisesByName(name: string): Promise<ExerciseDBExercise[]> {
   const q = name.trim().toLowerCase();
-  if (!q || !API_KEY) return [];
+  if (!q) return [];
 
-  const cacheKey = `name_${q}`;
+  const cacheKey = `v2_name_${q}`;
   const cached = await readCache(cacheKey);
   if (cached) return cached;
 
-  try {
-    const data = await fetchJSON<ExerciseDBExercise[]>(
-      `/exercises/name/${encodeURIComponent(q)}?limit=25&offset=0`
-    );
-    await writeCache(cacheKey, data);
-    return data;
-  } catch {
-    return [];
-  }
+  const data = await fetchCatalog('search', q);
+  await writeCache(cacheKey, data);
+  return data;
 }
 
 // ExerciseDB record -> our Exercise shape.
