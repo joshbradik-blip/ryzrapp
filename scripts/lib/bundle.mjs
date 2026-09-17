@@ -130,11 +130,12 @@ function listEntries(buf) {
     if (want.length) {
       const extra = buf.subarray(p + 46 + nameLen, p + 46 + nameLen + extraLen);
       const z = readZip64Extra(extra, want);
+      if (z.uncompressedSize !== undefined) uncompressedSize = z.uncompressedSize;
       if (z.compressedSize !== undefined) compressedSize = z.compressedSize;
       if (z.localOffset !== undefined) localOffset = z.localOffset;
     }
 
-    entries.push({ name, method, compressedSize, localOffset });
+    entries.push({ name, method, compressedSize, uncompressedSize, localOffset });
     p += 46 + nameLen + extraLen + commentLen;
   }
 
