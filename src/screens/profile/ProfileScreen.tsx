@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { ACTIVITIES } from '../../constants/activities';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store/authStore';
 import { useProfileStore } from '../../store/profileStore';
@@ -153,6 +154,8 @@ export function ProfileScreen() {
   // Goals modal state
   const [goalsModalVisible, setGoalsModalVisible] = useState(false);
   const [draftGoalCategory, setDraftGoalCategory] = useState('');
+  const [draftActivity, setDraftActivity] = useState('');
+  const [draftCustomActivity, setDraftCustomActivity] = useState('');
 
   const openStatsModal = () => {
     const unit = profile?.weight_unit ?? 'kg';
@@ -227,15 +230,23 @@ export function ProfileScreen() {
 
   const openGoalsModal = () => {
     setDraftGoalCategory(goals[0]?.category ?? 'general_fitness');
+    const activity = goals[0]?.specific_activity ?? '';
+    setDraftActivity(ACTIVITIES.includes(activity) ? activity : '');
+    setDraftCustomActivity(ACTIVITIES.includes(activity) ? '' : activity);
     setGoalsModalVisible(true);
   };
 
   const saveGoals = () => {
+    const activity = (draftActivity || draftCustomActivity).trim();
+    if (draftGoalCategory === 'specific_activity' && !activity) {
+      Alert.alert('Choose an activity', 'Select an activity or type your own before saving.');
+      return;
+    }
     const existing = goals[0];
     useProfileStore.getState().setGoals([{
       id: existing?.id ?? Math.random().toString(36).slice(2),
       category: draftGoalCategory as GoalCategory,
-      specific_activity: existing?.specific_activity,
+      specific_activity: draftGoalCategory === 'specific_activity' ? activity : undefined,
       target_weeks: existing?.target_weeks ?? 4,
     }]);
     setGoalsModalVisible(false);
@@ -743,7 +754,7 @@ export function ProfileScreen() {
             <Text style={{ color: Colors.text, fontSize: 17, fontWeight: '700' }}>Primary Goal</Text>
             <TouchableOpacity onPress={saveGoals}><Text style={{ color: Colors.primary, fontSize: 16, fontWeight: '700' }}>Save</Text></TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40, gap: 10 }}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: 40, gap: 10 }}>
             {GOAL_OPTIONS.map((g) => (
               <TouchableOpacity key={g.value} onPress={() => setDraftGoalCategory(g.value)}
                 style={{ padding: 16, borderRadius: 12, backgroundColor: draftGoalCategory === g.value ? Colors.primary + '22' : Colors.surface2, borderWidth: 1.5, borderColor: draftGoalCategory === g.value ? Colors.primary : Colors.border, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -751,6 +762,27 @@ export function ProfileScreen() {
                 {draftGoalCategory === g.value && <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />}
               </TouchableOpacity>
             ))}
+            {draftGoalCategory === 'specific_activity' && (
+              <View style={{ marginTop: 16 }}>
+                <Text style={{ color: Colors.textSecondary, fontWeight: '600', marginBottom: 12 }}>WHAT ACTIVITY?</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                  {ACTIVITIES.map((activity) => (
+                    <TouchableOpacity key={activity}
+                      accessibilityRole="button" accessibilityState={{ selected: draftActivity === activity }}
+                      onPress={() => { setDraftActivity(activity); setDraftCustomActivity(''); }}
+                      style={{ maxWidth: '100%', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+                        backgroundColor: draftActivity === activity ? Colors.primary + '22' : Colors.surface2,
+                        borderWidth: 1.5, borderColor: draftActivity === activity ? Colors.primary : Colors.border }}>
+                      <Text style={{ color: draftActivity === activity ? Colors.primary : Colors.text, fontWeight: '600', fontSize: 13 }}>{activity}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput value={draftCustomActivity} placeholder="Or type your own..." placeholderTextColor={Colors.muted}
+                  accessibilityLabel="Custom activity"
+                  onChangeText={(text) => { setDraftCustomActivity(text); setDraftActivity(''); }}
+                  style={{ backgroundColor: Colors.surface2, borderWidth: 1, borderColor: Colors.border, borderRadius: 12, padding: 14, color: Colors.text, fontSize: 15 }} />
+              </View>
+            )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
