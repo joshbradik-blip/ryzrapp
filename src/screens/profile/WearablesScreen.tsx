@@ -223,7 +223,7 @@ export function WearablesScreen() {
             <>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
                 {tiles.map((t) => (
-                  <View key={t.label} style={{ flexBasis: '30%', flexGrow: 1, backgroundColor: Colors.surface2, borderRadius: 12, padding: 12 }}>
+                  <View key={t.label} style={{ flexBasis: '30%', flexGrow: 1, minWidth: 110, backgroundColor: Colors.surface2, borderRadius: 12, padding: 12 }}>
                     <Text style={{ color: Colors.muted, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>{t.label}</Text>
                     <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '900', marginTop: 4 }} numberOfLines={1} adjustsFontSizeToFit>
                       {t.value}
@@ -289,12 +289,12 @@ export function WearablesScreen() {
               <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <Ionicons name={brand.icon} size={24} color={Colors.primary} />
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 15 }}>{brand.name}</Text>
                 <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 }}>{brand.desc}</Text>
-              </View>
-              <View style={{ backgroundColor: Colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flexShrink: 0 }}>
-                <Text style={{ color: Colors.textSecondary, fontWeight: '700', fontSize: 12 }}>Via {HUB.name}</Text>
+                <View style={{ alignSelf: 'flex-start', maxWidth: '100%', marginTop: 8, backgroundColor: Colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <Text style={{ color: Colors.textSecondary, fontWeight: '700', fontSize: 12 }}>Via {HUB.name}</Text>
+                </View>
               </View>
             </View>
           ))}

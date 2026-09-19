@@ -7,6 +7,7 @@ import { OnboardingStackParamList, GoalCategory } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { useProfileStore } from '../../store/profileStore';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
+import { ACTIVITIES } from '../../constants/activities';
 import { Colors } from '../../constants/theme';
 import { useFunnelStep } from '../../lib/funnel';
 
@@ -22,11 +23,7 @@ const GOAL_OPTIONS: { value: GoalCategory; label: string; desc: string; icon: ke
   { value: 'general_fitness',    label: 'General fitness & feel better',    desc: 'Energy, health, longevity',                 icon: 'leaf-outline' },
 ];
 
-const ACTIVITIES = [
-  'Surfing', 'Rock climbing', 'Running (5K)', 'Running (10K)', 'Half marathon', 'Full marathon',
-  'Cycling', 'Mountain biking', 'Skiing / snowboarding', 'Basketball', 'Soccer', 'Tennis', 'Pickleball',
-  'Swimming', 'Hiking', 'Martial arts', 'Pull-ups (first one)', 'Handstand', 'Backflip',
-];
+
 
 const TIMEFRAMES: { weeks: number; label: string; premium: boolean }[] = [
   { weeks: 4,  label: '4 weeks',  premium: false },
