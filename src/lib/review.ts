@@ -1,5 +1,4 @@
 import { Platform, Linking } from 'react-native';
-import * as StoreReview from 'expo-store-review';
 import Constants from 'expo-constants';
 import { useReviewStore } from '../store/reviewStore';
 import { useHistoryStore } from '../store/historyStore';
@@ -76,6 +75,8 @@ export async function maybeRequestReview(): Promise<void> {
  */
 export async function requestReview(): Promise<void> {
   try {
+    // Older installed builds may not include the native review module yet.
+    const StoreReview = require('expo-store-review') as typeof import('expo-store-review');
     if ((await StoreReview.hasAction()) && (await StoreReview.isAvailableAsync())) {
       await StoreReview.requestReview();
     }
