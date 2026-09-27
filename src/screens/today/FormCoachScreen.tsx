@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,10 +22,13 @@ import { Camera, useCameraDevice, useCameraFormat } from 'react-native-vision-ca
 import { analyzePoseSnapshot, summarizeSetForCoach, PoseSnapshot } from '../../lib/anthropic';
 import { useFormCoach } from '../../lib/pose/useFormCoach';
 import type { SessionSummary } from '../../lib/pose';
+import { focusJoints } from '../../lib/pose/skeleton';
+import { SkeletonOverlay } from '../../components/workout/SkeletonOverlay';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'FormCoach'>;
 
 const INTRO_DISMISSED_KEY = 'formcoach_intro_dismissed_v2';
+const SKELETON_HIDDEN_KEY = 'formcoach_skeleton_hidden';
 /** Snapshot-mode capture cadence — only used when on-device pose is missing. */
 const CAPTURE_INTERVAL_MS = 2000;
 const MIN_SPEAK_INTERVAL_MS = 6_000;
@@ -160,6 +163,21 @@ export function FormCoachScreen({ navigation, route }: Props) {
       setIntroChecked(true);
     });
   }, []);
+
+  // Skeleton overlay — on by default; the user can hide it and it stays hidden.
+  const [showSkeleton, setShowSkeleton] = useState(true);
+  useEffect(() => {
+    AsyncStorage.getItem(SKELETON_HIDDEN_KEY).then((v) => {
+      if (v === 'true') setShowSkeleton(false);
+    }).catch(() => {});
+  }, []);
+  const toggleSkeleton = useCallback(() => {
+    setShowSkeleton((v) => {
+      AsyncStorage.setItem(SKELETON_HIDDEN_KEY, v ? 'true' : 'false').catch(() => {});
+      return !v;
+    });
+  }, []);
+  const skeletonFocus = useMemo(() => focusJoints(coach.profile), [coach.profile]);
 
   const dismissIntro = useCallback(() => {
     if (dontShowAgain) {
@@ -477,6 +495,15 @@ export function FormCoachScreen({ navigation, route }: Props) {
         outputOrientation="preview"
       />
 
+      {isActive && poseMode && showSkeleton && (
+        <SkeletonOverlay
+          pose={coach.state.pose}
+          focus={skeletonFocus}
+          previewMirrored={cameraFacing === 'front'}
+          dimmed={!framing?.trackable}
+        />
+      )}
+
       <View style={styles.topScrim} />
       <View style={styles.bottomScrim} />
 
@@ -508,6 +535,16 @@ export function FormCoachScreen({ navigation, route }: Props) {
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          {poseMode && (
+            <TouchableOpacity
+              onPress={toggleSkeleton}
+              hitSlop={11}
+              style={{ opacity: showSkeleton ? 1 : 0.45 }}
+              accessibilityLabel={showSkeleton ? 'Hide tracking skeleton' : 'Show tracking skeleton'}
+            >
+              <Ionicons name="body-outline" size={22} color={Colors.text} />
+            </TouchableOpacity>
+          )}
           {device.hasTorch && (
             <TouchableOpacity onPress={() => setTorchOn(v => !v)} style={{ opacity: torchOn ? 1 : 0.45 }}>
               <Ionicons name="flashlight-outline" size={22} color={Colors.text} />

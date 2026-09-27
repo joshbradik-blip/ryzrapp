@@ -6,9 +6,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrameProcessor } from 'react-native-vision-camera';
-import type { FramingResult, RepPhase, SessionSummary } from './index';
+import type { FramingResult, Landmarks, RepPhase, SessionSummary } from './index';
 import { FormCoachSession } from './session';
 import { normalizeLandmarks } from './nativePose';
+import { SkeletonSmoother } from './skeleton';
 import { useTflitePose } from './tflitePose';
 import {
   MOVENET_INPUT_SIZE,
@@ -40,6 +41,16 @@ export interface CoachState {
   cue: { text: string; id: number } | null;
   /** Detector frames processed in the last second. */
   fps: number;
+  /** Smoothed keypoints of the latest frame, for the skeleton overlay. */
+  pose: LivePose | null;
+}
+
+export interface LivePose {
+  landmarks: Landmarks;
+  /** Frame aspect ratio — landmark x spans 0..xMax. */
+  xMax: number;
+  /** Whether the analysed frame was already mirrored (selfie camera). */
+  frameMirrored: boolean;
 }
 
 const IDLE_STATE: CoachState = {
@@ -50,6 +61,7 @@ const IDLE_STATE: CoachState = {
   framing: null,
   cue: null,
   fps: 0,
+  pose: null,
 };
 
 export interface UseFormCoachOptions {
@@ -75,6 +87,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
 
   const cueIdRef = useRef(0);
   const fpsWindow = useRef<number[]>([]);
+  const smootherRef = useRef(new SkeletonSmoother());
 
   if (sessionRef.current === null || sessionRef.current.exerciseName !== exerciseName) {
     sessionRef.current = new FormCoachSession(exerciseName);
@@ -84,6 +97,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
   const reset = useCallback(() => {
     sessionRef.current?.reset();
     fpsWindow.current = [];
+    smootherRef.current.reset();
     setState(IDLE_STATE);
   }, []);
 
@@ -97,13 +111,15 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
     raw: unknown,
     timestamp: number,
     xMax: number,
-    brightness?: number
+    brightness?: number,
+    frameMirrored?: boolean
   ) => {
     const s = sessionRef.current;
     if (!s) return;
 
     const landmarks = normalizeLandmarks(raw);
     const tick = s.push({ t: timestamp, landmarks, xMax, brightness });
+    const drawn = smootherRef.current.push(landmarks, timestamp);
 
     const w = fpsWindow.current;
     w.push(timestamp);
@@ -128,6 +144,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
       framing: tick.framing,
       cue: cue ?? prev.cue,
       fps: w.length,
+      pose: { landmarks: drawn, xMax, frameMirrored: frameMirrored === true },
     }));
   }, []);
 
@@ -169,6 +186,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
           width: number;
           height: number;
           orientation?: string;
+          isMirrored?: boolean;
         };
 
         // Bring the frame upright before anything measures it.
@@ -195,7 +213,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
 
         const aspect = upright.height > 0 ? upright.width / upright.height : 1;
         const landmarks = decodeMoveNet(out, { plan, aspect });
-        runOnJs(landmarks, nowMs, aspect, undefined);
+        runOnJs(landmarks, nowMs, aspect, undefined, f.isMirrored === true);
       } catch {
         // Never throw inside a frame processor — it takes down the camera.
       }
