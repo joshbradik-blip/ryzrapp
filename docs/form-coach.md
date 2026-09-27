@@ -181,6 +181,21 @@ hardware:
 3. **Frame rate.** The tracking pill should sit near 15fps. Much lower means
    inference is not keeping up and `TARGET_FPS` should come down.
 
+## Skeleton overlay
+
+While a set is live, the detected skeleton is drawn over the camera preview
+(`SkeletonOverlay.tsx`, geometry in `skeleton.ts`). It is the user's evidence
+that tracking works: a missed rep with a visible skeleton that lost the wrist
+explains itself.
+
+- Joints the exercise is measured on (`focusJoints()`) draw in ember; the rest
+  in faint white. The whole skeleton dims while framing is not trackable.
+- Positions get their own light One Euro smoothing, separate from the rep
+  detector's angle filter — the overlay has to keep up with the body.
+- `toView()` applies the preview's "cover" crop and mirrors only when the
+  preview and the analysed frame disagree (`frame.isMirrored`).
+- The body icon in the header hides it; the choice persists.
+
 ## Adding an exercise
 
 Add an entry to `PROFILES` in `profiles.ts`. The fields that matter:

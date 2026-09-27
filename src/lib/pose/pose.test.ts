@@ -22,6 +22,7 @@ import { analyzeFraming } from './framing';
 import { FormCoachSession } from './session';
 import { normalizeLandmarks } from './nativePose';
 import { supportsFormCoach } from './coverage';
+import { SkeletonSmoother, buildSkeleton, focusJoints, toView } from './skeleton';
 
 // ── Synthetic skeleton ────────────────────────────────────────────────────
 
@@ -763,4 +764,72 @@ test('the Form Coach is not offered on cardio', () => {
       `${name} should still offer the Form Coach`
     );
   }
+});
+
+// ── Skeleton overlay ──────────────────────────────────────────────────────
+
+test('toView applies the preview\'s cover crop', () => {
+  // 9:16 portrait frame shown in a 9:16 view: no crop, straight scale.
+  const t = { xMax: 9 / 16, viewWidth: 360, viewHeight: 640, mirror: false };
+  const mid = toView({ x: 9 / 32, y: 0.5, score: 1 }, t);
+  assert.ok(Math.abs(mid.x - 180) < 1e-6 && Math.abs(mid.y - 320) < 1e-6);
+
+  // Same frame in a taller view: height fills, width overflows and is
+  // cropped equally from both sides — the centre must stay the centre.
+  const tall = { xMax: 9 / 16, viewWidth: 360, viewHeight: 800, mirror: false };
+  const c = toView({ x: 9 / 32, y: 0.5, score: 1 }, tall);
+  assert.ok(Math.abs(c.x - 180) < 1e-6 && Math.abs(c.y - 400) < 1e-6);
+  const top = toView({ x: 0, y: 0, score: 1 }, tall);
+  assert.equal(top.y, 0);
+  assert.ok(top.x < 0, 'left frame edge is cropped off-screen');
+});
+
+test('toView mirrors for a selfie preview', () => {
+  const t = { xMax: 1, viewWidth: 400, viewHeight: 400, mirror: true };
+  const p = toView({ x: 0.25, y: 0.5, score: 1 }, t);
+  assert.ok(Math.abs(p.x - 300) < 1e-6);
+});
+
+test('buildSkeleton skips unseen joints and bones that touch them', () => {
+  const lm: Landmarks = {
+    left_shoulder: { x: 0.4, y: 0.3, score: 0.9 },
+    left_elbow: { x: 0.4, y: 0.45, score: 0.9 },
+    left_wrist: { x: 0.4, y: 0.6, score: 0.1 }, // below the bar
+  };
+  const sk = buildSkeleton(lm, { xMax: 1, viewWidth: 100, viewHeight: 100, mirror: false });
+  assert.deepEqual(sk.joints.map(j => j.name).sort(), ['left_elbow', 'left_shoulder']);
+  assert.deepEqual(sk.bones.map(b => b.key), ['left_shoulder-left_elbow']);
+});
+
+test('buildSkeleton highlights the joints the exercise is measured on', () => {
+  const focus = focusJoints(profileFor('Bicep Curl'));
+  assert.ok(focus.has('elbow') && focus.has('wrist') && focus.has('shoulder'));
+  assert.ok(!focus.has('knee'));
+
+  const lm: Landmarks = {
+    left_shoulder: { x: 0.4, y: 0.3, score: 0.9 },
+    left_elbow: { x: 0.4, y: 0.45, score: 0.9 },
+    left_hip: { x: 0.4, y: 0.6, score: 0.9 },
+    left_knee: { x: 0.4, y: 0.8, score: 0.9 },
+  };
+  const sk = buildSkeleton(lm, { xMax: 1, viewWidth: 100, viewHeight: 100, mirror: false }, focus);
+  const bone = (k: string) => sk.bones.find(b => b.key === k)!;
+  assert.equal(bone('left_shoulder-left_elbow').focus, true);
+  assert.equal(bone('left_hip-left_knee').focus, false);
+});
+
+test('SkeletonSmoother damps jitter but forgets a joint that leaves', () => {
+  const s = new SkeletonSmoother(400);
+  let out: Landmarks = {};
+  for (let i = 0; i < 30; i++) {
+    const jitter = i % 2 === 0 ? 0.01 : -0.01;
+    out = s.push({ left_knee: { x: 0.5 + jitter, y: 0.5, score: 0.9 } }, i * 66);
+  }
+  assert.ok(Math.abs(out.left_knee!.x - 0.5) < 0.01, 'jitter is reduced');
+
+  // Knee disappears for longer than the drop window, then reappears far away:
+  // it must snap there, not slide in from the stale position.
+  s.push({}, 30 * 66 + 500);
+  out = s.push({ left_knee: { x: 0.9, y: 0.5, score: 0.9 } }, 30 * 66 + 566);
+  assert.ok(Math.abs(out.left_knee!.x - 0.9) < 1e-9);
 });

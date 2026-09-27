@@ -9,3 +9,4 @@ export * from './formRules';
 export * from './session';
 export * from './movenet';
 export { loadPosePlugin, isNativePoseAvailable, normalizeLandmarks } from './nativePose';
+export * from './skeleton';
