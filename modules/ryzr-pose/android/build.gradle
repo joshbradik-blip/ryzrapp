@@ -1,0 +1,23 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.ryzrpose'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.ryzrpose"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // VisionCamera 4 frame processor plugin API.
+  implementation project(':react-native-vision-camera')
+  // ML Kit pose detection, base model bundled in the APK (no Play Services
+  // download at first use, works offline).
+  implementation 'com.google.mlkit:pose-detection:18.0.0-beta5'
+}

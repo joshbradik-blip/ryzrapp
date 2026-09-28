@@ -95,7 +95,35 @@ ankles, darkness, cropped joints, and each form rule.
 
 ## The detector
 
-On-device pose comes from **MoveNet SinglePose Lightning** run through TFLite:
+`useFormCoach` picks the best tracker the build has, in this order:
+
+1. **Platform tracker** — our own frame processor plugin `ryzrPose`
+   (`modules/ryzr-pose`, autolinked as a local Expo module):
+   - iOS: Apple Vision `VNDetectHumanBodyPoseRequest`. System framework, adds
+     nothing to the download.
+   - Android: Google ML Kit Pose Detection in stream mode, with the base model
+     bundled in the APK. Adds heels and feet on top of the 17 body points.
+   Both are better than MoveNet Lightning in dim light and side-on views, which
+   is where most Form Coach sets are filmed.
+2. **MoveNet Lightning over TFLite** (below), if the plugin is missing from the
+   binary, if the `form_coach_native_tracker` flag is off, or if the plugin
+   fails 30 frames in a row on a device.
+3. **Snapshot "Basic mode"**, if neither can run.
+
+The plugin returns pixels in the upright image; `nativePoseToFrame()` converts
+them into the same coordinate space MoveNet produces, so nothing downstream
+knows or cares which tracker ran.
+
+**Every function a frame processor calls must be a `'worklet'`.** Frame
+processors run on a separate JS runtime where calling a plain function
+throws, and the frame processor's `try/catch` swallows it — the Form Coach then
+looks live but tracks nothing. That is exactly what happened to the MoveNet
+helpers until they were marked; `pose.test.ts` now fails if the directive goes
+missing.
+
+### MoveNet
+
+The fallback tracker is **MoveNet SinglePose Lightning** run through TFLite:
 
 | Piece | Version | Role |
 |---|---|---|
@@ -158,6 +186,9 @@ onboarding copy. Set it back to `true` to restore it. No build or OTA update is
 involved. If the table can't be reached, each device keeps the last value it
 saw (default: on).
 
+A second row, `form_coach_native_tracker`, chooses the tracker: `false` forces
+MoveNet everywhere, in case the platform tracker misbehaves on some devices.
+
 ## Shipping it
 
 The pose modules are **native** — this cannot go out over EAS Update / OTA.
@@ -181,6 +212,8 @@ Coach at all.
 The pure logic is unit-tested, but three things can only be confirmed on real
 hardware:
 
+0. **Which tracker is running.** In a development build the status pill shows
+   `NATIVE` (the platform tracker) or `MOVENET`, plus the frame rate.
 1. **Orientation.** Stand upright in frame. If the framing coach insists you
    are out of frame while you are plainly centred, or torso-lean cues fire on
    a clean rep, the rotation mapping is off for that device — adjust

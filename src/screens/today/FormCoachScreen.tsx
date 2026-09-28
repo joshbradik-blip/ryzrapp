@@ -581,6 +581,11 @@ export function FormCoachScreen({ navigation, route }: Props) {
               <Text style={styles.statusText}>
                 {framing?.severity === 'ok' ? 'TRACKING' : (framing?.code ?? 'STARTING').replace(/_/g, ' ').toUpperCase()}
               </Text>
+              {__DEV__ && (
+                <Text style={[styles.statusText, { color: Colors.muted }]}>
+                  {`${coach.tracker === 'platform' ? 'NATIVE' : 'MOVENET'} · ${coach.state.fps}FPS`}
+                </Text>
+              )}
             </>
           ) : (
             <>

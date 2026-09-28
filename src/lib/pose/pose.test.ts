@@ -20,7 +20,7 @@ import { profileFor, depthFromAngle, measureAngle } from './profiles';
 import { RepDetector } from './repDetector';
 import { analyzeFraming } from './framing';
 import { FormCoachSession } from './session';
-import { normalizeLandmarks } from './nativePose';
+import { normalizeLandmarks, nativePoseToFrame, rotationDegrees } from './nativePose';
 import { supportsFormCoach } from './coverage';
 import { SkeletonSmoother, buildSkeleton, focusJoints, toView } from './skeleton';
 
@@ -832,4 +832,59 @@ test('SkeletonSmoother damps jitter but forgets a joint that leaves', () => {
   s.push({}, 30 * 66 + 500);
   out = s.push({ left_knee: { x: 0.9, y: 0.5, score: 0.9 } }, 30 * 66 + 566);
   assert.ok(Math.abs(out.left_knee!.x - 0.9) < 1e-9);
+});
+
+// ── Platform tracker (modules/ryzr-pose) ──────────────────────────────────
+
+test('nativePoseToFrame maps upright pixels into the pipeline space', () => {
+  // Portrait 720x1280 upright frame; a knee at the exact centre.
+  const f = nativePoseToFrame({
+    width: 720,
+    height: 1280,
+    landmarks: { left_knee: { x: 360, y: 640, score: 0.9 } },
+  })!;
+  assert.ok(Math.abs(f.xMax - 720 / 1280) < 1e-9);
+  assert.ok(Math.abs(f.landmarks.left_knee!.x - f.xMax / 2) < 1e-9, 'x shares y\'s scale');
+  assert.ok(Math.abs(f.landmarks.left_knee!.y - 0.5) < 1e-9);
+  assert.equal(f.landmarks.left_knee!.score, 0.9);
+});
+
+test('nativePoseToFrame keeps true angles on a non-square frame', () => {
+  // A physical right angle at the elbow, in a 16:9 landscape frame.
+  const f = nativePoseToFrame({
+    width: 1920,
+    height: 1080,
+    landmarks: {
+      left_shoulder: { x: 900, y: 300, score: 1 },
+      left_elbow: { x: 900, y: 600, score: 1 },
+      left_wrist: { x: 1200, y: 600, score: 1 },
+    },
+  })!;
+  const lm = f.landmarks;
+  assert.ok(Math.abs(angleAt(lm.left_shoulder!, lm.left_elbow!, lm.left_wrist!) - 90) < 1e-6);
+});
+
+test('nativePoseToFrame rejects malformed results and keeps an empty scene', () => {
+  assert.equal(nativePoseToFrame(null), null);
+  assert.equal(nativePoseToFrame({ width: 0, height: 100, landmarks: {} }), null);
+  assert.equal(nativePoseToFrame({ width: 100, height: 100 }), null);
+  // Nobody in shot is a valid answer, not a failure.
+  const empty = nativePoseToFrame({ width: 100, height: 100, landmarks: {} });
+  assert.deepEqual(empty, { landmarks: {}, xMax: 1 });
+  assert.equal(rotationDegrees('270deg'), 270);
+  assert.equal(rotationDegrees('nonsense'), 0);
+});
+
+test('every function the frame processor calls is a worklet', () => {
+  // VisionCamera runs frame processors on a separate JS runtime where calling
+  // a plain function throws. The frame processor's try/catch would swallow
+  // that and the Form Coach would silently track nothing — so check the
+  // directive is present rather than trusting it to survive edits.
+  const called = [
+    planLetterbox, letterboxInto, decodeMoveNet, orientationToRotation, rotatedSize,
+    nativePoseToFrame, rotationDegrees,
+  ];
+  for (const fn of called) {
+    assert.match(fn.toString(), /['"]worklet['"]/, `${fn.name} must start with 'worklet'`);
+  }
 });

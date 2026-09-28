@@ -92,15 +92,20 @@ export function normalizeLandmarks(raw: unknown): Landmarks {
 export interface PosePluginHandle {
   /** Name the plugin registered itself under. */
   name: string;
-  /** Call inside a frame processor worklet. */
-  call: (frame: unknown) => unknown;
+  /**
+   * The VisionCamera plugin object itself. Capture this in a frame processor
+   * and call `plugin.call(frame, args)` there — it is a native host object,
+   * so unlike a JS wrapper function it is callable from the worklet runtime.
+   */
+  plugin: { call: (frame: never, args?: Record<string, unknown>) => unknown };
 }
 
 /**
- * Plugin names we know how to talk to, in preference order. Add to this list
- * rather than changing call sites when swapping detector libraries.
+ * Plugin names we know how to talk to, in preference order. `ryzrPose` is
+ * our own (modules/ryzr-pose: Apple Vision on iOS, ML Kit on Android). Add to
+ * this list rather than changing call sites when swapping detector libraries.
  */
-const CANDIDATE_PLUGINS = ['poseLandmarks', 'poseDetection', 'pose'];
+const CANDIDATE_PLUGINS = ['ryzrPose', 'poseLandmarks', 'poseDetection', 'pose'];
 
 let cached: PosePluginHandle | null | undefined;
 
@@ -113,6 +118,16 @@ export function loadPosePlugin(): PosePluginHandle | null {
   cached = null;
 
   try {
+    // On Android the ryzrPose plugin registers itself when its Expo module is
+    // created; touching the module first guarantees that has happened. On iOS
+    // it registers at load and there is no module, so this is a no-op.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('expo').requireOptionalNativeModule?.('RyzrPose');
+  } catch {
+    // Not fatal — the lookup below decides.
+  }
+
+  try {
     // Required lazily so that a build without VisionCamera frame processors
     // does not fail at import time.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -123,7 +138,7 @@ export function loadPosePlugin(): PosePluginHandle | null {
       try {
         const plugin = VisionCameraProxy.initFrameProcessorPlugin(name, {});
         if (plugin?.call) {
-          cached = { name, call: (frame: unknown) => plugin.call(frame as never) };
+          cached = { name, plugin };
           console.log(`[Pose] using native frame-processor plugin "${name}"`);
           return cached;
         }
@@ -131,7 +146,7 @@ export function loadPosePlugin(): PosePluginHandle | null {
         // Try the next candidate.
       }
     }
-    console.log('[Pose] no native pose plugin found — falling back to snapshot mode');
+    console.log('[Pose] no native pose plugin in this build');
   } catch (e) {
     console.log('[Pose] VisionCamera proxy unavailable:', (e as Error)?.message);
   }
@@ -146,4 +161,54 @@ export function isNativePoseAvailable(): boolean {
 /** Test seam — lets unit tests reset the memoized lookup. */
 export function __resetPosePluginCache(): void {
   cached = undefined;
+}
+
+/** What the ryzrPose plugin returns: pixels in the upright image. */
+export interface NativePoseResult {
+  width: number;
+  height: number;
+  landmarks: Record<string, { x: number; y: number; score: number }>;
+}
+
+/**
+ * Convert a ryzrPose result into the pipeline's coordinate space: y in 0..1
+ * of the upright frame height, x in 0..xMax where xMax is the aspect ratio,
+ * so both axes share one scale and joint angles are true.
+ *
+ * Returns null for anything malformed, so the caller can count it as a miss.
+ * Runs on the frame-processor runtime, hence the 'worklet' directive.
+ */
+export function nativePoseToFrame(
+  raw: unknown
+): { landmarks: Landmarks; xMax: number } | null {
+  'worklet';
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Partial<NativePoseResult>;
+  const width = Number(r.width);
+  const height = Number(r.height);
+  if (!(width > 0) || !(height > 0) || !r.landmarks || typeof r.landmarks !== 'object') return null;
+
+  const out: Landmarks = {};
+  const names = Object.keys(r.landmarks);
+  for (let i = 0; i < names.length; i++) {
+    const p = r.landmarks[names[i]];
+    if (!p) continue;
+    const x = Number(p.x);
+    const y = Number(p.y);
+    const score = Number(p.score);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    out[names[i] as LandmarkName] = {
+      x: x / height,
+      y: y / height,
+      score: Number.isFinite(score) ? score : 0,
+    };
+  }
+  return { landmarks: out, xMax: width / height };
+}
+
+/** '90deg' → 90. The native plugin takes plain clockwise degrees. */
+export function rotationDegrees(rotation: string): number {
+  'worklet';
+  const n = parseInt(rotation, 10);
+  return Number.isFinite(n) ? n : 0;
 }

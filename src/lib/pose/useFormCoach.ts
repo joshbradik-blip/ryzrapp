@@ -8,7 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrameProcessor } from 'react-native-vision-camera';
 import type { FramingResult, Landmarks, RepPhase, SessionSummary } from './index';
 import { FormCoachSession } from './session';
-import { normalizeLandmarks } from './nativePose';
+import { loadPosePlugin, nativePoseToFrame, normalizeLandmarks, rotationDegrees } from './nativePose';
+import { useFeatureFlags } from '../featureFlags';
 import { SkeletonSmoother } from './skeleton';
 import { useTflitePose } from './tflitePose';
 import {
@@ -29,6 +30,13 @@ import {
  */
 const TARGET_FPS = 15;
 const MIN_FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
+
+/**
+ * Consecutive failed calls to the platform tracker (about 2s at TARGET_FPS)
+ * before we give up on it for this screen and fall back to MoveNet. A frame
+ * with nobody in it is not a failure — only errors and malformed results are.
+ */
+const NATIVE_MISS_LIMIT = 30;
 
 export interface CoachState {
   reps: number;
@@ -74,7 +82,15 @@ export interface UseFormCoachOptions {
 }
 
 export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoachOptions) {
-  const pose = useTflitePose(active);
+  // Tracker choice, best first: the platform tracker (Apple Vision / ML Kit,
+  // modules/ryzr-pose) → MoveNet over TFLite → the screen's snapshot mode.
+  // The remote flag can force MoveNet without a build.
+  const nativeAllowed = useFeatureFlags((f) => f.formCoachNativeTracker);
+  const nativeHandle = useMemo(() => (nativeAllowed ? loadPosePlugin() : null), [nativeAllowed]);
+  const [nativeFailed, setNativeFailed] = useState(false);
+  const useNative = nativeHandle !== null && !nativeFailed;
+  // MoveNet is only loaded when it is actually going to be used.
+  const pose = useTflitePose(active && !useNative);
   const sessionRef = useRef<FormCoachSession | null>(null);
   const [state, setState] = useState<CoachState>(IDLE_STATE);
 
@@ -160,18 +176,38 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
     }
   }, [handlePose]);
 
+  const onNativeFailed = useMemo(() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { Worklets } = require('react-native-worklets-core');
+      return Worklets?.createRunOnJS
+        ? Worklets.createRunOnJS(() => {
+            console.log('[Pose] platform tracker keeps failing — falling back to MoveNet');
+            setNativeFailed(true);
+          })
+        : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const plugin = useNative ? nativeHandle.plugin : null;
   const model = pose.model;
   const resize = pose.resize;
-  const ready = active && pose.status === 'ready' && model !== null && resize !== null && runOnJs !== null;
+  const moveNetReady = pose.status === 'ready' && model !== null && resize !== null;
+  const ready = active && runOnJs !== null && (plugin !== null || moveNetReady);
 
   // Shared across frames so we are not allocating a 110k-element tensor at
   // 15fps. Worklets see the same object each call.
-  const scratch = useMemo(() => ({ input: null as Float32Array | null, lastAt: 0 }), []);
+  const scratch = useMemo(
+    () => ({ input: null as Float32Array | null, lastAt: 0, nativeMisses: 0 }),
+    []
+  );
 
   const frameProcessor = useFrameProcessor(
     frame => {
       'worklet';
-      if (!ready || !model || !resize || !runOnJs) return;
+      if (!ready || !runOnJs) return;
 
       try {
         // Throttle: VisionCamera delivers at the camera's rate, which is more
@@ -191,6 +227,22 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
 
         // Bring the frame upright before anything measures it.
         const rotation = orientationToRotation(f.orientation);
+
+        if (plugin) {
+          const parsed = nativePoseToFrame(
+            plugin.call(frame as never, { rotation: rotationDegrees(rotation) })
+          );
+          if (!parsed) {
+            scratch.nativeMisses += 1;
+            if (scratch.nativeMisses === NATIVE_MISS_LIMIT && onNativeFailed) onNativeFailed();
+            return;
+          }
+          scratch.nativeMisses = 0;
+          runOnJs(parsed.landmarks, nowMs, parsed.xMax, undefined, f.isMirrored === true);
+          return;
+        }
+
+        if (!model || !resize) return;
         const upright = rotatedSize(f.width, f.height, rotation);
         const plan = planLetterbox(upright.width, upright.height, MOVENET_INPUT_SIZE);
 
@@ -216,9 +268,13 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
         runOnJs(landmarks, nowMs, aspect, undefined, f.isMirrored === true);
       } catch {
         // Never throw inside a frame processor — it takes down the camera.
+        if (plugin) {
+          scratch.nativeMisses += 1;
+          if (scratch.nativeMisses === NATIVE_MISS_LIMIT && onNativeFailed) onNativeFailed();
+        }
       }
     },
-    [ready, model, resize, runOnJs, scratch]
+    [ready, plugin, onNativeFailed, model, resize, runOnJs, scratch]
   );
 
   useEffect(() => {
@@ -239,8 +295,10 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
     /** True when on-device pose tracking is actually running. */
     poseAvailable: ready,
     /** 'ready' | 'loading' | 'unavailable' | 'error' — drives the mode notice. */
-    poseStatus: pose.status,
-    poseDetail: pose.detail,
+    poseStatus: useNative ? ('ready' as const) : pose.status,
+    poseDetail: useNative ? null : pose.detail,
+    /** Which detector is feeding the pipeline, for the debug strip. */
+    tracker: useNative ? 'platform' : moveNetReady ? 'movenet' : null,
     profile: session.profile,
     frameProcessor: ready ? frameProcessor : undefined,
     state,
