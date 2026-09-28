@@ -18,6 +18,7 @@ import { supportsFormCoach } from '../../lib/pose/coverage';
 import { ExerciseHero } from '../../components/workout/ExerciseHero';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { Colors } from '../../constants/theme';
+import { useFormCoachEnabled } from '../../lib/featureFlags';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'ExerciseDetail'>;
 
@@ -36,6 +37,7 @@ const MUSCLE_COLORS: Record<string, string> = {
 };
 
 export function ExerciseDetailScreen({ navigation, route }: Props) {
+  const formCoachEnabled = useFormCoachEnabled();
   const { exerciseId, workoutId, workoutExerciseId } = route.params;
   // getExerciseById only knows the curated 30. Swapped-in ExerciseDB exercises
   // live in the active plan, so fall back to searching the workout store.
@@ -217,7 +219,7 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
           )}
 
           {/* Form Coach CTA — hidden on mobility work the pipeline cannot score. */}
-          {supportsFormCoach(exercise) && (
+          {formCoachEnabled && supportsFormCoach(exercise) && (
             <TouchableOpacity
               onPress={() => {
                 if (!isPremium) {

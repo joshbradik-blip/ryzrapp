@@ -42,8 +42,10 @@ import {
 } from '../../lib/notifications';
 import { generateWorkoutPlan, generatePreWorkoutChallenge, generateDailyCoachMessage } from '../../lib/anthropic';
 import { getOrGenerateCoachNotice } from '../../lib/coachNotices';
+import { useFormCoachEnabled } from '../../lib/featureFlags';
 
 export function TodayScreen() {
+  const formCoachEnabled = useFormCoachEnabled();
   // End of funnel: the user is in the app and can train.
   useFunnelStep('activated_home_viewed');
   const navigation = useNavigation<NativeStackNavigationProp<TodayStackParamList>>();
@@ -400,9 +402,13 @@ export function TodayScreen() {
           >
             <Ionicons name="scan-outline" size={28} color={Colors.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: Colors.primary, fontWeight: '800', fontSize: 14 }}>Unlock AI Form Coach</Text>
+              <Text style={{ color: Colors.primary, fontWeight: '800', fontSize: 14 }}>
+                {formCoachEnabled ? 'Unlock AI Form Coach' : 'Unlock RYZR Premium'}
+              </Text>
               <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-                Real-time camera analysis — upgrade to Premium
+                {formCoachEnabled
+                  ? 'Real-time camera analysis — upgrade to Premium'
+                  : 'AI plans, coach chat and advanced charts'}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.primary} />

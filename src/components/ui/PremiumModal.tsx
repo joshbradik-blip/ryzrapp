@@ -21,11 +21,12 @@ import {
   PRICE_LIFETIME,
   LIFETIME_SLOTS_TOTAL,
 } from '../../store/subscriptionStore';
+import { useFormCoachEnabled } from '../../lib/featureFlags';
 
 const FEATURES = [
   { icon: 'hardware-chip-outline' as const, text: 'AI plans: 4, 8, and 12-week' },
   { icon: 'refresh-outline' as const,       text: 'Unlimited plan regeneration' },
-  { icon: 'camera-outline' as const,        text: 'Form Coach — real-time camera analysis' },
+  { icon: 'camera-outline' as const,        text: 'Form Coach — real-time camera analysis', formCoach: true },
   { icon: 'chatbubble-ellipses-outline' as const, text: 'AI Coach chat (Ask me anything)' },
   { icon: 'trending-up-outline' as const,   text: 'Advanced analytics & charts' },
 ];
@@ -38,6 +39,7 @@ interface Props {
 }
 
 export function PremiumModal({ visible, onClose, featureTitle }: Props) {
+  const formCoachEnabled = useFormCoachEnabled();
   const { lifetimeSlotsRemaining, loading, purchasePackage, purchaseLifetime, packages, restorePurchases, fetchOfferings } =
     useSubscriptionStore();
 
@@ -199,7 +201,7 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
 
             {/* Feature list */}
             <View style={{ gap: 10, marginBottom: 24 }}>
-              {FEATURES.map((f) => (
+              {FEATURES.filter((f) => formCoachEnabled || !f.formCoach).map((f) => (
                 <View key={f.text} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <Ionicons name={f.icon} size={18} color={Colors.primary} />
                   <Text style={{ color: Colors.text, fontSize: 14, flex: 1 }}>{f.text}</Text>

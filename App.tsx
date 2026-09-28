@@ -3,6 +3,7 @@ import React from 'react';
 import { initNotifications } from './src/lib/notifications';
 import { enableHealthSync } from './src/lib/healthProvider';
 import { initMetaAdsTracking } from './src/lib/metaAds';
+import { initFeatureFlags } from './src/lib/featureFlags';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -14,6 +15,7 @@ export default function App() {
     initNotifications();
     enableHealthSync();
     initMetaAdsTracking();
+    initFeatureFlags();
   }, []);
 
   return (

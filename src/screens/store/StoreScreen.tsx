@@ -25,6 +25,7 @@ import {
   PRICE_LIFETIME,
   LIFETIME_SLOTS_TOTAL,
 } from '../../store/subscriptionStore';
+import { useFormCoachEnabled } from '../../lib/featureFlags';
 
 const PREMIUM_FEATURES: { icon: keyof typeof Ionicons.glyphMap; title: string; desc: string }[] = [
   { icon: 'hardware-chip-outline', title: 'AI Workout Generation',       desc: 'Personalized plans rebuilt weekly around your progress' },
@@ -53,6 +54,11 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   { q: 'How do I cancel my subscription?', a: 'Subscriptions are managed by the App Store (iOS) or Google Play (Android). Go to your device Settings → Subscriptions to manage or cancel at any time.' },
   { q: 'How do I contact support?', a: 'Email us at support@ryzrapp.com — we typically respond within 24 hours.' },
 ];
+
+/** FAQ with Form Coach removed, for when the feature is switched off remotely. */
+const FAQ_ITEMS_NO_FORM_COACH = FAQ_ITEMS
+  .filter((item) => !item.q.includes('Form Coach'))
+  .map((item) => ({ ...item, a: item.a.replace('Form Coach, ', '') }));
 
 // Products live in the `gear_products` Supabase table — add/edit/remove them in
 // the dashboard with no app rebuild. See supabase/migrations/002_gear_products.sql.
@@ -87,6 +93,7 @@ function groupGear(rows: GearRow[]): GearSection[] {
 }
 
 export function StoreScreen() {
+  const formCoachEnabled = useFormCoachEnabled();
   const {
     isPremium, packages, fetchOfferings, purchasePackage, purchaseLifetime,
     restorePurchases, loading, lifetimeSlotsRemaining, redeemCode, checkPremium,
@@ -274,7 +281,7 @@ export function StoreScreen() {
 
                 {/* Features list */}
                 <View style={{ gap: 12, marginBottom: 28 }}>
-                  {PREMIUM_FEATURES.map((f) => (
+                  {PREMIUM_FEATURES.filter((f) => formCoachEnabled || f.title !== 'Form Coach').map((f) => (
                     <View key={f.title} style={{ flexDirection: 'row', gap: 14, alignItems: 'flex-start' }}>
                       <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <Ionicons name={f.icon} size={22} color={Colors.primary} />
@@ -448,8 +455,9 @@ export function StoreScreen() {
         {tab === 'gear' && (
           <View style={{ padding: 24 }}>
             <Text style={{ color: Colors.text, fontSize: 15, lineHeight: 22, marginBottom: 20 }}>
-              Make Form Coach work its best. These are the tripods, lights, and training
-              tools we recommend — tap to view on Amazon.
+              {formCoachEnabled
+                ? 'Make Form Coach work its best. These are the tripods, lights, and training tools we recommend — tap to view on Amazon.'
+                : 'The tripods, lights, and training tools we recommend — tap to view on Amazon.'}
             </Text>
 
             {gearLoading ? (
@@ -501,7 +509,7 @@ export function StoreScreen() {
         )}
         {tab === 'faq' && (
           <View style={{ padding: 24, gap: 10 }}>
-            {FAQ_ITEMS.map((item, i) => (
+            {(formCoachEnabled ? FAQ_ITEMS : FAQ_ITEMS_NO_FORM_COACH).map((item, i) => (
               <TouchableOpacity
                 key={i}
                 onPress={() => toggleFaq(i)}

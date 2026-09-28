@@ -25,6 +25,7 @@ import { GradientButton } from '../../components/ui/GradientButton';
 import { Colors } from '../../constants/theme';
 import { haptic } from '../../lib/feedback';
 import { supportsFormCoach } from '../../lib/pose/coverage';
+import { useFormCoachEnabled } from '../../lib/featureFlags';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutSession'>;
 
@@ -39,6 +40,7 @@ function fmtWeight(kg: number, unit: WeightUnit): string {
 }
 
 export function WorkoutSessionScreen({ navigation, route }: Props) {
+  const formCoachEnabled = useFormCoachEnabled();
   const { workoutId } = route.params;
   const { workouts, todayWorkout, startSession, logSet, nextExercise, currentExerciseIndex, completeSession, exerciseChallenges, challengesLoading, loadChallenges } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
@@ -456,7 +458,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
         )}
 
         {/* Form coach (premium) — hidden on mobility work the pipeline cannot score. */}
-        {supportsFormCoach(currentExercise.exercise) && (
+        {formCoachEnabled && supportsFormCoach(currentExercise.exercise) && (
           <TouchableOpacity
             onPress={() => {
               if (!isPremium) {
