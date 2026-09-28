@@ -12,7 +12,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 
-export function PromoCodeRow() {
+interface Props {
+  /**
+   * 'link' — centred text link, for paywalls and the Store.
+   * 'setting' — a row matching the Profile settings list, so a free user can
+   * always find it, not only when a paywall happens to be open.
+   */
+  variant?: 'link' | 'setting';
+}
+
+export function PromoCodeRow({ variant = 'link' }: Props) {
   const { redeemCode, checkPremium, restorePurchases } = useSubscriptionStore();
   const [expanded, setExpanded] = useState(false);
   const [code, setCode] = useState('');
@@ -59,18 +68,35 @@ export function PromoCodeRow() {
     else setExpanded((prev) => !prev);
   };
 
+  const isSetting = variant === 'setting';
+
   return (
-    <View style={{ marginTop: 4 }}>
-      <TouchableOpacity
-        onPress={onPress}
-        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12 }}
-      >
-        <Ionicons name="pricetag-outline" size={15} color={Colors.primary} />
-        <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '700' }}>Have a promo code?</Text>
-      </TouchableOpacity>
+    <View style={isSetting ? undefined : { marginTop: 4 }}>
+      {isSetting ? (
+        <TouchableOpacity
+          onPress={onPress}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 14,
+            paddingVertical: 14, paddingHorizontal: 16,
+            borderBottomWidth: 1, borderBottomColor: Colors.border,
+          }}
+        >
+          <Ionicons name="pricetag-outline" size={20} color={Colors.textSecondary} style={{ width: 24 }} />
+          <Text style={{ color: Colors.text, fontSize: 15, flex: 1, fontWeight: '500' }}>Redeem promo code</Text>
+          <Ionicons name={expanded ? 'chevron-down' : 'chevron-forward'} size={16} color={Colors.muted} />
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          onPress={onPress}
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12 }}
+        >
+          <Ionicons name="pricetag-outline" size={15} color={Colors.primary} />
+          <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '700' }}>Have a promo code?</Text>
+        </TouchableOpacity>
+      )}
 
       {expanded && (
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 4, ...(isSetting ? { padding: 12 } : null) }}>
           <TextInput
             value={code}
             onChangeText={(t) => setCode(t.toUpperCase())}

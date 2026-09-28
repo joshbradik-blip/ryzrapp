@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { SubscriptionTerms } from './SubscriptionTerms';
+import { PromoCodeRow } from './PromoCodeRow';
 import { TrialBadge } from './TrialBadge';
 import { getFreeTrial, trialPriceLine } from '../../lib/trial';
 import { logFunnelStep } from '../../lib/funnel';
@@ -45,7 +46,7 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
 
   const slotsGone = lifetimeSlotsRemaining <= 0;
 
-  // This modal — not ChoosePlanScreen — is where onboarding now asks for money:
+  // This modal is the only place onboarding asks for money:
   // a free user tapping "Custom Workout" on PlanChoice lands here. Funnel steps
   // are tagged with the trigger so paywalls raised by feature gates elsewhere
   // stay distinguishable from the onboarding one.
@@ -304,6 +305,8 @@ export function PremiumModal({ visible, onClose, featureTitle }: Props) {
                 </TouchableOpacity>
               </View>
             )}
+
+            <PromoCodeRow />
 
             <TouchableOpacity onPress={handleRestore} style={{ alignItems: 'center', paddingVertical: 14 }}>
               <Text style={{ color: Colors.muted, fontSize: 13 }}>Restore purchases</Text>

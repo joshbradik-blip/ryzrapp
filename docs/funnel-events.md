@@ -33,7 +33,6 @@ Measures where people fall out between installing RYZR and actually training.
 | `onboarding_schedule_viewed` | Schedule |
 | `onboarding_equipment_viewed` | Equipment |
 | `onboarding_goals_viewed` | Goals |
-| `paywall_skipped_already_premium` | `ChoosePlanScreen` auto-skipped for an existing subscriber |
 | `plan_generation_started` | Generation screen opened |
 | `plan_ready` | Plan generated — `props.workouts` is the count |
 | `plan_generation_failed` | Generation errored (**not** deduped — every failure is recorded) |
@@ -66,11 +65,12 @@ paywall specifically rather than a feature gate hit later in the app.
 
 ### Steps that no longer fire during onboarding
 
-`ChoosePlanScreen` still emits `paywall_viewed`, `paywall_start_free`, and the
-`paywall_*` purchase steps, but as of the fast-path onboarding change it is
-only reachable from the Profile tab's re-run flow — and an already-premium user
-hitting it is auto-skipped. Treat any `paywall_start_free` as re-run traffic,
-not new-user traffic.
+`ChoosePlanScreen` has been removed. It was meant to be reachable only from the
+Profile re-run flow, but the shared `GoalsScreen` still routed onboarding users
+to it, so a free user who took the Custom path saw two paywalls. Goals now goes
+straight to plan generation. `paywall_start_free` and
+`paywall_skipped_already_premium` no longer fire; older rows of them came from
+that second paywall.
 
 ## Identity
 

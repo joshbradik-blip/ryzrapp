@@ -26,6 +26,7 @@ import { useSettingsStore } from '../../store/settingsStore';
 import { useReviewStore } from '../../store/reviewStore';
 import { openStoreListing, emailFeedback } from '../../lib/review';
 import { PremiumModal } from '../../components/ui/PremiumModal';
+import { PromoCodeRow } from '../../components/ui/PromoCodeRow';
 import { VoicePickerSheet } from '../../components/settings/VoicePickerSheet';
 import { trainerVoiceName } from '../../constants/voices';
 import { generateWorkoutPlan } from '../../lib/anthropic';
@@ -551,6 +552,8 @@ export function ProfileScreen() {
         <View style={{ backgroundColor: Colors.surface, marginHorizontal: 16, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border }}>
           {/* TODO: Export my data — hidden for App Store review, not yet implemented */}
           {/* TODO: Change password — hidden for App Store review, not yet implemented */}
+          {/* Free users can redeem a code any time, not only from a paywall. */}
+          {!isPremium && <PromoCodeRow variant="setting" />}
           <SettingRow icon="log-out-outline" label="Sign out" onPress={handleSignOut} />
         </View>
 

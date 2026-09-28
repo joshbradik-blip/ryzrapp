@@ -15,7 +15,6 @@ no new build.
 |---|---|
 | Onboarding paywall | `src/components/ui/PremiumModal.tsx` |
 | Store tab | `src/screens/store/StoreScreen.tsx` |
-| Choose-plan (Profile re-run) | `src/screens/onboarding/ChoosePlanScreen.tsx` |
 
 Each renders a `TrialBadge` ("3 DAYS FREE") on the plan card and swaps the line
 under the price for `"3 days free, then $14.99/mo · cancel anytime"`.

@@ -8,7 +8,6 @@ import { InjuriesScreen } from '../screens/onboarding/InjuriesScreen';
 import { ScheduleScreen } from '../screens/onboarding/ScheduleScreen';
 import { EquipmentScreen } from '../screens/onboarding/EquipmentScreen';
 import { GoalsScreen } from '../screens/onboarding/GoalsScreen';
-import { ChoosePlanScreen } from '../screens/onboarding/ChoosePlanScreen';
 import { GeneratingPlanScreen } from '../screens/onboarding/GeneratingPlanScreen';
 
 const Stack = createNativeStackNavigator<OnboardingStackParamList>();
@@ -28,7 +27,6 @@ export function OnboardingNavigator() {
       <Stack.Screen name="Schedule" component={ScheduleScreen} />
       <Stack.Screen name="Equipment" component={EquipmentScreen} />
       <Stack.Screen name="Goals" component={GoalsScreen} />
-      <Stack.Screen name="ChoosePlan" component={ChoosePlanScreen} />
       <Stack.Screen name="GeneratingPlan" component={GeneratingPlanScreen} />
     </Stack.Navigator>
   );
