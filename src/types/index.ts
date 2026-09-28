@@ -161,7 +161,6 @@ export type OnboardingStackParamList = {
   Schedule: undefined;
   Equipment: undefined;
   Goals: undefined;
-  ChoosePlan: undefined;
   GeneratingPlan: undefined;
 };
 
@@ -185,7 +184,6 @@ export type ProfileStackParamList = {
   Schedule: undefined;
   Equipment: undefined;
   Goals: undefined;
-  ChoosePlan: undefined;
   GeneratingPlan: undefined;
 };
 

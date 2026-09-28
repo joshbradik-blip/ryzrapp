@@ -9,7 +9,6 @@ import { InjuriesScreen } from '../screens/onboarding/InjuriesScreen';
 import { ScheduleScreen } from '../screens/onboarding/ScheduleScreen';
 import { EquipmentScreen } from '../screens/onboarding/EquipmentScreen';
 import { GoalsScreen } from '../screens/onboarding/GoalsScreen';
-import { ChoosePlanScreen } from '../screens/onboarding/ChoosePlanScreen';
 import { GeneratingPlanScreen } from '../screens/onboarding/GeneratingPlanScreen';
 import { Colors } from '../constants/theme';
 
@@ -42,7 +41,6 @@ export function ProfileNavigator() {
       <Stack.Screen name="Schedule" component={ScheduleScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Equipment" component={EquipmentScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Goals" component={GoalsScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="ChoosePlan" component={ChoosePlanScreen} options={{ headerShown: false }} />
       <Stack.Screen name="GeneratingPlan" component={GeneratingPlanScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );

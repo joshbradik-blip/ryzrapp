@@ -60,7 +60,11 @@ export function GoalsScreen({ navigation }: Props) {
       target_weeks: targetWeeks,
     };
     setGoals([goal]);
-    navigation.navigate('ChoosePlan');
+    // Straight to plan generation. The paywall was already offered once, when
+    // they tapped Custom Workout on PlanChoice — a second full-screen paywall
+    // here is what made new users see it twice. Declining there simply means
+    // GeneratingPlanScreen caps them at the free 4-week plan.
+    navigation.navigate('GeneratingPlan');
   };
 
   return (
