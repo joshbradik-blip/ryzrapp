@@ -148,6 +148,16 @@ The detector is throttled to **15fps**. Rep phases last hundreds of
 milliseconds, so nothing is lost, and it roughly halves inference cost over a
 workout.
 
+## Turning it off remotely
+
+The Form Coach has a remote off switch: the `form_coach_enabled` row in the
+Supabase `app_config` table (`src/lib/featureFlags.ts`). Set it to `false` in
+the dashboard and, on next launch or return to foreground, every install hides
+the Form Coach buttons and removes it from the paywall, Store, Welcome and
+onboarding copy. Set it back to `true` to restore it. No build or OTA update is
+involved. If the table can't be reached, each device keeps the last value it
+saw (default: on).
+
 ## Shipping it
 
 The pose modules are **native** — this cannot go out over EAS Update / OTA.

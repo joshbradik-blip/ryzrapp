@@ -15,12 +15,14 @@ import { Button } from '../../components/ui/Button';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { Colors } from '../../constants/theme';
 import { useFunnelStep } from '../../lib/funnel';
+import { useFormCoachEnabled } from '../../lib/featureFlags';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Welcome'>;
 };
 
 export function WelcomeScreen({ navigation }: Props) {
+  const formCoachEnabled = useFormCoachEnabled();
   useFunnelStep('auth_welcome_viewed');
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
@@ -90,7 +92,7 @@ export function WelcomeScreen({ navigation }: Props) {
               { label: 'AI Plans',    icon: 'hardware-chip-outline' },
               { label: 'Form Coach',  icon: 'camera-outline' },
               { label: 'Track PRs',   icon: 'trophy-outline' },
-            ] as const).map(({ label, icon }) => (
+            ] as const).filter(({ label }) => formCoachEnabled || label !== 'Form Coach').map(({ label, icon }) => (
               <View key={label} style={{ alignItems: 'center', gap: 6 }}>
                 <View style={{
                   width: 52,

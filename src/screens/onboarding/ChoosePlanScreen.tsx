@@ -23,6 +23,7 @@ import {
   LIFETIME_SLOTS_TOTAL,
 } from '../../store/subscriptionStore';
 import { logFunnelStep, useFunnelStep } from '../../lib/funnel';
+import { useFormCoachEnabled } from '../../lib/featureFlags';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'ChoosePlan'>;
@@ -45,6 +46,7 @@ const PREMIUM_FEATURES = [
 ];
 
 export function ChoosePlanScreen({ navigation }: Props) {
+  const formCoachEnabled = useFormCoachEnabled();
   const {
     isPremium,
     lifetimeSlotsRemaining,
@@ -201,7 +203,7 @@ export function ChoosePlanScreen({ navigation }: Props) {
             borderWidth: 1.5, borderColor: Colors.primary + '55',
           }}>
             <Text style={{ color: Colors.primary, fontWeight: '800', fontSize: 15, marginBottom: 12 }}>Premium</Text>
-            {PREMIUM_FEATURES.map((f) => (
+            {PREMIUM_FEATURES.filter((f) => formCoachEnabled || !f.startsWith('Form Coach')).map((f) => (
               <View key={f} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                 <Ionicons name="checkmark-circle" size={14} color={Colors.primary} style={{ marginTop: 2 }} />
                 <Text style={{ color: Colors.text, fontSize: 12, flex: 1, lineHeight: 17 }}>{f}</Text>
