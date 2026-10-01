@@ -748,6 +748,9 @@ export async function parseNutritionPhoto(
   return applyUsdaMatches(drafts, await lookupUsda(drafts));
 }
 
+/** Server limits are 3s cache / 6s USDA / 8s per item; this is just above that. */
+const USDA_LOOKUP_TIMEOUT_MS = 10000;
+
 interface UsdaLookupResult {
   query: string;
   match: null | {
@@ -766,9 +769,16 @@ interface UsdaLookupResult {
 async function lookupUsda(drafts: PhotoDraft[]): Promise<(UsdaLookupResult | null)[]> {
   if (drafts.length === 0) return [];
   try {
-    const { data, error } = await supabase.functions.invoke('usda-lookup', {
-      body: { items: drafts.map((d) => ({ query: d.query, state: d.state })) },
-    });
+    // Never let a slow lookup stall the review sheet: after the limit we use
+    // the model's own per-100g values instead.
+    const { data, error } = await Promise.race([
+      supabase.functions.invoke('usda-lookup', {
+        body: { items: drafts.map((d) => ({ query: d.query, state: d.state })) },
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`timed out after ${USDA_LOOKUP_TIMEOUT_MS}ms`)), USDA_LOOKUP_TIMEOUT_MS)
+      ),
+    ]);
     if (error || !Array.isArray(data?.results)) {
       console.warn('[USDA] lookup unavailable, using model estimates');
       return [];
