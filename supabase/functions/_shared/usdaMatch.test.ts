@@ -75,3 +75,28 @@ test('zero-calorie foods are valid matches', () => {
   const foods = [food(1, 'Coffee, brewed, prepared with tap water', 'SR Legacy', nutrients(1, 0.1, 0, 0))];
   assert.equal(pickBestFood('black coffee brewed', 'prepared', foods)?.per100.calories, 1);
 });
+
+test('never picks an imitation food for a plain food query (real production miss)', () => {
+  const foods = [
+    food(1, 'Cheese substitute, mozzarella', 'SR Legacy', nutrients(173, 7, 22, 7)),
+    food(2, 'Cheese, mozzarella, whole milk', 'SR Legacy', nutrients(300, 22, 2.2, 22)),
+  ];
+  assert.equal(pickBestFood('mozzarella cheese melted', 'cooked', foods)?.fdcId, 2);
+  assert.equal(pickBestFood('mozzarella cheese', 'prepared', [foods[0]]), null);
+});
+
+test('imitation foods are still allowed when the query asks for one', () => {
+  const foods = [food(1, 'Cheese substitute, mozzarella', 'SR Legacy', nutrients(173, 7, 22, 7))];
+  assert.equal(pickBestFood('mozzarella cheese substitute', 'prepared', foods)?.fdcId, 1);
+});
+
+test('stays strict: unmatched descriptive words and unrelated top hits still return null (real production misses)', () => {
+  const onions = [
+    food(1, 'Onions, green, cooked', 'SR Legacy'),
+    food(2, 'Onions, pearl, cooked', 'SR Legacy'),
+    food(3, 'Onions, cooked, as ingredient', 'Survey (FNDDS)'),
+  ];
+  assert.equal(pickBestFood('onions caramelized cooked', 'cooked', onions), null);
+  const bread = [food(4, 'Grilled cheese sandwich, American cheese, on wheat bread', 'Survey (FNDDS)')];
+  assert.equal(pickBestFood('ciabatta bread grilled', 'cooked', bread), null);
+});

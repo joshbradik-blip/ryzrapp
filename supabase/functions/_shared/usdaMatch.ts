@@ -123,6 +123,10 @@ export function extractPer100(food: FdcFood): Per100 | null {
   };
 }
 
+// Imitation / alternative foods ("Cheese substitute, mozzarella") are never the
+// right match for a plain food name; only allow them when the query asks for one.
+const IMITATION_WORDS = new Set(['substitute', 'imitation', 'analog', 'analogue', 'vegan', 'meatless']);
+
 const MIN_COVERAGE = 0.6;
 
 /**
@@ -137,6 +141,7 @@ export function scoreCandidate(query: string, state: FoodState, food: FdcFood): 
 
   const dTokens = tokens(food.description);
   const dSet = new Set(dTokens);
+  if (dTokens.some((t) => IMITATION_WORDS.has(t)) && !qTokens.some((t) => IMITATION_WORDS.has(t))) return null;
   const covered = nameTokens.filter((t) => dSet.has(t)).length;
   const coverage = covered / nameTokens.length;
   if (coverage < MIN_COVERAGE) return null;
