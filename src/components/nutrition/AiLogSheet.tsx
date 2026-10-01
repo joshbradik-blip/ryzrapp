@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../constants/theme';
 import { MealType } from '../../types';
-import { parseNutritionText, parseNutritionPhoto, ParsedFoodItem } from '../../lib/anthropic';
+import { parseNutritionText, parseNutritionPhoto, scaleFromPer100, ParsedFoodItem } from '../../lib/anthropic';
+import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useNutritionStore } from '../../store/nutritionStore';
 import { GradientButton } from '../ui/GradientButton';
 
@@ -32,6 +33,7 @@ interface Props {
  */
 export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props) {
   const addEntries = useNutritionStore((s) => s.addEntries);
+  const { isPremium } = useSubscriptionStore();
   const [text, setText] = useState('');
   const [meal, setMeal] = useState<MealType>(defaultMeal);
   const [items, setItems] = useState<ParsedFoodItem[] | null>(null);
@@ -70,14 +72,14 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
       return;
     }
     const result = fromCamera
-      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.6, mediaTypes: 'images' })
-      : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.6, mediaTypes: 'images' });
+      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.8, mediaTypes: 'images' })
+      : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.8, mediaTypes: 'images' });
     if (result.canceled || !result.assets[0].base64) return;
 
     setPhotoUri(result.assets[0].uri);
     setBusy(true);
     try {
-      applyResult(await parseNutritionPhoto(result.assets[0].base64));
+      applyResult(await parseNutritionPhoto(result.assets[0].base64, { premium: isPremium }));
     } catch {
       Alert.alert('Estimate failed', 'Please try again in a moment.');
     } finally {
@@ -105,6 +107,11 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
       if (!cur) return cur;
       const next = [...cur];
       if (field === 'name') next[i] = { ...next[i], name: value };
+      else if (field === 'grams' && next[i].per100) {
+        // Editing the portion rescales kcal + macros from the per-100g values.
+        const grams = Math.max(0, parseFloat(value) || 0);
+        next[i] = { ...next[i], grams, ...scaleFromPer100(next[i].per100!, grams) };
+      }
       else next[i] = { ...next[i], [field]: Math.max(0, parseFloat(value) || 0) };
       return next;
     });
@@ -136,7 +143,7 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
     else Alert.alert('Could not save', 'Please try again.');
   };
 
-  const numInput = (i: number, field: 'calories' | 'protein_g' | 'carbs_g' | 'fat_g', label: string) => (
+  const numInput = (i: number, field: 'grams' | 'calories' | 'protein_g' | 'carbs_g' | 'fat_g', label: string) => (
     <View style={{ flex: 1 }}>
       <Text style={{ color: Colors.muted, fontSize: 10, marginBottom: 3 }}>{label}</Text>
       <TextInput
@@ -232,7 +239,13 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
 
               <Text style={{ color: Colors.muted, fontSize: 12, marginBottom: 10 }}>
                 AI estimate — tap any value to adjust before saving.
+                {items.some((it) => it.per100) ? ' Change the grams and the nutrition updates.' : ''}
               </Text>
+              {items.some((it) => it.confidence === 'low') && (
+                <Text style={{ color: Colors.warning, fontSize: 12, marginBottom: 10 }}>
+                  Some items were hard to identify or measure from the photo — double-check those portions.
+                </Text>
+              )}
 
               {items.map((it, i) => (
                 <View key={i} style={{ backgroundColor: Colors.surface2, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: Colors.border }}>
@@ -247,6 +260,7 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
                     </TouchableOpacity>
                   </View>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {it.per100 && numInput(i, 'grams', 'GRAMS')}
                     {numInput(i, 'calories', 'KCAL')}
                     {numInput(i, 'protein_g', 'PROTEIN')}
                     {numInput(i, 'carbs_g', 'CARBS')}

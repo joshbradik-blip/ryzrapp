@@ -651,6 +651,11 @@ export interface ParsedFoodItem {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  /** Estimated portion weight. Present on photo estimates; editing it rescales the macros. */
+  grams?: number;
+  /** Per-100g reference values the totals were derived from (photo estimates only). */
+  per100?: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
+  confidence?: 'high' | 'medium' | 'low';
 }
 
 /**
@@ -667,6 +672,7 @@ export async function parseNutritionText(input: string): Promise<ParsedFoodItem[
   const data = await callAnthropic({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 700,
+    temperature: 0,
     messages: [
       {
         role: 'user',
@@ -684,37 +690,105 @@ If there is no food or drink, return {"items":[]}.`,
   return coerceFoodItems(data.content?.[0]?.text ?? '{}');
 }
 
+const PHOTO_NUTRITION_PROMPT = `You estimate nutrition from a photo of a meal. Work in two steps so results are consistent: identify the food and estimate its WEIGHT, then give standard per-100g reference values. Do NOT multiply them yourself — the app computes totals.
+
+Rules:
+- One entry per distinct food or drink. Ignore plates, cutlery, packaging and background.
+- Estimate grams of the cooked/served food as shown. Use scale cues: a standard dinner plate is ~26 cm (10 in), a fork ~19 cm, a fist ~1 cup (~240 ml), a palm of cooked meat ~100 g, a thumb ~15 g of fat/sauce. Round grams to the nearest 5.
+- Use cooked-weight per-100g values for cooked food (e.g. cooked white rice ~130 kcal/100g), raw values only for raw food.
+- Account for likely cooking fat: restaurant/fried/sauced food carries added oil or butter; plain home-steamed or grilled food usually does not. Reflect it in the per-100g fat and calories.
+- Use well-known USDA-style values. The same food must always get the same per-100g values.
+- confidence: "high" if the item and portion are clear, "medium" if the portion is hard to judge, "low" if the item is ambiguous or partly hidden.
+
+Respond with ONLY valid JSON, no markdown or commentary:
+{"items":[{"name":"<short food name>","grams":<number>,"per100g":{"calories":<number>,"protein_g":<number>,"carbs_g":<number>,"fat_g":<number>},"confidence":"high|medium|low"}]}
+If no food or drink is visible, return {"items":[]}.`;
+
 /**
- * Estimates nutrition from a photo of a meal via Haiku vision. Returns the
- * same editable ParsedFoodItem[] as the text path — a photo can't see oil,
- * hidden sugar, or true grams, so the caller must present it as a draft to
- * correct, never as a final number.
+ * Estimates nutrition from a photo of a meal via vision. The model only
+ * estimates portion weight and per-100g reference values; calories and macros
+ * are computed in code, which removes the model's weakest step (pixels → kcal)
+ * and makes repeat photos of the same meal agree far more closely. Premium
+ * users get Sonnet (better portion reasoning); anyone else falls back to
+ * Haiku. temperature 0 so the same image gives the same answer.
+ *
+ * A photo still can't see oil, hidden sugar, or true grams, so the caller
+ * must present the result as an editable draft, never a final number.
  */
-export async function parseNutritionPhoto(imageBase64: string): Promise<ParsedFoodItem[]> {
+export async function parseNutritionPhoto(
+  imageBase64: string,
+  opts: { premium?: boolean } = {}
+): Promise<ParsedFoodItem[]> {
   if (!imageBase64) return [];
 
   const data = await callAnthropic({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 700,
+    model: opts.premium ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001',
+    max_tokens: 900,
+    temperature: 0,
     messages: [
       {
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
-          {
-            type: 'text',
-            text: `Identify each distinct food and drink item in this meal photo and estimate the calories and macros for the portion shown. Give a realistic best estimate even when the exact portion is uncertain. Ignore non-food objects (plates, cutlery, background).
-
-Respond with ONLY valid JSON, no markdown or commentary:
-{"items":[{"name":"<short food name>","calories":<integer kcal>,"protein_g":<number>,"carbs_g":<number>,"fat_g":<number>}]}
-If no food or drink is visible, return {"items":[]}.`,
-          },
+          { type: 'text', text: PHOTO_NUTRITION_PROMPT },
         ],
       },
     ],
   });
 
-  return coerceFoodItems(data.content?.[0]?.text ?? '{}');
+  return coercePhotoItems(data.content?.[0]?.text ?? '{}');
+}
+
+/** Scales per-100g reference values to a portion weight. Pure — also used by the review sheet. */
+export function scaleFromPer100(
+  per100: NonNullable<ParsedFoodItem['per100']>,
+  grams: number
+): Pick<ParsedFoodItem, 'calories' | 'protein_g' | 'carbs_g' | 'fat_g'> {
+  const f = Math.max(0, grams) / 100;
+  const r1 = (n: number) => Math.round(n * f * 10) / 10;
+  return {
+    calories: Math.round(per100.calories * f),
+    protein_g: r1(per100.protein_g),
+    carbs_g: r1(per100.carbs_g),
+    fat_g: r1(per100.fat_g),
+  };
+}
+
+function coercePhotoItems(raw: string): ParsedFoodItem[] {
+  try {
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    const parsed = JSON.parse(start >= 0 && end > start ? raw.slice(start, end + 1) : '{}');
+    const items = Array.isArray(parsed.items) ? parsed.items : [];
+    const num = (n: unknown) => Math.max(0, Number(n) || 0);
+    const out: ParsedFoodItem[] = [];
+    for (const it of items.slice(0, 20) as Record<string, any>[]) {
+      if (typeof it?.name !== 'string' || !it.name.trim()) continue;
+      const grams = Math.min(3000, Math.round(num(it.grams)));
+      const p = it.per100g ?? {};
+      const protein = num(p.protein_g);
+      const carbs = num(p.carbs_g);
+      const fat = num(p.fat_g);
+      // Reconcile per-100g calories with the macros (Atwater 4/4/9). If the
+      // model's kcal figure disagrees by >20%, trust the macros — they are
+      // the more consistently recalled values.
+      const macroKcal = protein * 4 + carbs * 4 + fat * 9;
+      let kcal = num(p.calories);
+      if (macroKcal > 0 && (kcal === 0 || Math.abs(kcal - macroKcal) / macroKcal > 0.2)) kcal = macroKcal;
+      if (grams <= 0 || kcal <= 0) continue;
+      const per100 = { calories: kcal, protein_g: protein, carbs_g: carbs, fat_g: fat };
+      out.push({
+        name: it.name.trim().slice(0, 80),
+        grams,
+        per100,
+        confidence: it.confidence === 'high' || it.confidence === 'low' ? it.confidence : 'medium',
+        ...scaleFromPer100(per100, grams),
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 /** Shared parse/validate for the {items:[...]} food JSON both paths return. */
