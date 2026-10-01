@@ -656,6 +656,10 @@ export interface ParsedFoodItem {
   /** Per-100g reference values the totals were derived from (photo estimates only). */
   per100?: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
   confidence?: 'high' | 'medium' | 'low';
+  /** Where the per-100g values came from: a USDA FoodData Central match, or the model's own recall. */
+  source?: 'usda' | 'model';
+  /** The USDA food description we matched (when source is 'usda'). */
+  matchedAs?: string;
 }
 
 /**
@@ -690,23 +694,27 @@ If there is no food or drink, return {"items":[]}.`,
   return coerceFoodItems(data.content?.[0]?.text ?? '{}');
 }
 
-const PHOTO_NUTRITION_PROMPT = `You estimate nutrition from a photo of a meal. Work in two steps so results are consistent: identify the food and estimate its WEIGHT, then give standard per-100g reference values. Do NOT multiply them yourself — the app computes totals.
+const PHOTO_NUTRITION_PROMPT = `You estimate nutrition from a photo of a meal. Work in steps so results are consistent: identify each food, estimate its WEIGHT, and name it the way the USDA FoodData Central database would. The app looks the food up in USDA data and computes totals — do NOT multiply anything yourself.
 
 Rules:
 - One entry per distinct food or drink. Ignore plates, cutlery, packaging and background.
-- Estimate grams of the cooked/served food as shown. Use scale cues: a standard dinner plate is ~26 cm (10 in), a fork ~19 cm, a fist ~1 cup (~240 ml), a palm of cooked meat ~100 g, a thumb ~15 g of fat/sauce. Round grams to the nearest 5.
-- Use cooked-weight per-100g values for cooked food (e.g. cooked white rice ~130 kcal/100g), raw values only for raw food.
-- Account for likely cooking fat: restaurant/fried/sauced food carries added oil or butter; plain home-steamed or grilled food usually does not. Reflect it in the per-100g fat and calories.
-- Use well-known USDA-style values. The same food must always get the same per-100g values.
+- Estimate grams of the food as served. Use scale cues: a standard dinner plate is ~26 cm (10 in), a fork ~19 cm, a fist ~1 cup (~240 ml), a palm of cooked meat ~100 g, a thumb ~15 g of fat/sauce. Round grams to the nearest 5.
+- search_query: a short generic USDA-style name WITHOUT brands or adjectives like "delicious" — e.g. "chicken breast roasted", "white rice", "broccoli", "spaghetti with meat sauce". Include the cooking method when it matters.
+- state: "cooked" for cooked/baked/fried food, "raw" only for raw food (salad greens, fruit, raw veg), "prepared" for mixed dishes or drinks.
+- Cooking fat: restaurant, fried or sauced food carries added oil or butter; plain home-steamed or grilled food usually does not. When the food is clearly oily or buttery, add the oil/butter as its OWN item (e.g. "olive oil", ~10 g) rather than hiding it in another food.
+- per100g: your best recall of standard per-100g values for the food as served. This is only a fallback if the USDA lookup finds nothing, so be realistic and consistent.
 - confidence: "high" if the item and portion are clear, "medium" if the portion is hard to judge, "low" if the item is ambiguous or partly hidden.
 
 Respond with ONLY valid JSON, no markdown or commentary:
-{"items":[{"name":"<short food name>","grams":<number>,"per100g":{"calories":<number>,"protein_g":<number>,"carbs_g":<number>,"fat_g":<number>},"confidence":"high|medium|low"}]}
+{"items":[{"name":"<short food name for the user>","search_query":"<USDA-style name>","state":"cooked|raw|prepared","grams":<number>,"per100g":{"calories":<number>,"protein_g":<number>,"carbs_g":<number>,"fat_g":<number>},"confidence":"high|medium|low"}]}
 If no food or drink is visible, return {"items":[]}.`;
 
 /**
  * Estimates nutrition from a photo of a meal via vision. The model only
- * estimates portion weight and per-100g reference values; calories and macros
+ * identifies foods and estimates portion weight; per-100g values come from
+ * USDA FoodData Central (usda-lookup edge function, cached so a given food
+ * always resolves identically), falling back to the model's own recall when
+ * there is no good match or the lookup is unavailable. Calories and macros
  * are computed in code, which removes the model's weakest step (pixels → kcal)
  * and makes repeat photos of the same meal agree far more closely. Premium
  * users get Sonnet (better portion reasoning); anyone else falls back to
@@ -736,7 +744,58 @@ export async function parseNutritionPhoto(
     ],
   });
 
-  return coercePhotoItems(data.content?.[0]?.text ?? '{}');
+  const drafts = coercePhotoItems(data.content?.[0]?.text ?? '{}');
+  return applyUsdaMatches(drafts, await lookupUsda(drafts));
+}
+
+interface UsdaLookupResult {
+  query: string;
+  match: null | {
+    fdcId: number;
+    description: string;
+    dataType: string;
+    per100: NonNullable<ParsedFoodItem['per100']>;
+  };
+}
+
+/**
+ * Looks each draft item up in USDA FoodData Central via the usda-lookup edge
+ * function. Never throws: any failure (not configured, network, rate limit)
+ * returns no matches so the model's own per-100g values are used instead.
+ */
+async function lookupUsda(drafts: PhotoDraft[]): Promise<(UsdaLookupResult | null)[]> {
+  if (drafts.length === 0) return [];
+  try {
+    const { data, error } = await supabase.functions.invoke('usda-lookup', {
+      body: { items: drafts.map((d) => ({ query: d.query, state: d.state })) },
+    });
+    if (error || !Array.isArray(data?.results)) {
+      console.warn('[USDA] lookup unavailable, using model estimates');
+      return [];
+    }
+    return data.results as UsdaLookupResult[];
+  } catch (e) {
+    console.warn('[USDA] lookup failed, using model estimates:', e instanceof Error ? e.message : e);
+    return [];
+  }
+}
+
+/** Replaces model per-100g values with USDA ones where a match exists. Pure. */
+export function applyUsdaMatches(
+  drafts: PhotoDraft[],
+  results: (UsdaLookupResult | null)[]
+): ParsedFoodItem[] {
+  return drafts.map((d, i) => {
+    const match = results[i]?.match;
+    if (!match) return { ...d.item, source: 'model' as const };
+    return {
+      ...d.item,
+      per100: match.per100,
+      source: 'usda' as const,
+      matchedAs: match.description,
+      ...scaleFromPer100(match.per100, d.item.grams ?? 0),
+    };
+  });
 }
 
 /** Scales per-100g reference values to a portion weight. Pure — also used by the review sheet. */
@@ -754,14 +813,21 @@ export function scaleFromPer100(
   };
 }
 
-function coercePhotoItems(raw: string): ParsedFoodItem[] {
+/** A parsed photo item plus the query/state the USDA lookup needs. */
+export interface PhotoDraft {
+  item: ParsedFoodItem;
+  query: string;
+  state: 'cooked' | 'raw' | 'prepared';
+}
+
+export function coercePhotoItems(raw: string): PhotoDraft[] {
   try {
     const start = raw.indexOf('{');
     const end = raw.lastIndexOf('}');
     const parsed = JSON.parse(start >= 0 && end > start ? raw.slice(start, end + 1) : '{}');
     const items = Array.isArray(parsed.items) ? parsed.items : [];
     const num = (n: unknown) => Math.max(0, Number(n) || 0);
-    const out: ParsedFoodItem[] = [];
+    const out: PhotoDraft[] = [];
     for (const it of items.slice(0, 20) as Record<string, any>[]) {
       if (typeof it?.name !== 'string' || !it.name.trim()) continue;
       const grams = Math.min(3000, Math.round(num(it.grams)));
@@ -771,18 +837,25 @@ function coercePhotoItems(raw: string): ParsedFoodItem[] {
       const fat = num(p.fat_g);
       // Reconcile per-100g calories with the macros (Atwater 4/4/9). If the
       // model's kcal figure disagrees by >20%, trust the macros — they are
-      // the more consistently recalled values.
+      // the more consistently recalled values. Alcohol (7 kcal/g) isn't in
+      // the macros, so alcoholic drinks keep the model's figure.
       const macroKcal = protein * 4 + carbs * 4 + fat * 9;
       let kcal = num(p.calories);
-      if (macroKcal > 0 && (kcal === 0 || Math.abs(kcal - macroKcal) / macroKcal > 0.2)) kcal = macroKcal;
+      const alcoholic = /\b(wine|beer|lager|ale|vodka|whisk(?:e)?y|rum|gin|tequila|liquor|cocktail|margarita|sake|champagne|spirits?)\b/i.test(it.name);
+      if (!alcoholic && macroKcal > 0 && (kcal === 0 || Math.abs(kcal - macroKcal) / macroKcal > 0.2)) kcal = macroKcal;
       if (grams <= 0 || kcal <= 0) continue;
       const per100 = { calories: kcal, protein_g: protein, carbs_g: carbs, fat_g: fat };
+      const name = it.name.trim().slice(0, 80);
       out.push({
-        name: it.name.trim().slice(0, 80),
-        grams,
-        per100,
-        confidence: it.confidence === 'high' || it.confidence === 'low' ? it.confidence : 'medium',
-        ...scaleFromPer100(per100, grams),
+        query: typeof it.search_query === 'string' && it.search_query.trim() ? it.search_query.trim() : name,
+        state: it.state === 'cooked' || it.state === 'raw' ? it.state : 'prepared',
+        item: {
+          name,
+          grams,
+          per100,
+          confidence: it.confidence === 'high' || it.confidence === 'low' ? it.confidence : 'medium',
+          ...scaleFromPer100(per100, grams),
+        },
       });
     }
     return out;
