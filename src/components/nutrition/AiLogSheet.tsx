@@ -259,6 +259,11 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
                       <Ionicons name="trash-outline" size={18} color={Colors.muted} />
                     </TouchableOpacity>
                   </View>
+                  {it.source && (
+                    <Text numberOfLines={1} style={{ color: Colors.muted, fontSize: 11, marginBottom: 8 }}>
+                      {it.source === 'usda' ? `USDA: ${it.matchedAs}` : 'AI estimate (no USDA match)'}
+                    </Text>
+                  )}
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {it.per100 && numInput(i, 'grams', 'GRAMS')}
                     {numInput(i, 'calories', 'KCAL')}
