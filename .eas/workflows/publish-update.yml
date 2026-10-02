@@ -1,0 +1,24 @@
+name: Publish OTA update
+
+# Manual only: run with `eas workflow:run publish-update.yml` or from the EAS
+# dashboard. Publishes the checked-out JS to the production update branch.
+# The runtime is app.json `version` (appVersion policy), so never bump
+# `version` for a JS-only change: that cuts off already-installed apps.
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        type: string
+        required: false
+        description: 'Update message'
+        default: 'OTA update'
+
+jobs:
+  publish_update:
+    name: Publish update to production
+    type: update
+    params:
+      branch: production
+      platform: all
+      message: ${{ inputs.message }}
