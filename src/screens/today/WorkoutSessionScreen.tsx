@@ -1,3 +1,4 @@
+import { trackEvent } from '../../lib/funnel';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -74,6 +75,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!workout) return;
     startSession(workout.id);
+    trackEvent('workout_started', { workout_id: workout.id });
     if (!isPremium) return;
 
     (async () => {

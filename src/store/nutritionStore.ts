@@ -1,3 +1,4 @@
+import { trackEvent } from '../lib/funnel';
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { NutritionEntry, NewNutritionEntry } from '../types';
@@ -56,6 +57,7 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
       const rows = entries.map((e) => ({ user_id: userId, ...e }));
       const { error } = await supabase.from('nutrition_logs').insert(rows);
       if (error) throw error;
+      trackEvent('nutrition_logged', { count: entries.length });
       if (entries.some((e) => e.logged_on === get().day)) await get().fetchDay(userId, get().day);
       return true;
     } catch {

@@ -1,3 +1,4 @@
+import { trackEvent } from '../../lib/funnel';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, Animated, TouchableOpacity, Share, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -110,6 +111,7 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
   };
 
   const handleDone = () => {
+    trackEvent('workout_completed', { sets: activeSets.length });
     saveSession(profile?.weight_unit ?? 'kg'); // fire and forget — reads state before reset clears it
     advanceWorkout();
     reset();

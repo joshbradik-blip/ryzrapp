@@ -12,6 +12,7 @@
     "test:usda": "node --import ./scripts/ts-resolve-hook.mjs --test ./supabase/functions/_shared/usdaMatch.test.ts",
     "test:pose": "node --import ./scripts/ts-resolve-hook.mjs --test ./src/lib/pose/pose.test.ts",
     "test:photo": "node --import ./scripts/ts-resolve-hook.mjs --test ./src/lib/wholeDish.test.ts",
+    "test:web": "node --test ./web/tracking/ryzr-web.test.mjs",
     "postinstall": "patch-package"
   },
   "bin": {

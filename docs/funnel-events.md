@@ -240,3 +240,119 @@ Add it to the `FunnelStep` union in `src/lib/funnel.ts`, call
 `useFunnelStep('...')` (mount) or `logFunnelStep('...')` (action), then add it to
 the table above and to the `ordered` list in the query. No migration needed —
 `step` is free-form text.
+
+---
+
+# Feature adoption + retention events
+
+Fired with `trackEvent()` in `src/lib/funnel.ts`. Same sinks as the onboarding
+steps (Supabase `funnel_events` + Meta), but every event carries
+`props.is_premium` so adoption can be split by plan. These events can repeat,
+so they are **not** deduped per launch (except `app_opened`).
+
+| Step | Fires when |
+|---|---|
+| `app_opened` | Once per app launch. Basis for retention cohorts |
+| `workout_started` | A workout session screen opens (`props.workout_id`) |
+| `workout_completed` | Tapped Done on the workout-complete screen (`props.sets`) |
+| `ai_plan_regenerated` | A new AI plan was generated from Profile |
+| `form_coach_opened` | Form Coach screen opened (once per launch) |
+| `form_coach_started` | Started a Form Coach set |
+| `nutrition_ai_opened` | Opened the "Snap or describe" sheet |
+| `nutrition_photo_estimated` | A photo was analyzed (`props.whole_dish`, `props.items`) |
+| `nutrition_logged` | Food entries saved by any path (`props.count`) |
+| `coach_chat_opened` | AI coach chat sheet opened |
+| `coach_chat_message_sent` | User sent a message (`props.voice`, `props.image`) |
+
+These only exist from the app version that ships them (an OTA update on the
+1.0.19 runtime). Earlier installs send none of them, so adoption and retention
+numbers start from the publish date, not from launch.
+
+## Adoption funnel (devices, last 30 days)
+
+```sql
+select
+  count(distinct device_id) filter (where step = 'app_opened')               as opened,
+  count(distinct device_id) filter (where step = 'workout_started')          as started_workout,
+  count(distinct device_id) filter (where step = 'workout_completed')        as completed_workout,
+  count(distinct device_id) filter (where step = 'nutrition_logged')         as logged_food,
+  count(distinct device_id) filter (where step = 'form_coach_started')       as used_form_coach,
+  count(distinct device_id) filter (where step = 'coach_chat_message_sent')  as used_coach_chat
+from funnel_events
+where created_at > now() - interval '30 days';
+```
+
+## Feature use by plan
+
+```sql
+select step,
+       props->>'is_premium' as is_premium,
+       count(*)                  as events,
+       count(distinct device_id) as devices
+from funnel_events
+where step in ('workout_completed','nutrition_photo_estimated','form_coach_started','coach_chat_message_sent')
+  and created_at > now() - interval '30 days'
+group by 1, 2
+order by 1, 2;
+```
+
+## Retention (day 1 / 7 / 30 return by first-open cohort)
+
+A device "returns" on day N if it has an `app_opened` exactly N days after its
+first one. Cohorts younger than N days are incomplete for that column.
+
+```sql
+with first_open as (
+  select device_id, min(created_at)::date as d0
+  from funnel_events
+  where step = 'app_opened'
+  group by 1
+)
+select
+  f.d0                                                        as cohort,
+  count(*)                                                    as devices,
+  count(*) filter (where exists (select 1 from funnel_events e where e.device_id = f.device_id and e.step = 'app_opened' and e.created_at::date = f.d0 + 1))  as d1,
+  count(*) filter (where exists (select 1 from funnel_events e where e.device_id = f.device_id and e.step = 'app_opened' and e.created_at::date = f.d0 + 7))  as d7,
+  count(*) filter (where exists (select 1 from funnel_events e where e.device_id = f.device_id and e.step = 'app_opened' and e.created_at::date = f.d0 + 30)) as d30
+from first_open f
+group by 1
+order by 1 desc;
+```
+
+---
+
+# Website funnel (myryzr.com)
+
+Tracker: `web/tracking/ryzr-web.js`. Storage: Supabase `public.web_events`
+(migration `20261002000000_web_events.sql`, insert-only for the public anon key).
+
+| Step | Fires when |
+|---|---|
+| `landing_view` | A page loads (once per path per browser session) |
+| `cta_click` | An element marked `data-ryzr-cta="<label>"` is clicked |
+| `store_click` | A link to the App Store / Google Play (or `/download`) is clicked, or `/download` hands off to a store |
+
+`utm_*` and `fbclid` are captured on the first landing and held for the session,
+so later clicks are credited to the original ad. Google Play receives the UTMs in
+its `referrer` parameter via `/download`.
+
+```sql
+-- Funnel by campaign (distinct browser sessions)
+select coalesce(utm_campaign, '(none)') as campaign,
+       count(distinct session_id) filter (where step = 'landing_view') as landed,
+       count(distinct session_id) filter (where step = 'cta_click')    as clicked_cta,
+       count(distinct session_id) filter (where step = 'store_click')  as store_click
+from web_events
+where created_at > now() - interval '30 days'
+group by 1
+order by landed desc;
+```
+
+## What this can and cannot tell you
+
+- The website funnel ends at **store click**. There is no install-attribution SDK
+  (AppsFlyer, Branch, etc.), so a click cannot be joined to a specific install or
+  account. Installs by campaign come from Meta Ads Manager.
+- Counts undercount slightly: ad blockers and in-app browsers can drop the request.
+- Everything above `store_click` is joinable by `session_id`; everything in the app
+  is joinable by `device_id`. The two sets are separate.

@@ -15,6 +15,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TodayStackParamList } from '../../types';
 import { Colors } from '../../constants/theme';
 import { haptic } from '../../lib/feedback';
+import { trackEvent } from '../../lib/funnel';
 import { useSettingsStore } from '../../store/settingsStore';
 import * as Speech from 'expo-speech';
 import { speak, stopSpeaking } from '../../lib/voice';
@@ -131,6 +132,8 @@ export function FormCoachScreen({ navigation, route }: Props) {
   const cueAnim = useRef(new Animated.Value(0)).current;
   const [visibleCue, setVisibleCue] = useState<string | null>(null);
 
+  useEffect(() => { trackEvent('form_coach_opened', undefined, true); }, []);
+
   // Surface whichever cue is current, from either pipeline.
   const cueId = coach.state.cue?.id ?? null;
   useEffect(() => {
@@ -237,6 +240,7 @@ export function FormCoachScreen({ navigation, route }: Props) {
   }, [isActive, poseMode, captureAndAnalyze]);
 
   const startSession = () => {
+    trackEvent('form_coach_started');
     coach.reset();
     snapRepsRef.current = 0;
     snapScoresRef.current = [];
