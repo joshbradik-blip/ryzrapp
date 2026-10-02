@@ -59,7 +59,19 @@ export type FunnelStep =
   | 'plan_generation_started'
   | 'plan_ready'
   | 'plan_generation_failed'
-  | 'activated_home_viewed';
+  | 'activated_home_viewed'
+  // Feature adoption + retention (fired with trackEvent, carry is_premium)
+  | 'app_opened'
+  | 'workout_started'
+  | 'workout_completed'
+  | 'ai_plan_regenerated'
+  | 'form_coach_opened'
+  | 'form_coach_started'
+  | 'nutrition_ai_opened'
+  | 'nutrition_photo_estimated'
+  | 'nutrition_logged'
+  | 'coach_chat_opened'
+  | 'coach_chat_message_sent';
 
 const DEVICE_ID_KEY = 'ryzr_anon_device_id';
 
@@ -139,6 +151,27 @@ export function logFunnelStep(
       // Meta SDK absent or not initialized — the Supabase copy still landed.
     }
   })();
+}
+
+/**
+ * Record a product-usage event (feature adoption / retention). Same sinks as
+ * logFunnelStep, but every event carries `is_premium` so adoption can be split
+ * by plan. Pass `once = false` for events that can legitimately repeat.
+ */
+export function trackEvent(
+  step: FunnelStep,
+  props?: Record<string, string | number | boolean>,
+  once = false,
+): void {
+  let is_premium = false;
+  try {
+    // Lazy require: subscriptionStore imports this module, so a top-level
+    // import would be circular.
+    is_premium = !!require('../store/subscriptionStore').useSubscriptionStore.getState().isPremium;
+  } catch {
+    // Store unavailable — leave the flag false rather than drop the event.
+  }
+  logFunnelStep(step, { ...props, is_premium }, once);
 }
 
 /** Log a step once when a screen mounts. */

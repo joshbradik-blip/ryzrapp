@@ -9,6 +9,7 @@ import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useNutritionStore } from '../../store/nutritionStore';
 import { GradientButton } from '../ui/GradientButton';
 import { WholeDishCamera } from './WholeDishCamera';
+import { trackEvent } from '../../lib/funnel';
 import { ReferenceObject, REFERENCE_OBJECTS, REFERENCE_ORDER, servingFraction } from '../../lib/wholeDish';
 
 const MEALS: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -72,7 +73,9 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
     setPhotoUri(uri);
     setBusy(true);
     try {
-      applyResult(await parseNutritionPhoto(base64, { premium: isPremium, wholeDish: wholeDish ? { reference } : undefined }));
+      const parsed = await parseNutritionPhoto(base64, { premium: isPremium, wholeDish: wholeDish ? { reference } : undefined });
+      trackEvent('nutrition_photo_estimated', { whole_dish: wholeDish, items: parsed.length });
+      applyResult(parsed);
     } catch {
       Alert.alert('Estimate failed', 'Please try again in a moment.');
     } finally {

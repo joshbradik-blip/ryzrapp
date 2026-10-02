@@ -1,3 +1,4 @@
+import { trackEvent } from '../../lib/funnel';
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -201,6 +202,7 @@ export function NutritionScreen() {
                           if (!isPremium) { setPremiumOpen(true); return; }
                           setAiMeal(m);
                           setAiOpen(true);
+                          trackEvent('nutrition_ai_opened');
                         }}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 }}
                       >

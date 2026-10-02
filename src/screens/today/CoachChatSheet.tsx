@@ -1,3 +1,4 @@
+import { trackEvent } from '../../lib/funnel';
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Modal,
@@ -59,6 +60,7 @@ export function CoachChatSheet({ visible, onClose }: Props) {
 
   useEffect(() => {
     if (visible) {
+      trackEvent('coach_chat_opened');
       Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
       // Drain any queued coach messages (daily encouragement + pre-workout challenge) into the chat
       if (pendingCoachMessages.length > 0) {
@@ -97,6 +99,7 @@ export function CoachChatSheet({ visible, onClose }: Props) {
     const trimmed = (overrideText ?? input).trim();
     if ((!trimmed && !pendingImage) || loading) return;
     stopSpeaking();
+    trackEvent('coach_chat_message_sent', { voice: isVoice, image: !!pendingImage });
 
     const ctx = {
       name: profile?.name ?? 'Athlete',

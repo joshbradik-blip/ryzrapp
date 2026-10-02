@@ -1,3 +1,4 @@
+import { trackEvent } from '../../lib/funnel';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -309,6 +310,7 @@ export function ProfileScreen() {
             });
             setWorkouts(workouts);
             if (workouts.length > 0) setTodayWorkout(workouts[0]);
+            trackEvent('ai_plan_regenerated');
             Alert.alert('Plan updated!', 'Your new workout plan is ready.');
           } catch {
             Alert.alert('Error', 'Could not generate a new plan. Try again later.');

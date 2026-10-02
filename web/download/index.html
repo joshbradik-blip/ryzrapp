@@ -35,6 +35,11 @@
     <a id="fallback" class="button" href="https://apps.apple.com/app/id6767086947">Open App Store / Play Store</a>
   </div>
 
+  <!-- Fill in the project URL + anon key (see web/tracking/ryzr-web.js). Without
+       them the tracker does nothing and this page is a plain redirect. -->
+  <script src="/ryzr-web.js"
+    data-supabase-url=""
+    data-supabase-key=""></script>
   <script>
     var IOS_URL = 'https://apps.apple.com/app/id6767086947';
     var ANDROID_URL = 'https://play.google.com/store/apps/details?id=com.ryzr.app';
@@ -44,10 +49,24 @@
     var isAndroid = /Android/.test(ua);
 
     var target = isAndroid ? ANDROID_URL : IOS_URL;
+
+    // Google Play carries ad attribution through the install via the
+    // `referrer` parameter. (The App Store has no equivalent without an
+    // App Store Connect campaign provider token, so iOS is unchanged.)
+    if (isAndroid) {
+      var p = new URLSearchParams(window.location.search);
+      var ref = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']
+        .filter(function (k) { return p.get(k); })
+        .map(function (k) { return k + '=' + encodeURIComponent(p.get(k)); })
+        .join('&');
+      if (ref) target += '&referrer=' + encodeURIComponent(ref);
+    }
     document.getElementById('fallback').href = target;
 
-    // Auto-redirect; the button stays as a manual fallback if the
-    // redirect is blocked (e.g. in-app browsers that suppress it).
+    // Log the store hand-off (no-op if the tracker isn't configured), then
+    // auto-redirect. The button stays as a manual fallback if the redirect is
+    // blocked (e.g. in-app browsers that suppress it).
+    try { if (window.RyzrWeb) window.RyzrWeb.track('store_click', 'download_redirect'); } catch (e) {}
     window.location.replace(target);
   </script>
 </body>
