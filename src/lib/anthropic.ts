@@ -3,6 +3,7 @@ import { UserProfile, Injury, SchedulePrefs, Goal, Workout } from '../types';
 import { EXERCISES } from '../constants/exercises';
 import { ReadinessResult, readinessPromptContext } from './readiness';
 import { conflictsWithInjuries } from './injuries';
+import { ReferenceObject, wholeDishPromptAddendum, coerceServings, MAX_DISH_GRAMS } from './wholeDish';
 
 async function callAnthropic(body: object): Promise<any> {
   console.log('[Anthropic] invoking edge function...');
@@ -656,6 +657,10 @@ export interface ParsedFoodItem {
   /** Per-100g reference values the totals were derived from (photo estimates only). */
   per100?: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
   confidence?: 'high' | 'medium' | 'low';
+  /** Whole-dish mode: how many portions the dish divides into (e.g. pizza slices). `grams`/kcal are for the whole dish. */
+  servings?: number;
+  /** Whole-dish mode: portions the user actually ate (defaults to all `servings`). Applied when saving. */
+  eaten?: number;
   /** Where the per-100g values came from: a USDA FoodData Central match, or the model's own recall. */
   source?: 'usda' | 'model';
   /** The USDA food description we matched (when source is 'usda'). */
@@ -725,12 +730,18 @@ If no food or drink is visible, return {"items":[]}.`;
  */
 export async function parseNutritionPhoto(
   imageBase64: string,
-  opts: { premium?: boolean } = {}
+  opts: { premium?: boolean; wholeDish?: { reference: ReferenceObject } } = {}
 ): Promise<ParsedFoodItem[]> {
   if (!imageBase64) return [];
 
+  // Whole-dish mode adds a known-size reference object to the prompt and always
+  // runs on Sonnet: sizing a full dish from scale cues is the hard part.
+  const prompt = opts.wholeDish
+    ? PHOTO_NUTRITION_PROMPT + wholeDishPromptAddendum(opts.wholeDish.reference)
+    : PHOTO_NUTRITION_PROMPT;
+
   const data = await callAnthropic({
-    model: opts.premium ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001',
+    model: opts.premium || opts.wholeDish ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001',
     max_tokens: 900,
     temperature: 0,
     messages: [
@@ -738,7 +749,7 @@ export async function parseNutritionPhoto(
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
-          { type: 'text', text: PHOTO_NUTRITION_PROMPT },
+          { type: 'text', text: prompt },
         ],
       },
     ],
@@ -840,7 +851,7 @@ export function coercePhotoItems(raw: string): PhotoDraft[] {
     const out: PhotoDraft[] = [];
     for (const it of items.slice(0, 20) as Record<string, any>[]) {
       if (typeof it?.name !== 'string' || !it.name.trim()) continue;
-      const grams = Math.min(3000, Math.round(num(it.grams)));
+      const grams = Math.min(MAX_DISH_GRAMS, Math.round(num(it.grams)));
       const p = it.per100g ?? {};
       const protein = num(p.protein_g);
       const carbs = num(p.carbs_g);
@@ -864,6 +875,7 @@ export function coercePhotoItems(raw: string): PhotoDraft[] {
           grams,
           per100,
           confidence: it.confidence === 'high' || it.confidence === 'low' ? it.confidence : 'medium',
+          servings: coerceServings(it.servings),
           ...scaleFromPer100(per100, grams),
         },
       });

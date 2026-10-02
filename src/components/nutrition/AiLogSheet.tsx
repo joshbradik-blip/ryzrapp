@@ -8,6 +8,7 @@ import { parseNutritionText, parseNutritionPhoto, scaleFromPer100, ParsedFoodIte
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useNutritionStore } from '../../store/nutritionStore';
 import { GradientButton } from '../ui/GradientButton';
+import { ReferenceObject, REFERENCE_OBJECTS, REFERENCE_ORDER, servingFraction } from '../../lib/wholeDish';
 
 const MEALS: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const MEAL_LABEL: Record<MealType, string> = {
@@ -39,8 +40,10 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
   const [items, setItems] = useState<ParsedFoodItem[] | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [wholeDish, setWholeDish] = useState(false);
+  const [reference, setReference] = useState<ReferenceObject>('credit_card');
 
-  const reset = () => { setText(''); setItems(null); setPhotoUri(null); setBusy(false); };
+  const reset = () => { setText(''); setItems(null); setPhotoUri(null); setBusy(false); setWholeDish(false); };
   const close = () => { reset(); onClose(); };
 
   const applyResult = (parsed: ParsedFoodItem[]) => {
@@ -79,7 +82,7 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
     setPhotoUri(result.assets[0].uri);
     setBusy(true);
     try {
-      applyResult(await parseNutritionPhoto(result.assets[0].base64, { premium: isPremium }));
+      applyResult(await parseNutritionPhoto(result.assets[0].base64, { premium: isPremium, wholeDish: wholeDish ? { reference } : undefined }));
     } catch {
       Alert.alert('Estimate failed', 'Please try again in a moment.');
     } finally {
@@ -107,6 +110,7 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
       if (!cur) return cur;
       const next = [...cur];
       if (field === 'name') next[i] = { ...next[i], name: value };
+      else if (field === 'eaten') next[i] = { ...next[i], eaten: Math.max(0, parseFloat(value) || 0) };
       else if (field === 'grams' && next[i].per100) {
         // Editing the portion rescales kcal + macros from the per-100g values.
         const grams = Math.max(0, parseFloat(value) || 0);
@@ -119,7 +123,11 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
 
   const removeItem = (i: number) => setItems((cur) => (cur ? cur.filter((_, idx) => idx !== i) : cur));
 
-  const total = (items ?? []).reduce((s, it) => s + (it.calories || 0), 0);
+  // Whole-dish items carry the full-dish numbers; what's saved is the eaten share.
+  const share = (it: ParsedFoodItem) => ((it.servings ?? 1) > 1 ? servingFraction(it.servings!, it.eaten ?? it.servings!) : 1);
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+
+  const total = (items ?? []).reduce((s, it) => s + (it.calories || 0) * share(it), 0);
 
   const save = async () => {
     if (!items || items.length === 0) return;
@@ -132,10 +140,10 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
           logged_on: day,
           meal,
           name: it.name.trim(),
-          calories: Math.round(it.calories),
-          protein_g: it.protein_g,
-          carbs_g: it.carbs_g,
-          fat_g: it.fat_g,
+          calories: Math.round(it.calories * share(it)),
+          protein_g: r1(it.protein_g * share(it)),
+          carbs_g: r1(it.carbs_g * share(it)),
+          fat_g: r1(it.fat_g * share(it)),
         }))
     );
     setBusy(false);
@@ -143,11 +151,11 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
     else Alert.alert('Could not save', 'Please try again.');
   };
 
-  const numInput = (i: number, field: 'grams' | 'calories' | 'protein_g' | 'carbs_g' | 'fat_g', label: string) => (
+  const numInput = (i: number, field: 'grams' | 'calories' | 'protein_g' | 'carbs_g' | 'fat_g' | 'eaten', label: string) => (
     <View style={{ flex: 1 }}>
       <Text style={{ color: Colors.muted, fontSize: 10, marginBottom: 3 }}>{label}</Text>
       <TextInput
-        value={String((items as ParsedFoodItem[])[i][field] ?? 0)}
+        value={String((items as ParsedFoodItem[])[i][field] ?? (field === 'eaten' ? (items as ParsedFoodItem[])[i].servings ?? 0 : 0))}
         onChangeText={(v) => patch(i, field, v)}
         keyboardType="decimal-pad"
         selectTextOnFocus
@@ -193,6 +201,35 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
                 <Ionicons name="camera" size={20} color={Colors.primary} />
                 <Text style={{ color: Colors.primary, fontSize: 15, fontWeight: '800' }}>Snap a photo of your plate</Text>
               </TouchableOpacity>
+
+              {/* Whole-dish mode: a reference object gives the model real scale */}
+              <TouchableOpacity
+                onPress={() => setWholeDish((v) => !v)}
+                disabled={busy}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: wholeDish ? 10 : 16 }}
+              >
+                <Ionicons name={wholeDish ? 'checkbox' : 'square-outline'} size={20} color={wholeDish ? Colors.primary : Colors.muted} />
+                <Text style={{ color: Colors.textSecondary, fontSize: 13, flex: 1 }}>
+                  Whole dish (pizza, cake, tray) — place a reference object beside it
+                </Text>
+              </TouchableOpacity>
+              {wholeDish && (
+                <View style={{ marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                    {REFERENCE_ORDER.map((r) => {
+                      const active = r === reference;
+                      return (
+                        <TouchableOpacity key={r} onPress={() => setReference(r)} style={{ paddingVertical: 8, paddingHorizontal: 12, minHeight: 44, justifyContent: 'center', borderRadius: 10, backgroundColor: active ? Colors.primary + '22' : Colors.surface2, borderWidth: 1, borderColor: active ? Colors.primary : Colors.border }}>
+                          <Text style={{ color: active ? Colors.primary : Colors.textSecondary, fontWeight: '700', fontSize: 12 }}>{REFERENCE_OBJECTS[r].label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <Text style={{ color: Colors.muted, fontSize: 12, lineHeight: 17 }}>
+                    Lay the {REFERENCE_OBJECTS[reference].label.toLowerCase()} flat next to the food, fully in frame, and shoot from above with the whole dish visible. Size is still an estimate — you can adjust it next.
+                  </Text>
+                </View>
+              )}
 
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                 <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
@@ -271,6 +308,14 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
                     {numInput(i, 'carbs_g', 'CARBS')}
                     {numInput(i, 'fat_g', 'FAT')}
                   </View>
+                  {(it.servings ?? 1) > 1 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                      <View style={{ width: 96 }}>{numInput(i, 'eaten', `I ATE (OF ${it.servings})`)}</View>
+                      <Text style={{ color: Colors.muted, fontSize: 11, flex: 1 }}>
+                        Values above are for the whole dish. Saves {Math.round(it.calories * share(it))} kcal.
+                      </Text>
+                    </View>
+                  )}
                 </View>
               ))}
 
