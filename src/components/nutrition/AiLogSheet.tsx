@@ -8,6 +8,7 @@ import { parseNutritionText, parseNutritionPhoto, scaleFromPer100, ParsedFoodIte
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useNutritionStore } from '../../store/nutritionStore';
 import { GradientButton } from '../ui/GradientButton';
+import { WholeDishCamera } from './WholeDishCamera';
 import { ReferenceObject, REFERENCE_OBJECTS, REFERENCE_ORDER, servingFraction } from '../../lib/wholeDish';
 
 const MEALS: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -42,6 +43,7 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
   const [busy, setBusy] = useState(false);
   const [wholeDish, setWholeDish] = useState(false);
   const [reference, setReference] = useState<ReferenceObject>('credit_card');
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const reset = () => { setText(''); setItems(null); setPhotoUri(null); setBusy(false); setWholeDish(false); };
   const close = () => { reset(); onClose(); };
@@ -66,7 +68,21 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
     }
   };
 
+  const analyzePhoto = async (base64: string, uri: string) => {
+    setPhotoUri(uri);
+    setBusy(true);
+    try {
+      applyResult(await parseNutritionPhoto(base64, { premium: isPremium, wholeDish: wholeDish ? { reference } : undefined }));
+    } catch {
+      Alert.alert('Estimate failed', 'Please try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const pickPhoto = async (fromCamera: boolean) => {
+    // Whole-dish shots use the in-app camera so we can show the framing guide.
+    if (fromCamera && wholeDish) { setCameraOpen(true); return; }
     const permission = fromCamera
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -79,15 +95,7 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
       : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.8, mediaTypes: 'images' });
     if (result.canceled || !result.assets[0].base64) return;
 
-    setPhotoUri(result.assets[0].uri);
-    setBusy(true);
-    try {
-      applyResult(await parseNutritionPhoto(result.assets[0].base64, { premium: isPremium, wholeDish: wholeDish ? { reference } : undefined }));
-    } catch {
-      Alert.alert('Estimate failed', 'Please try again in a moment.');
-    } finally {
-      setBusy(false);
-    }
+    await analyzePhoto(result.assets[0].base64, result.assets[0].uri);
   };
 
   const choosePhotoSource = () => {
@@ -338,6 +346,13 @@ export function AiLogSheet({ visible, onClose, userId, day, defaultMeal }: Props
           )}
         </View>
       </KeyboardAvoidingView>
+      <WholeDishCamera
+        visible={cameraOpen}
+        reference={reference}
+        onReferenceChange={setReference}
+        onClose={() => setCameraOpen(false)}
+        onCapture={(photo) => { setCameraOpen(false); analyzePhoto(photo.base64, photo.uri); }}
+      />
     </Modal>
   );
 }
