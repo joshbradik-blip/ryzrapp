@@ -17,10 +17,13 @@ export const BETA_TESTERS: string[] = [
   'sendtojoshperry@gmail.com',
 ];
 
-// Pricing constants — update RevenueCat dashboard to match
+// Pricing constants — update RevenueCat dashboard to match.
+// The price people actually pay comes from the stores (App Store Connect, Play Console,
+// RevenueCat). These are only the fallback shown if the store price fails to load, so
+// keep them equal to the live prices.
 export const PRICE_MONTHLY = 14.99;
 export const PRICE_ANNUAL = 89.99;
-export const PRICE_LIFETIME = 99.99;
+export const PRICE_LIFETIME = 49.99;
 export const LIFETIME_SLOTS_TOTAL = 100;
 
 interface SubscriptionState {
