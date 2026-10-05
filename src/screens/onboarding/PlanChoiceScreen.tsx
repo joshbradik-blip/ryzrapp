@@ -5,9 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types';
 import { SectionLabel } from '../../components/ui/SectionLabel';
-import { PremiumModal } from '../../components/ui/PremiumModal';
 import { useProfileStore } from '../../store/profileStore';
-import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useAuthStore } from '../../store/authStore';
 import { Colors } from '../../constants/theme';
 import { logFunnelStep } from '../../lib/funnel';
@@ -26,9 +24,7 @@ const KITS: { kit: QuickKit; label: string; icon: keyof typeof Ionicons.glyphMap
 
 export function PlanChoiceScreen({ navigation }: Props) {
   const { applyStaticPlan } = useProfileStore();
-  const { isPremium } = useSubscriptionStore();
   const userId = useAuthStore((s) => s.session?.user?.id);
-  const [premiumOpen, setPremiumOpen] = useState(false);
   // Two cards rather than three: equipment is a detail of the quick plan, not a
   // third decision. Keeping it inline means someone with no gym still gets a
   // usable plan without adding a screen to the very flow we are shortening.
@@ -46,22 +42,11 @@ export function PlanChoiceScreen({ navigation }: Props) {
     navigation.navigate('PlanReady', { choice: kit });
   };
 
+  // Custom goes straight into the questionnaire. Premium is only offered when a
+  // premium feature is used (Store → Membership); free users are capped at the
+  // 4-week plan in GeneratingPlanScreen.
   const startCustom = () => {
     logFunnelStep('plan_choice_selected', { choice: 'custom' });
-    if (isPremium) {
-      navigation.navigate('ProfileBasics');
-      return;
-    }
-    setPremiumOpen(true);
-  };
-
-  // Whether they started the trial or dismissed it, they continue into the
-  // questionnaire — a dead end here would send someone who wanted a tailored
-  // plan away with nothing. Declining simply means GeneratingPlanScreen caps
-  // them at the free 4-week plan. `paywall_purchased` is what separates the two
-  // in the funnel, so nothing extra needs recording here.
-  const leavePaywall = () => {
-    setPremiumOpen(false);
     navigation.navigate('ProfileBasics');
   };
 
@@ -174,18 +159,6 @@ export function PlanChoiceScreen({ navigation }: Props) {
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 17 }}>Custom Workout</Text>
-                {!isPremium && (
-                  <View style={{
-                    flexDirection: 'row', alignItems: 'center', gap: 3,
-                    backgroundColor: Colors.primary + '33',
-                    borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
-                  }}>
-                    <Ionicons name="sparkles" size={10} color={Colors.primary} />
-                    <Text style={{ color: Colors.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
-                      FREE TRIAL
-                    </Text>
-                  </View>
-                )}
               </View>
               <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 4, lineHeight: 18 }}>
                 Answer a few questions and get an AI-built plan around your goals, injuries and equipment.
@@ -195,12 +168,6 @@ export function PlanChoiceScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      <PremiumModal
-        visible={premiumOpen}
-        onClose={leavePaywall}
-        featureTitle="Custom AI Workout Plans"
-      />
     </SafeAreaView>
   );
 }

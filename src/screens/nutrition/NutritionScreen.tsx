@@ -12,7 +12,7 @@ import { deriveTargets, sumEntries, localDayKey } from '../../lib/nutrition';
 import { MealType, NutritionTargets } from '../../types';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { GradientButton } from '../../components/ui/GradientButton';
-import { PremiumModal } from '../../components/ui/PremiumModal';
+import { useOpenMembership } from '../../lib/openMembership';
 import { CalorieRing } from '../../components/nutrition/CalorieRing';
 import { AiLogSheet } from '../../components/nutrition/AiLogSheet';
 
@@ -64,7 +64,7 @@ export function NutritionScreen() {
   const [addOpen, setAddOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiMeal, setAiMeal] = useState<MealType>('breakfast');
-  const [premiumOpen, setPremiumOpen] = useState(false);
+  const openMembership = useOpenMembership();
   const [meal, setMeal] = useState<MealType>('breakfast');
   const [name, setName] = useState('');
   const [cal, setCal] = useState('');
@@ -199,7 +199,7 @@ export function NutritionScreen() {
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => {
-                          if (!isPremium) { setPremiumOpen(true); return; }
+                          if (!isPremium) { openMembership('AI Meal Logging'); return; }
                           setAiMeal(m);
                           setAiOpen(true);
                           trackEvent('nutrition_ai_opened');
@@ -329,11 +329,6 @@ export function NutritionScreen() {
           />
         )}
 
-        <PremiumModal
-          visible={premiumOpen}
-          onClose={() => setPremiumOpen(false)}
-          featureTitle="AI Meal Logging"
-        />
       </ScrollView>
     </SafeAreaView>
   );

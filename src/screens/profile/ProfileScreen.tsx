@@ -26,7 +26,7 @@ import { useWearablesStore } from '../../store/wearablesStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useReviewStore } from '../../store/reviewStore';
 import { openStoreListing, emailFeedback } from '../../lib/review';
-import { PremiumModal } from '../../components/ui/PremiumModal';
+import { useOpenMembership } from '../../lib/openMembership';
 import { PromoCodeRow } from '../../components/ui/PromoCodeRow';
 import { VoicePickerSheet } from '../../components/settings/VoicePickerSheet';
 import { trainerVoiceName } from '../../constants/voices';
@@ -113,7 +113,7 @@ export function ProfileScreen() {
   const { totalSessions, currentStreak, bestWeights, fetchHistory } = useHistoryStore();
   const connectedWearables = useWearablesStore((s) => s.connected);
 
-  const [premiumOpen, setPremiumOpen] = useState(false);
+  const openMembership = useOpenMembership();
   const [voicePickerOpen, setVoicePickerOpen] = useState(false);
 
   const userId = session?.user?.id;
@@ -294,7 +294,7 @@ export function ProfileScreen() {
       return;
     }
     if (!isPremium) {
-      setPremiumOpen(true);
+      openMembership('Unlimited Plan Regeneration');
       return;
     }
     Alert.alert('Regenerate Plan?', 'This will build you a fresh AI-powered workout plan based on your current profile.', [
@@ -461,7 +461,7 @@ export function ProfileScreen() {
               if (isPremium) {
                 navigation.navigate('ProfileBasics');
               } else {
-                setPremiumOpen(true);
+                openMembership('Custom AI Workout Plans');
               }
             }}
           />
@@ -850,13 +850,11 @@ export function ProfileScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Upgrade sheet */}
-      <PremiumModal visible={premiumOpen} onClose={() => setPremiumOpen(false)} />
       <VoicePickerSheet
         visible={voicePickerOpen}
         onClose={() => setVoicePickerOpen(false)}
         isPremium={isPremium}
-        onRequirePremium={() => { setVoicePickerOpen(false); setPremiumOpen(true); }}
+        onRequirePremium={() => { setVoicePickerOpen(false); openMembership('Coach Voice'); }}
       />
     </SafeAreaView>
   );

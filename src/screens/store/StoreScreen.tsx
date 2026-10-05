@@ -24,6 +24,8 @@ import {
   LIFETIME_SLOTS_TOTAL,
 } from '../../store/subscriptionStore';
 import { useFormCoachEnabled } from '../../lib/featureFlags';
+import { logFunnelStep } from '../../lib/funnel';
+import { useRoute } from '@react-navigation/native';
 
 const PREMIUM_FEATURES: { icon: keyof typeof Ionicons.glyphMap; title: string; desc: string }[] = [
   { icon: 'hardware-chip-outline', title: 'AI Workout Generation',       desc: 'Personalized plans rebuilt weekly around your progress' },
@@ -98,10 +100,14 @@ export function StoreScreen() {
   } = useSubscriptionStore();
 
   const slotsGone = lifetimeSlotsRemaining <= 0;
+  const route = useRoute<any>();
+  // Set when a premium feature sent the user here; 'Store' when they came on their own.
+  const source: string = route.params?.source ?? 'Store';
 
   const handleRestore = async () => {
     const restored = await restorePurchases();
     if (restored) {
+      logFunnelStep('paywall_restored', { source }, false);
       Alert.alert('Purchases restored!', 'Your subscription has been restored.');
     } else {
       Alert.alert('No purchases found', 'No active subscriptions to restore.');
@@ -111,6 +117,15 @@ export function StoreScreen() {
   // Opens on Gear, not Membership: landing a browsing user on a price sheet
   // reads as a sales pitch, and premium is already offered at every real gate.
   const [tab, setTab] = useState<'membership' | 'gear' | 'faq'>('gear');
+
+  // A premium gate elsewhere in the app opens the Store straight on Membership.
+  // This replaces the old paywall pop-up, so it records the same funnel step.
+  useEffect(() => {
+    if (route.params?.tab === 'membership') {
+      setTab('membership');
+      logFunnelStep('paywall_viewed', { source: route.params.source ?? 'unspecified' }, false);
+    }
+  }, [route.params?.nonce]);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const toggleFaq = useCallback((i: number) => setExpandedFaq((prev: number | null) => (prev === i ? null : i)), []);
 
@@ -175,7 +190,10 @@ export function StoreScreen() {
     }
     try {
       const success = await purchasePackage(pkg);
-      if (success) Alert.alert('Welcome to Premium!', 'You now have access to all RYZR features.');
+      if (success) {
+        logFunnelStep('paywall_purchased', { plan: type, source }, false);
+        Alert.alert('Welcome to Premium!', 'You now have access to all RYZR features.');
+      }
     } catch {
       Alert.alert('Purchase Failed', 'Something went wrong. Please try again.');
     }
@@ -189,7 +207,10 @@ export function StoreScreen() {
     }
     try {
       const ok = await purchaseLifetime();
-      if (ok) Alert.alert("You're a Founding Member!", 'Lifetime access is yours.');
+      if (ok) {
+        logFunnelStep('paywall_purchased', { plan: 'lifetime', source }, false);
+        Alert.alert("You're a Founding Member!", 'Lifetime access is yours.');
+      }
     } catch {
       Alert.alert('Purchase Failed', 'Something went wrong. Please try again.');
     }
