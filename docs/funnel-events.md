@@ -30,6 +30,7 @@ Measures where people fall out between installing RYZR and actually training.
 | `paywall_restored` | Restored an existing subscription — `props.source` |
 | `onboarding_basics_viewed` | **Custom path.** Profile basics |
 | `onboarding_injuries_viewed` | Injuries |
+| `onboarding_injuries_skipped` | Tapped Skip at the top of the Injuries screen (saves no injuries or disabilities and moves on) |
 | `onboarding_schedule_viewed` | Schedule |
 | `onboarding_equipment_viewed` | Equipment |
 | `onboarding_goals_viewed` | Goals |

@@ -13,7 +13,8 @@ import { OnboardingStackParamList, Injury, InjurySeverity } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { useProfileStore } from '../../store/profileStore';
 import { Colors } from '../../constants/theme';
-import { useFunnelStep } from '../../lib/funnel';
+import { useFunnelStep, logFunnelStep } from '../../lib/funnel';
+import { normalizeBodyParts, humanizeBodyPart } from '../../lib/injuries';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'Injuries'>;
@@ -68,6 +69,29 @@ export function InjuriesScreen({ navigation }: Props) {
   const [noInjuries, setNoInjuries] = useState(false);
   const [selectedDisabilities, setSelectedDisabilities] = useState<string[]>([]);
   const [customDisability, setCustomDisability] = useState('');
+  const [customPart, setCustomPart] = useState('');
+
+  const partLabel = (part: string) => PART_LABELS[part] ?? humanizeBodyPart(part);
+
+  const addCustomPart = () => {
+    const parts = normalizeBodyParts(customPart);
+    if (parts.length === 0) return;
+    setNoInjuries(false);
+    setSelected((prev) => {
+      const next = { ...prev };
+      parts.forEach((p) => { if (!next[p]) next[p] = 'cautious'; });
+      return next;
+    });
+    setCustomPart('');
+  };
+
+  // Nothing to report: skip straight on. Always reachable from the top of the screen.
+  const handleSkip = () => {
+    logFunnelStep('onboarding_injuries_skipped');
+    setInjuries([]);
+    setDisabilities([]);
+    navigation.navigate('Schedule');
+  };
 
   const togglePart = (part: string) => {
     setNoInjuries(false);
@@ -112,9 +136,14 @@ export function InjuriesScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24 }} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 8 }}>
-          <Ionicons name="chevron-back" size={28} color={Colors.text} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ minHeight: 44, minWidth: 44, justifyContent: 'center' }}>
+            <Ionicons name="chevron-back" size={28} color={Colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleSkip} style={{ minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' }}>
+            <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: '800' }}>Skip</Text>
+          </TouchableOpacity>
+        </View>
         <ProgressBar step={2} total={5} />
 
         <Text style={{ fontSize: 28, fontWeight: '900', color: Colors.text, marginBottom: 8 }}>
@@ -168,12 +197,53 @@ export function InjuriesScreen({ navigation }: Props) {
           })}
         </View>
 
+        {/* Type anything the chips don't cover */}
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 24 }}>
+          <TextInput
+            placeholder="Something else? Type a body part..."
+            placeholderTextColor={Colors.muted}
+            value={customPart}
+            onChangeText={setCustomPart}
+            onSubmitEditing={addCustomPart}
+            returnKeyType="done"
+            style={{
+              flex: 1,
+              backgroundColor: Colors.surface2,
+              borderWidth: 1,
+              borderColor: Colors.border,
+              borderRadius: 12,
+              paddingHorizontal: 14,
+              minHeight: 44,
+              color: Colors.text,
+              fontSize: 15,
+            }}
+          />
+          <TouchableOpacity
+            onPress={addCustomPart}
+            disabled={!customPart.trim()}
+            style={{
+              minHeight: 44,
+              paddingHorizontal: 18,
+              borderRadius: 12,
+              justifyContent: 'center',
+              backgroundColor: customPart.trim() ? Colors.primary : Colors.surface3,
+            }}
+          >
+            <Text style={{ color: customPart.trim() ? '#000000' : Colors.muted, fontWeight: '800' }}>Add</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Severity selectors for selected parts */}
         {Object.keys(selected).length > 0 && (
           <View style={{ gap: 16, marginBottom: 32 }}>
             {Object.keys(selected).map((part) => (
               <View key={part} style={{ backgroundColor: Colors.surface2, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.border }}>
-                <Text style={{ color: Colors.text, fontWeight: '700', marginBottom: 10 }}>{PART_LABELS[part]}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <Text style={{ color: Colors.text, fontWeight: '700' }}>{partLabel(part)}</Text>
+                  <TouchableOpacity onPress={() => togglePart(part)} style={{ minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end', marginVertical: -12 }}>
+                    <Text style={{ color: Colors.muted, fontSize: 13, fontWeight: '600' }}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   {SEVERITY_OPTIONS.map((opt) => (
                     <TouchableOpacity
@@ -251,8 +321,12 @@ export function InjuriesScreen({ navigation }: Props) {
           />
         </View>
 
-        <Button title="Next →" onPress={handleNext} size="lg" />
       </ScrollView>
+
+      {/* Pinned so Next is always visible, no scrolling to find it. */}
+      <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.background }}>
+        <Button title="Next →" onPress={handleNext} size="lg" />
+      </View>
     </SafeAreaView>
   );
 }

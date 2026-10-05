@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -52,6 +52,8 @@ export function ProfileBasicsScreen({ navigation }: Props) {
   useFunnelStep('onboarding_basics_viewed');
   const { profile, setProfile } = useProfileStore();
 
+  const scrollRef = useRef<ScrollView>(null);
+  const [showMissing, setShowMissing] = useState(false);
   const [name, setName] = useState(profile?.name ?? '');
   const [age, setAge] = useState(String(profile?.age ?? ''));
   const [heightCm, setHeightCm] = useState(String(profile?.height_cm ?? ''));
@@ -103,16 +105,24 @@ export function ProfileBasicsScreen({ navigation }: Props) {
     setWeightUnit(unit);
   };
 
+  const heightValid = heightUnit === 'cm' ? !!heightCm : !!heightFt;
+  // Name is optional (the app falls back to "Athlete"); the plan needs the rest.
+  const missing = [!age && 'age', !heightValid && 'height', !weight && 'weight'].filter(Boolean) as string[];
+
   const handleNext = () => {
-    const heightValid = heightUnit === 'cm' ? !!heightCm : !!heightFt;
-    if (!name.trim() || !age || !heightValid || !weight) return;
+    if (missing.length > 0) {
+      // The button used to just sit greyed out. Say what is missing and scroll to the form.
+      setShowMissing(true);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
     const rawWeight = parseFloat(weight);
     const weightKg = weightUnit === 'lbs' ? rawWeight * 0.453592 : rawWeight;
     const finalHeightCm = heightUnit === 'ft'
       ? ((parseFloat(heightFt) || 0) * 12 + (parseFloat(heightIn) || 0)) * 2.54
       : parseFloat(heightCm);
     setProfile({
-      name: name.trim(),
+      name: name.trim() || 'Athlete',
       age: parseInt(age, 10),
       height_cm: parseFloat(finalHeightCm.toFixed(1)),
       weight_kg: parseFloat(weightKg.toFixed(1)),
@@ -129,6 +139,7 @@ export function ProfileBasicsScreen({ navigation }: Props) {
     >
       <SafeAreaView style={{ flex: 1 }}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={{ flexGrow: 1, padding: 24 }}
           keyboardShouldPersistTaps="handled"
         >
@@ -145,7 +156,7 @@ export function ProfileBasicsScreen({ navigation }: Props) {
           </Text>
 
           <Input
-            label="Your name"
+            label="Your name (optional)"
             value={name}
             onChangeText={setName}
             placeholder="First name"
@@ -158,6 +169,7 @@ export function ProfileBasicsScreen({ navigation }: Props) {
             onChangeText={setAge}
             placeholder="e.g. 28"
             keyboardType="number-pad"
+            error={showMissing && !age ? 'Enter your age' : undefined}
           />
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -212,6 +224,7 @@ export function ProfileBasicsScreen({ navigation }: Props) {
                 onChangeText={setWeight}
                 placeholder={weightUnit === 'kg' ? 'e.g. 75' : 'e.g. 165'}
                 keyboardType="decimal-pad"
+                error={showMissing && !weight ? 'Enter your weight' : undefined}
               />
             </View>
           </View>
@@ -273,13 +286,17 @@ export function ProfileBasicsScreen({ navigation }: Props) {
             ))}
           </View>
 
-          <Button
-            title="Next →"
-            onPress={handleNext}
-            size="lg"
-            disabled={!name.trim() || !age || !(heightUnit === 'cm' ? heightCm : heightFt) || !weight}
-          />
         </ScrollView>
+
+        {/* Pinned so Next is always visible, no scrolling to find it. */}
+        <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.background }}>
+          {missing.length > 0 && (
+            <Text style={{ color: showMissing ? Colors.danger : Colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 10, textAlign: 'center' }}>
+              Still needed: {missing.join(', ')}
+            </Text>
+          )}
+          <Button title="Next →" onPress={handleNext} size="lg" />
+        </View>
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
