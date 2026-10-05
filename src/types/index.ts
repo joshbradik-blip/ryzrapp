@@ -168,7 +168,7 @@ export type MainTabParamList = {
   Today: undefined;
   Progress: undefined;
   Nutrition: undefined;
-  Store: undefined;
+  Store: { tab?: 'membership' | 'gear' | 'faq'; source?: string; nonce?: number } | undefined;
   Profile: undefined;
 };
 

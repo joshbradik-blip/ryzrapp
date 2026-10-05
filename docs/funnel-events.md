@@ -24,11 +24,11 @@ Measures where people fall out between installing RYZR and actually training.
 | `plan_choice_selected` | Tapped one of the three — `props.choice` is `full_gym` / `bodyweight` / `custom` |
 | `static_plan_ready_viewed` | **Free path.** Plan-ready screen — `props.choice` is the plan they got |
 | `static_plan_started` | **Free path.** Tapped Start training — same props. End of the free funnel |
-| `paywall_viewed` | `PremiumModal` opened — `props.source` is the trigger that raised it |
-| `paywall_purchased` | Subscribed — `props.plan` is monthly/annual/lifetime, plus `props.source` |
+| `paywall_viewed` | A premium feature sent the user to Store → Membership — `props.source` is the feature (opened by `useOpenMembership`). Not fired during onboarding |
+| `paywall_purchased` | Subscribed from Store → Membership — `props.plan` is monthly/annual/lifetime, `props.source` is the feature that sent them there, or `Store` if they browsed |
 | `trial_started` | The purchased package carried a free trial — `props.plan`, `props.days`, `props.unit` |
 | `paywall_restored` | Restored an existing subscription — `props.source` |
-| `onboarding_basics_viewed` | **Premium path.** Profile basics — only reached after paying |
+| `onboarding_basics_viewed` | **Custom path.** Profile basics |
 | `onboarding_injuries_viewed` | Injuries |
 | `onboarding_schedule_viewed` | Schedule |
 | `onboarding_equipment_viewed` | Equipment |
@@ -50,18 +50,21 @@ instantly, no questionnaire and no AI:
 plan_choice_selected → static_plan_ready_viewed → static_plan_started → activated_home_viewed
 ```
 
-**Premium path** — `custom`. The plan-choice card raises `PremiumModal`, and
-only a paying user continues into the questionnaire:
+**Custom path** — `custom`. No paywall: the card goes straight into the
+questionnaire and AI generation. Non-premium users are capped at the free 4-week
+plan (`GeneratingPlanScreen`):
 
 ```
-plan_choice_selected → paywall_viewed → paywall_purchased
+plan_choice_selected
   → onboarding_basics_viewed → … → onboarding_goals_viewed
   → plan_generation_started → plan_ready → activated_home_viewed
 ```
 
-The conversion rate worth watching is `paywall_viewed` → `paywall_purchased`
-with `props.source` = `Custom AI Workout Plans`, since that is the onboarding
-paywall specifically rather than a feature gate hit later in the app.
+Premium is only offered when a premium feature is used. Those gates (AI Coach
+Chat, Unlimited Plan Regeneration, Custom AI Workout Plans on Profile, AI Meal
+Logging, Coach Voice, the Today upgrade banner) send the user to **Store →
+Membership** with `props.source` set to the feature. Watch `paywall_viewed` →
+`paywall_purchased` per `props.source` to see which gate converts.
 
 ### Steps that no longer fire during onboarding
 
@@ -178,7 +181,7 @@ group by 1 order by devices desc;
 
 ```sql
 select step,
-       props->>'source' as raised_by,   -- which gate opened it (PremiumModal tags this)
+       props->>'source' as raised_by,   -- which feature sent them to Store → Membership
        props->>'plan'   as plan,
        count(distinct device_id) as devices
 from public.funnel_events

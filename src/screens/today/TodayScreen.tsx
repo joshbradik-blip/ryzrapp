@@ -23,7 +23,7 @@ import { StatTile } from '../../components/ui/StatTile';
 import { Colors } from '../../constants/theme';
 import { useFunnelStep } from '../../lib/funnel';
 import { CoachChatSheet } from './CoachChatSheet';
-import { PremiumModal } from '../../components/ui/PremiumModal';
+import { useOpenMembership } from '../../lib/openMembership';
 import { ReadinessCard } from '../../components/today/ReadinessCard';
 import { InjuryRiskCard } from '../../components/today/InjuryRiskCard';
 import { EnergyBalanceCard } from '../../components/nutrition/EnergyBalanceCard';
@@ -64,14 +64,10 @@ export function TodayScreen() {
   const nutritionEntries = useNutritionStore((s) => s.entries);
   const riskSignals = useMemo(() => assessInjuryRisk(), [sets, injuries]);
   const [chatOpen, setChatOpen] = useState(false);
-  const [premiumOpen, setPremiumOpen] = useState(false);
-  const [premiumFeatureTitle, setPremiumFeatureTitle] = useState<string | undefined>();
   const [regenerating, setRegenerating] = useState(false);
 
-  const openPremium = (title?: string) => {
-    setPremiumFeatureTitle(title);
-    setPremiumOpen(true);
-  };
+  const openMembership = useOpenMembership();
+  const openPremium = (title = 'Today Upgrade') => openMembership(title);
 
   const handleRegenerate = async () => {
     if (!isPremium) {
@@ -466,11 +462,6 @@ export function TodayScreen() {
     </TouchableOpacity>
 
     <CoachChatSheet visible={chatOpen} onClose={() => setChatOpen(false)} />
-    <PremiumModal
-      visible={premiumOpen}
-      onClose={() => setPremiumOpen(false)}
-      featureTitle={premiumFeatureTitle}
-    />
     </View>
   );
 }
