@@ -11,6 +11,7 @@
     "test:cli": "node --test ./scripts/cli.test.mjs",
     "test:usda": "node --import ./scripts/ts-resolve-hook.mjs --test ./supabase/functions/_shared/usdaMatch.test.ts",
     "test:pose": "node --import ./scripts/ts-resolve-hook.mjs --test ./src/lib/pose/pose.test.ts",
+    "test:injuries": "node --import ./scripts/ts-resolve-hook.mjs --test ./src/lib/injuries.test.ts",
     "test:photo": "node --import ./scripts/ts-resolve-hook.mjs --test ./src/lib/wholeDish.test.ts",
     "test:web": "node --test ./web/tracking/ryzr-web.test.mjs",
     "test:funnels": "node --test ./scripts/lib/funnelStats.test.mjs",

@@ -45,6 +45,7 @@ export type FunnelStep =
   // Onboarding questionnaire
   | 'onboarding_basics_viewed'
   | 'onboarding_injuries_viewed'
+  | 'onboarding_injuries_skipped'
   | 'onboarding_schedule_viewed'
   | 'onboarding_equipment_viewed'
   | 'onboarding_goals_viewed'
