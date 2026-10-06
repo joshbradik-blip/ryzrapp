@@ -15,6 +15,7 @@ import { supabase } from '../../lib/supabase';
 import { SubscriptionTerms } from '../../components/ui/SubscriptionTerms';
 import { TrialBadge } from '../../components/ui/TrialBadge';
 import { getFreeTrial, trialPriceLine } from '../../lib/trial';
+import { trialHeadline } from '../../lib/trialHeadline';
 import { PromoCodeRow } from '../../components/ui/PromoCodeRow';
 import {
   useSubscriptionStore,
@@ -169,6 +170,8 @@ export function StoreScreen() {
 
   const monthlyTrial = getFreeTrial(monthlyPkg);
   const annualTrial = getFreeTrial(annualPkg);
+  // Only promise a trial the store will actually honour (read off the live package).
+  const headlineTrial = annualTrial ?? monthlyTrial;
 
   // Per-month equivalent for the annual plan — reuse the annual package's own
   // currency formatting so non-USD locales render correctly.
@@ -262,6 +265,26 @@ export function StoreScreen() {
               </View>
             ) : (
               <>
+                {/* Free-trial line, only when the store has a free trial configured */}
+                {headlineTrial && (
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 12,
+                    backgroundColor: Colors.primary + '22',
+                    borderWidth: 1.5, borderColor: Colors.primary,
+                    borderRadius: 16, padding: 16, marginBottom: 24,
+                  }}>
+                    <Ionicons name="sparkles" size={24} color={Colors.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>
+                        {trialHeadline(headlineTrial.duration)}
+                      </Text>
+                      <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 }}>
+                        Cancel anytime before it ends and you won't be charged.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
                 {/* Hero */}
                 <View style={{ alignItems: 'center', marginBottom: 28 }}>
                   <View style={{

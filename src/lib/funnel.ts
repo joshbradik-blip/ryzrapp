@@ -50,6 +50,7 @@ export type FunnelStep =
   | 'onboarding_equipment_viewed'
   | 'onboarding_goals_viewed'
   // Paywall
+  | 'premium_prompt_shown'
   | 'paywall_viewed'
   | 'paywall_start_free'
   | 'paywall_purchased'
