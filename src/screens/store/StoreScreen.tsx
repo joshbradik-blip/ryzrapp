@@ -172,8 +172,6 @@ export function StoreScreen() {
   const annualTrial = getFreeTrial(annualPkg);
   // Only promise a trial the store will actually honour (read off the live package).
   const headlineTrial = annualTrial ?? monthlyTrial;
-  // Set only when a premium feature sent the user here, not when they browse the Store.
-  const arrivedFromFeature = route.params?.tab === 'membership' && !!route.params?.source;
 
   // Per-month equivalent for the annual plan — reuse the annual package's own
   // currency formatting so non-USD locales render correctly.
@@ -267,8 +265,8 @@ export function StoreScreen() {
               </View>
             ) : (
               <>
-                {/* Free-trial line, shown when a premium feature sent them here */}
-                {headlineTrial && arrivedFromFeature && (
+                {/* Free-trial line, only when the store has a free trial configured */}
+                {headlineTrial && (
                   <View style={{
                     flexDirection: 'row', alignItems: 'center', gap: 12,
                     backgroundColor: Colors.primary + '22',
@@ -278,7 +276,7 @@ export function StoreScreen() {
                     <Ionicons name="sparkles" size={24} color={Colors.primary} />
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '800' }}>
-                        {trialHeadline(route.params?.source, headlineTrial.duration)}
+                        {trialHeadline(headlineTrial.duration)}
                       </Text>
                       <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 }}>
                         Cancel anytime before it ends and you won't be charged.

@@ -24,11 +24,12 @@ Measures where people fall out between installing RYZR and actually training.
 | `plan_choice_selected` | Tapped one of the three — `props.choice` is `full_gym` / `bodyweight` / `custom` |
 | `static_plan_ready_viewed` | **Free path.** Plan-ready screen — `props.choice` is the plan they got |
 | `static_plan_started` | **Free path.** Tapped Start training — same props. End of the free funnel |
+| `premium_prompt_shown` | A free user tapped a premium feature and saw the "Premium feature" prompt — `props.source` is the feature. They may dismiss it or tap View Premium |
 | `paywall_viewed` | A premium feature sent the user to Store → Membership — `props.source` is the feature (opened by `useOpenMembership`). Not fired during onboarding |
 | `paywall_purchased` | Subscribed from Store → Membership — `props.plan` is monthly/annual/lifetime, `props.source` is the feature that sent them there, or `Store` if they browsed |
 | `trial_started` | The purchased package carried a free trial — `props.plan`, `props.days`, `props.unit` |
 
-When a premium feature sends someone to Store → Membership and the store has a free trial configured, the top of the screen reads "Try <feature> free for <duration>" (`src/lib/trialHeadline.ts`). It is only shown when the live package has a free introductory offer.
+Tapping a premium feature shows a small prompt (`usePremiumPrompt`); the user chooses View Premium to open Store → Membership, so `paywall_viewed` now means they chose to look. When the store has a free trial configured, the prompt and the top of Membership mention it ("Try Premium free for <duration>", wording in `src/lib/trialHeadline.ts`). Nothing is shown about a trial unless the live package has a free introductory offer.
 | `paywall_restored` | Restored an existing subscription — `props.source` |
 | `onboarding_basics_viewed` | **Custom path.** Profile basics |
 | `onboarding_injuries_viewed` | Injuries |

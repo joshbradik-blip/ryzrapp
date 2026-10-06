@@ -26,7 +26,7 @@ import { useWearablesStore } from '../../store/wearablesStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useReviewStore } from '../../store/reviewStore';
 import { openStoreListing, emailFeedback } from '../../lib/review';
-import { useOpenMembership } from '../../lib/openMembership';
+import { usePremiumPrompt } from '../../lib/usePremiumPrompt';
 import { PromoCodeRow } from '../../components/ui/PromoCodeRow';
 import { VoicePickerSheet } from '../../components/settings/VoicePickerSheet';
 import { trainerVoiceName } from '../../constants/voices';
@@ -113,7 +113,7 @@ export function ProfileScreen() {
   const { totalSessions, currentStreak, bestWeights, fetchHistory } = useHistoryStore();
   const connectedWearables = useWearablesStore((s) => s.connected);
 
-  const openMembership = useOpenMembership();
+  const promptPremium = usePremiumPrompt();
   const [voicePickerOpen, setVoicePickerOpen] = useState(false);
 
   const userId = session?.user?.id;
@@ -294,7 +294,7 @@ export function ProfileScreen() {
       return;
     }
     if (!isPremium) {
-      openMembership('Unlimited Plan Regeneration');
+      promptPremium('Unlimited Plan Regeneration');
       return;
     }
     Alert.alert('Regenerate Plan?', 'This will build you a fresh AI-powered workout plan based on your current profile.', [
@@ -461,7 +461,7 @@ export function ProfileScreen() {
               if (isPremium) {
                 navigation.navigate('ProfileBasics');
               } else {
-                openMembership('Custom AI Workout Plans');
+                promptPremium('Custom AI Workout Plans');
               }
             }}
           />
@@ -854,7 +854,7 @@ export function ProfileScreen() {
         visible={voicePickerOpen}
         onClose={() => setVoicePickerOpen(false)}
         isPremium={isPremium}
-        onRequirePremium={() => { setVoicePickerOpen(false); openMembership('Coach Voice'); }}
+        onRequirePremium={() => { setVoicePickerOpen(false); setTimeout(() => promptPremium('Coach Voice'), 400); }} // let the sheet close first: iOS drops an Alert raised mid-dismiss
       />
     </SafeAreaView>
   );

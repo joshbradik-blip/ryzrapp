@@ -1,21 +1,24 @@
-// Copy for the "free trial" line shown at the top of Store → Membership when a
-// premium feature sent the user there. Pure (no React Native imports) so it can
-// be unit tested with `npm run test:trial`.
-//
-// `source` is the feature name the gate passed to useOpenMembership. Gates we
-// have no friendly name for (browsing the Store, the Today upgrade banner) get
-// the generic "Premium" wording.
+// Copy for the free-trial wording, kept pure (no React Native imports) so it can
+// be unit tested with `npm run test:trial`. Wording is generic on purpose: it
+// does not name the feature the user tapped.
 
-const FEATURE_NAMES: Record<string, string> = {
-  'AI Coach Chat': 'AI Coach Chat',
-  'Unlimited Plan Regeneration': 'unlimited plan regeneration',
-  'Custom AI Workout Plans': 'custom AI workout plans',
-  'AI Meal Logging': 'AI meal logging',
-  'Coach Voice': 'coach voices',
-};
+/** Top of Store → Membership, e.g. "Try Premium free for 1 week". */
+export function trialHeadline(duration: string): string {
+  return `Try Premium free for ${duration}`;
+}
 
-/** e.g. "Try AI Coach Chat free for 7 days" */
-export function trialHeadline(source: string | undefined, duration: string): string {
-  const feature = source ? FEATURE_NAMES[source] : undefined;
-  return `Try ${feature ?? 'Premium'} free for ${duration}`;
+/**
+ * The small prompt shown when a free user taps a premium feature. It never
+ * navigates by itself: the user taps `action` to open Membership, or dismisses.
+ * `duration` is only passed when the store really has a free trial configured,
+ * so nothing is promised otherwise.
+ */
+export function premiumPromptCopy(duration?: string): { title: string; message: string; action: string } {
+  return {
+    title: 'Premium feature',
+    message: duration
+      ? `This is part of RYZR Premium. Try it free for ${duration}.`
+      : 'This is part of RYZR Premium.',
+    action: 'View Premium',
+  };
 }

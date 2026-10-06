@@ -12,7 +12,7 @@ import { deriveTargets, sumEntries, localDayKey } from '../../lib/nutrition';
 import { MealType, NutritionTargets } from '../../types';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { GradientButton } from '../../components/ui/GradientButton';
-import { useOpenMembership } from '../../lib/openMembership';
+import { usePremiumPrompt } from '../../lib/usePremiumPrompt';
 import { CalorieRing } from '../../components/nutrition/CalorieRing';
 import { AiLogSheet } from '../../components/nutrition/AiLogSheet';
 
@@ -64,7 +64,7 @@ export function NutritionScreen() {
   const [addOpen, setAddOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiMeal, setAiMeal] = useState<MealType>('breakfast');
-  const openMembership = useOpenMembership();
+  const promptPremium = usePremiumPrompt();
   const [meal, setMeal] = useState<MealType>('breakfast');
   const [name, setName] = useState('');
   const [cal, setCal] = useState('');
@@ -199,7 +199,7 @@ export function NutritionScreen() {
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => {
-                          if (!isPremium) { openMembership('AI Meal Logging'); return; }
+                          if (!isPremium) { promptPremium('AI Meal Logging'); return; }
                           setAiMeal(m);
                           setAiOpen(true);
                           trackEvent('nutrition_ai_opened');
