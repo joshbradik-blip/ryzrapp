@@ -1,6 +1,6 @@
 {
   "name": "ryzrapp",
-  "version": "1.0.11",
+  "version": "1.0.20",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
