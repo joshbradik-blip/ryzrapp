@@ -6,6 +6,11 @@
 //
 // Pure TypeScript — no React Native, no TFLite imports — so the letterboxing
 // and coordinate mapping below are unit-testable.
+//
+// Every function the frame processor calls is marked 'worklet'. VisionCamera
+// runs frame processors on a separate JS runtime, and calling a plain
+// function from there throws — which the frame processor's try/catch would
+// swallow, silently producing no pose at all. pose.test.ts guards this.
 
 import type { Landmarks, LandmarkName } from './types';
 
@@ -59,6 +64,7 @@ export function planLetterbox(
   frameHeight: number,
   size = MOVENET_INPUT_SIZE
 ): LetterboxPlan {
+  'worklet';
   const safeW = frameWidth > 0 ? frameWidth : 1;
   const safeH = frameHeight > 0 ? frameHeight : 1;
   const scale = Math.min(size / safeW, size / safeH);
@@ -91,6 +97,7 @@ export function letterboxInto(
   plan: LetterboxPlan,
   into?: Float32Array
 ): Float32Array {
+  'worklet';
   const { width, height, padX, padY, size } = plan;
   const total = size * size * MOVENET_CHANNELS;
   const out = into && into.length === total ? into : new Float32Array(total);
@@ -122,6 +129,7 @@ export type FrameRotation = '0deg' | '90deg' | '180deg' | '270deg';
  * The rotation is applied clockwise by vision-camera-resize-plugin.
  */
 export function orientationToRotation(orientation: string | undefined): FrameRotation {
+  'worklet';
   switch (orientation) {
     case 'landscape-left': return '90deg';
     case 'portrait-upside-down': return '180deg';
@@ -138,6 +146,7 @@ export function rotatedSize(
   height: number,
   rotation: FrameRotation
 ): { width: number; height: number } {
+  'worklet';
   return rotation === '90deg' || rotation === '270deg'
     ? { width: height, height: width }
     : { width, height };
@@ -168,6 +177,7 @@ export interface DecodeOptions {
  * `isVisible`, which callers apply with their own thresholds.
  */
 export function decodeMoveNet(output: ArrayLike<number>, opts: DecodeOptions): Landmarks {
+  'worklet';
   const lm: Landmarks = {};
   const { plan } = opts;
   const aspect = Number.isFinite(opts.aspect) && opts.aspect > 0 ? opts.aspect : 1;
