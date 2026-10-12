@@ -18,15 +18,23 @@ import { supabase } from './supabase';
 export interface FeatureFlags {
   /** Form Coach camera: every entry point and every marketing mention. */
   formCoach: boolean;
+  /**
+   * Use the platform body tracker (Apple Vision / ML Kit) when the build has
+   * it. Off forces the older MoveNet tracker — a remote escape hatch if the
+   * new one misbehaves on some devices.
+   */
+  formCoachNativeTracker: boolean;
 }
 
 const DEFAULTS: FeatureFlags = {
   formCoach: true,
+  formCoachNativeTracker: true,
 };
 
 /** `app_config.key` for each flag. */
 const REMOTE_KEYS: Record<keyof FeatureFlags, string> = {
   formCoach: 'form_coach_enabled',
+  formCoachNativeTracker: 'form_coach_native_tracker',
 };
 
 const CACHE_KEY = 'feature_flags_v1';
