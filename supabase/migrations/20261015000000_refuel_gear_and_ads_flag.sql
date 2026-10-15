@@ -2,7 +2,7 @@
 -- and the remote switch for free-tier post-workout ads.
 --
 -- 'Recovery & Fuel' rows feed the Refuel card on the workout-complete screen
--- (src/lib/gear.ts REFUEL_SECTION). One random active row is shown per workout.
+-- (src/lib/gear.ts REFUEL_SECTION). The card rotates through all active rows.
 --
 -- ASINs were taken from third-party listing trackers, not amazon.com itself —
 -- open https://www.amazon.com/dp/<ASIN> for each before relying on it, and fix
