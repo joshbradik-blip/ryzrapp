@@ -1,5 +1,5 @@
 import { trackEvent } from '../../lib/funnel';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, Animated, TouchableOpacity, Share, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,18 +12,10 @@ import { displayToKg, kgToDisplay, weightLabel } from '../../lib/units';
 import { Colors } from '../../constants/theme';
 import { haptic } from '../../lib/feedback';
 import { maybeRequestReview } from '../../lib/review';
-import { supabase } from '../../lib/supabase';
-import { openAmazonProduct, REFUEL_SECTION } from '../../lib/gear';
+import { RefuelCard } from '../../components/workout/RefuelCard';
 import { preloadPostWorkoutAd, onWorkoutCompletedForAds } from '../../lib/ads';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutComplete'>;
-
-interface RefuelPick {
-  name: string;
-  description: string;
-  asin: string;
-  icon: keyof typeof Ionicons.glyphMap;
-}
 
 interface SessionPR {
   exerciseName: string;
@@ -101,25 +93,6 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
   useEffect(() => {
     const timer = setTimeout(() => { maybeRequestReview(); }, 2200);
     return () => clearTimeout(timer);
-  }, []);
-
-  // Post-workout "Refuel" pick: one random active product from the
-  // Recovery & Fuel section of gear_products. Hidden if none load.
-  const [refuel, setRefuel] = useState<RefuelPick | null>(null);
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const { data } = await supabase
-        .from('gear_products')
-        .select('name, description, asin, icon')
-        .eq('section', REFUEL_SECTION)
-        .eq('is_active', true);
-      if (!active || !data || data.length === 0) return;
-      setRefuel(data[Math.floor(Math.random() * data.length)] as RefuelPick);
-    })();
-    return () => {
-      active = false;
-    };
   }, []);
 
   // Start loading the free-tier interstitial now; it's shown only after Done.
@@ -265,33 +238,6 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
             </View>
           )}
 
-          {/* Refuel: affiliate pick from the Gear store */}
-          {refuel && (
-            <View style={{ width: '100%', marginBottom: 20 }}>
-              <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '800', letterSpacing: 1, marginBottom: 8 }}>
-                REFUEL
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 14, alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
-                <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Ionicons name={refuel.icon} size={24} color={Colors.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 15 }}>{refuel.name}</Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 }}>{refuel.description}</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => openAmazonProduct(refuel.asin)}
-                  style={{ backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, flexShrink: 0 }}
-                >
-                  <Text style={{ color: '#000', fontWeight: '800', fontSize: 13 }}>View</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={{ color: Colors.muted, fontSize: 11, marginTop: 6, textAlign: 'center' }}>
-                Affiliate link — as an Amazon Associate RYZR earns from qualifying purchases.
-              </Text>
-            </View>
-          )}
-
           <TouchableOpacity
             onPress={handleShare}
             style={{ backgroundColor: Colors.surface, borderRadius: 14, paddingVertical: 15, width: '100%', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10, borderWidth: 1, borderColor: Colors.border, marginBottom: 12 }}
@@ -307,6 +253,9 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
             <Text style={{ color: '#000', fontWeight: '900', fontSize: 18 }}>Done</Text>
             <Ionicons name="checkmark-circle" size={22} color="#000" />
           </TouchableOpacity>
+
+          {/* Affiliate picks sit below the actions so they never crowd them */}
+          <RefuelCard style={{ marginTop: 28 }} />
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
