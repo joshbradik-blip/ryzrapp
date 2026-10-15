@@ -24,17 +24,21 @@ export interface FeatureFlags {
    * new one misbehaves on some devices.
    */
   formCoachNativeTracker: boolean;
+  /** One AdMob interstitial after a completed workout, free users only (lib/ads.ts). */
+  postWorkoutAds: boolean;
 }
 
 const DEFAULTS: FeatureFlags = {
   formCoach: true,
   formCoachNativeTracker: true,
+  postWorkoutAds: true,
 };
 
 /** `app_config.key` for each flag. */
 const REMOTE_KEYS: Record<keyof FeatureFlags, string> = {
   formCoach: 'form_coach_enabled',
   formCoachNativeTracker: 'form_coach_native_tracker',
+  postWorkoutAds: 'post_workout_ads_enabled',
 };
 
 const CACHE_KEY = 'feature_flags_v1';

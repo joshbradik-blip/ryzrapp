@@ -33,6 +33,8 @@ RYZR is a React Native + Expo workout app with AI-generated training plans, a re
 ## Store products
 - Subscription: Monthly + Annual + Founder Lifetime via RevenueCat (live prices from RC; constants in `subscriptionStore.ts`)
 - Gear tab: Amazon affiliate storefront (no in-app programs)
+- Post-workout "Refuel" card (`src/components/workout/RefuelCard.tsx`) below the Done button on `WorkoutCompleteScreen`: rotates through the `Recovery & Fuel` rows of `gear_products` — each workout starts on the next product, and it cross-fades every 7s while on screen (off under Reduce Motion). Shown to all users
+- Ads: one AdMob interstitial after Done on a completed workout, free users only, none in the first 3 workouts, never mid-session (`src/lib/ads.ts`). Remote off switch: `app_config.post_workout_ads_enabled`. Native module — needs a new build, not OTA. App IDs in `app.json` are Google's test IDs until real AdMob IDs are added
 
 ## Setup checklist (first run)
 1. Copy `.env.example` → `.env` and fill in your keys

@@ -147,6 +147,16 @@
         }
       ],
       [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
+          "skAdNetworkItems": [
+            "cstr6suwn9.skadnetwork"
+          ]
+        }
+      ],
+      [
         "expo-tracking-transparency",
         {
           "userTrackingPermission": "RYZR uses this to measure which ads bring people to the app. It never affects your experience."

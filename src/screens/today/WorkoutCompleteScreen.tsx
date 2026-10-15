@@ -12,6 +12,8 @@ import { displayToKg, kgToDisplay, weightLabel } from '../../lib/units';
 import { Colors } from '../../constants/theme';
 import { haptic } from '../../lib/feedback';
 import { maybeRequestReview } from '../../lib/review';
+import { RefuelCard } from '../../components/workout/RefuelCard';
+import { preloadPostWorkoutAd, onWorkoutCompletedForAds } from '../../lib/ads';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutComplete'>;
 
@@ -93,6 +95,11 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
     return () => clearTimeout(timer);
   }, []);
 
+  // Start loading the free-tier interstitial now; it's shown only after Done.
+  useEffect(() => {
+    preloadPostWorkoutAd();
+  }, []);
+
   const handleShare = async () => {
     const lines = [
       `🔥 Crushed "${todayWorkout?.name ?? 'a workout'}" on RYZR`,
@@ -116,6 +123,7 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
     advanceWorkout();
     reset();
     navigation.navigate('TodayHome');
+    onWorkoutCompletedForAds();
   };
 
   return (
@@ -245,6 +253,9 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
             <Text style={{ color: '#000', fontWeight: '900', fontSize: 18 }}>Done</Text>
             <Ionicons name="checkmark-circle" size={22} color="#000" />
           </TouchableOpacity>
+
+          {/* Affiliate picks sit below the actions so they never crowd them */}
+          <RefuelCard style={{ marginTop: 28 }} />
         </Animated.View>
       </ScrollView>
     </SafeAreaView>

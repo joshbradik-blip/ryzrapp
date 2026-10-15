@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
+import { openAmazonProduct } from '../../lib/gear';
 import { SubscriptionTerms } from '../../components/ui/SubscriptionTerms';
 import { TrialBadge } from '../../components/ui/TrialBadge';
 import { getFreeTrial, trialPriceLine } from '../../lib/trial';
@@ -35,11 +35,6 @@ const PREMIUM_FEATURES: { icon: keyof typeof Ionicons.glyphMap; title: string; d
   { icon: 'refresh-outline',       title: 'Unlimited Plan Regeneration', desc: 'Update your goals anytime, new plan in 10 seconds' },
   { icon: 'flash-outline',         title: 'Priority Support',            desc: 'Direct access to the RYZR coaching team' },
 ];
-
-// ─── Affiliate gear ──────────────────────────────────────────────────────────
-// Replace with your real Amazon Associates tracking tag (e.g. "ryzr-20").
-// Until then links still open, they just won't earn commission.
-const AMAZON_ASSOCIATE_TAG = 'bradikshop-20';
 
 const FAQ_ITEMS: { q: string; a: string }[] = [
   { q: 'How do I start a workout?', a: 'Go to the Today tab and tap "Start Workout" on your daily card. You\'ll enter the live session where you log sets, use the rest timer, and track form.' },
@@ -149,13 +144,6 @@ export function StoreScreen() {
       active = false;
     };
   }, []);
-
-  const openGearLink = (asin: string) => {
-    const url = `https://www.amazon.com/dp/${asin}?tag=${AMAZON_ASSOCIATE_TAG}`;
-    Linking.openURL(url).catch(() =>
-      Alert.alert('Could not open link', 'Please try again in a moment.')
-    );
-  };
 
   // Prefer the live, localized price from the loaded RevenueCat package; fall
   // back to the constants only when offerings haven't loaded (or RC isn't
@@ -423,8 +411,8 @@ export function StoreScreen() {
           <View style={{ padding: 24 }}>
             <Text style={{ color: Colors.text, fontSize: 15, lineHeight: 22, marginBottom: 20 }}>
               {formCoachEnabled
-                ? 'Make Form Coach work its best. These are the tripods, lights, and training tools we recommend — tap to view on Amazon.'
-                : 'The tripods, lights, and training tools we recommend — tap to view on Amazon.'}
+                ? 'Make Form Coach work its best. These are the tripods, training tools, and supplements we recommend — tap to view on Amazon.'
+                : 'The training tools, recovery gear, and supplements we recommend — tap to view on Amazon.'}
             </Text>
 
             {gearLoading ? (
@@ -454,7 +442,7 @@ export function StoreScreen() {
                         <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 }}>{item.desc}</Text>
                       </View>
                       <TouchableOpacity
-                        onPress={() => openGearLink(item.asin)}
+                        onPress={() => openAmazonProduct(item.asin)}
                         style={{ backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, flexShrink: 0 }}
                       >
                         <Text style={{ color: '#000', fontWeight: '800', fontSize: 13 }}>View</Text>
