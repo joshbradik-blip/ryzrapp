@@ -35,7 +35,7 @@ const COMPLETED_COUNT_KEY = 'ads_completed_workouts_v1';
 // shows no ads.
 const INTERSTITIAL_UNIT_ID = Platform.select({
   ios: process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_IOS || 'ca-app-pub-9219644602177199/3360952005',
-  android: process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_ANDROID || undefined,
+  android: process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_ANDROID || 'ca-app-pub-9219644602177199/6603947036',
 });
 
 let sdk: AdsSdk | null | undefined;
