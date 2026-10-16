@@ -1,61 +1,53 @@
 # AdMob setup — going from test ads to real revenue
 
-The post-workout interstitial (`src/lib/ads.ts`) is built, wired up and merged.
-It currently earns nothing, because both halves of the AdMob configuration are
-still placeholders. This is the checklist to finish it.
+The post-workout interstitial (`src/lib/ads.ts`) is built and wired to RYZR's
+real AdMob account. What is left is the build, the store disclosures, and
+AdMob's own app verification (sections 4–5).
 
 Nothing here can ship over OTA — `react-native-google-mobile-ads` is a native
-module, so every change below needs a new EAS build and a store submission.
+module, so changes to it or to the App IDs need a new EAS build and a store
+submission.
 
-## 1. Create the AdMob account
+## 1. AdMob account — done
 
-1. Sign up at [admob.google.com](https://admob.google.com) with the Google
-   account that should receive payouts. It links to AdSense as part of signup
-   and asks for a postal address and tax/payment details.
-2. Add two apps under **Apps → Add app**: RYZR iOS and RYZR Android. Each can
-   be linked to its store listing now or later.
-3. For each app, **Ad units → Add ad unit → Interstitial**. Name them something
-   like `RYZR iOS post-workout` / `RYZR Android post-workout`.
+Publisher `pub-9219644602177199`. Two apps, each with one **Interstitial** ad
+unit named `Post-workout` (eCPM floor: Google optimized, *All prices*):
 
-That leaves you with four IDs, in two shapes that are easy to mix up:
-
-| Shape | Name | Where it goes |
+| | App ID (`~`) → `app.json` | Ad unit ID (`/`) → `src/lib/ads.ts` |
 | --- | --- | --- |
-| `ca-app-pub-…~…` (tilde) | **App ID**, one per app | `app.json` |
-| `ca-app-pub-…/…` (slash) | **Ad unit ID**, one per unit | `.env` |
+| iOS | `ca-app-pub-9219644602177199~5009250607` | `ca-app-pub-9219644602177199/3360952005` |
+| Android | `ca-app-pub-9219644602177199~5393972991` | `ca-app-pub-9219644602177199/6603947036` |
 
-## 2. Swap the App IDs in `app.json`
+The iOS app also has a second, unused interstitial unit (`…/1543192046`)
+created by mistake; it is harmless and can be deleted in AdMob.
 
-Under the `react-native-google-mobile-ads` plugin, these two values are
-currently **Google's public test App IDs** — not placeholders we invented:
+## 2. App IDs — done
 
-```json
-"androidAppId": "ca-app-pub-3940256099942544~3347511713",
-"iosAppId":     "ca-app-pub-3940256099942544~1458002511",
-```
+Set in `app.json` under the `react-native-google-mobile-ads` plugin.
 
-Replace both with the real `~` IDs from step 1.
-
-> Do not put dummy text here. The Google Mobile Ads SDK validates the App ID
+> Never put dummy text there. The Google Mobile Ads SDK validates the App ID
 > during native initialization and **crashes the app on launch** if it is
-> malformed. Google's test IDs are the only safe stand-in, which is why they
-> are still in place.
+> malformed.
 
-While you are in the plugin block, `skAdNetworkItems` currently lists only
-`cstr6suwn9.skadnetwork` (Google's own). If you later add mediation or want
-fuller iOS attribution, paste in Google's published SKAdNetwork list.
+`skAdNetworkItems` lists only `cstr6suwn9.skadnetwork` (Google's own). If you
+later add mediation or want fuller iOS attribution, paste in Google's
+published SKAdNetwork list.
 
-## 3. Add the ad unit IDs to `.env`
+## 3. Ad unit IDs — done
 
-```
-EXPO_PUBLIC_ADMOB_INTERSTITIAL_IOS=ca-app-pub-…/…
-EXPO_PUBLIC_ADMOB_INTERSTITIAL_ANDROID=ca-app-pub-…/…
-```
+Constants in `src/lib/ads.ts`, not build env: they aren't secrets, and a value
+set only at build time would be dropped by the next `eas update`. The
+`EXPO_PUBLIC_ADMOB_INTERSTITIAL_IOS/_ANDROID` vars still override them if set.
+Dev builds (`__DEV__`) always use `TestIds.INTERSTITIAL`, so testing never
+requests a live ad — self-clicks on live ads can get the account suspended.
 
-Until these are set, `unitId()` in `src/lib/ads.ts` deliberately returns
-`null` in release builds, so **no ad is requested at all**. Dev builds fall
-back to `TestIds.INTERSTITIAL`. A production build with the real App IDs but
-missing unit IDs is silent, not broken — but it earns nothing.
+## 3b. app-ads.txt — published
+
+`https://www.myryzr.com/app-ads.txt` serves the AdMob line. It lives in the
+`joshbradik-blip/ryzr-privacy` repo (`myryzr-site/app-ads.txt`), on the
+`claude/serene-rubin-5dvthb` branch that Netlify deploys. Both store listings
+must give `https://www.myryzr.com` as the developer website, or AdMob can't
+verify the apps.
 
 ## 4. Build and submit
 
