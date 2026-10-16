@@ -27,11 +27,15 @@ type Interstitial = import('react-native-google-mobile-ads').InterstitialAd;
 const FREE_WORKOUTS_BEFORE_ADS = 3;
 const COMPLETED_COUNT_KEY = 'ads_completed_workouts_v1';
 
-// Real ad unit IDs come from AdMob (Apps → Ad units). Without them, dev
-// builds use Google's test ads and release builds show nothing.
+// "Post-workout" interstitial ad units from AdMob (Apps → Ad units). Not
+// secrets — they ship inside every app — so they live here rather than in
+// build env, where an OTA update would drop them. The EXPO_PUBLIC_ vars can
+// still override them. Dev builds always use Google's test ads instead, so
+// our own taps never count as invalid clicks. A platform with no unit ID
+// shows no ads.
 const INTERSTITIAL_UNIT_ID = Platform.select({
-  ios: process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_IOS,
-  android: process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_ANDROID,
+  ios: process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_IOS || 'ca-app-pub-9219644602177199/3360952005',
+  android: process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_ANDROID || undefined,
 });
 
 let sdk: AdsSdk | null | undefined;
@@ -52,8 +56,8 @@ function loadSdk(): AdsSdk | null {
 }
 
 function unitId(ads: AdsSdk): string | null {
-  if (INTERSTITIAL_UNIT_ID) return INTERSTITIAL_UNIT_ID;
-  return __DEV__ ? ads.TestIds.INTERSTITIAL : null;
+  if (__DEV__) return ads.TestIds.INTERSTITIAL;
+  return INTERSTITIAL_UNIT_ID || null;
 }
 
 function adsAllowed(): boolean {
