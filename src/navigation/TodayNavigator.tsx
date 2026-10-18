@@ -8,6 +8,8 @@ import { WorkoutSessionScreen } from '../screens/today/WorkoutSessionScreen';
 import { ExerciseDetailScreen } from '../screens/today/ExerciseDetailScreen';
 import { SubstituteExerciseScreen } from '../screens/today/SubstituteExerciseScreen';
 import { WorkoutCompleteScreen } from '../screens/today/WorkoutCompleteScreen';
+import { ProgramCategoryScreen } from '../screens/today/ProgramCategoryScreen';
+import { ProgramDetailScreen } from '../screens/today/ProgramDetailScreen';
 import { Colors } from '../constants/theme';
 
 // Lazy-load FormCoachScreen so Vision Camera is only initialized when the user
@@ -63,6 +65,18 @@ export function TodayNavigator() {
         name="WorkoutComplete"
         component={WorkoutCompleteScreen}
         options={{ headerShown: false, gestureEnabled: false }}
+      />
+      {/* Predesigned programs. Both titles are set from the loaded record, so
+          the placeholders here only show for the moment before it arrives. */}
+      <Stack.Screen
+        name="ProgramCategory"
+        component={ProgramCategoryScreen}
+        options={{ title: 'Programs', headerBackTitle: '' }}
+      />
+      <Stack.Screen
+        name="ProgramDetail"
+        component={ProgramDetailScreen}
+        options={{ title: 'Program', headerBackTitle: '' }}
       />
     </Stack.Navigator>
   );

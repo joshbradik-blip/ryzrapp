@@ -25,7 +25,7 @@ interface SessionPR {
 }
 
 export function WorkoutCompleteScreen({ navigation }: Props) {
-  const { activeSession, activeSets, workouts, todayWorkout, reset, advanceWorkout, saveSession } = useWorkoutStore();
+  const { activeSession, activeSets, workouts, todayWorkout, programWorkout, reset, advanceWorkout, saveSession } = useWorkoutStore();
   const { profile } = useProfileStore();
   const scaleAnim = useRef(new Animated.Value(0.3)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -120,7 +120,11 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
   const handleDone = () => {
     trackEvent('workout_completed', { sets: activeSets.length });
     saveSession(profile?.weight_unit ?? 'kg'); // fire and forget — reads state before reset clears it
-    advanceWorkout();
+    // Only a plan workout advances the plan. A predesigned program is a
+    // one-off, so finishing one must not consume the user's scheduled day.
+    const wasProgram =
+      !!programWorkout && !!activeSession && programWorkout.id === activeSession.workout_id;
+    if (!wasProgram) advanceWorkout();
     reset();
     navigation.navigate('TodayHome');
     onWorkoutCompletedForAds();

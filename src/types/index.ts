@@ -240,6 +240,10 @@ export type TodayStackParamList = {
   SubstituteExercise: { exerciseId: string; workoutId: string; workoutExerciseId: string };
   FormCoach: { exerciseId: string; exerciseName: string };
   WorkoutComplete: { sessionId: string };
+  // Predesigned programs (src/lib/programs.ts). The category screen lists one
+  // section in full; the detail screen starts a program.
+  ProgramCategory: { category: string };
+  ProgramDetail: { programId: string };
 };
 
 export interface ExerciseDBExercise {

@@ -19,6 +19,11 @@ interface ActiveSet {
 interface WorkoutState {
   workouts: Workout[];
   todayWorkout: Workout | null;
+  /**
+   * A predesigned program the user started (src/lib/programs.ts), held apart
+   * from `workouts`/`todayWorkout` so running one never disturbs the plan.
+   */
+  programWorkout: Workout | null;
   currentWorkoutIndex: number;
   activeSession: Session | null;
   activeSets: ActiveSet[];
@@ -34,6 +39,7 @@ interface WorkoutState {
 
   setWorkouts: (workouts: Workout[]) => void;
   setTodayWorkout: (workout: Workout | null) => void;
+  setProgramWorkout: (workout: Workout | null) => void;
   advanceWorkout: () => void;
   selectWorkout: (workoutId: string) => void;
   startSession: (workoutId: string) => void;
@@ -107,6 +113,7 @@ function applySwapToWorkout(
 export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
   workouts: [],
   todayWorkout: null,
+  programWorkout: null,
   currentWorkoutIndex: 0,
   activeSession: null,
   activeSets: [],
@@ -123,6 +130,8 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
   setWorkouts: (workouts) => set({ workouts, currentWorkoutIndex: 0 }),
 
   setTodayWorkout: (workout) => set({ todayWorkout: workout }),
+
+  setProgramWorkout: (workout) => set({ programWorkout: workout }),
 
   // Advance to the next workout in the plan, wrapping back to the first
   // after the last day so the plan repeats.
@@ -186,6 +195,9 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
     set({
       activeSession: null,
       activeSets: [],
+      // Clear the program too: it is persisted, so leaving it would keep a
+      // finished one-off session on disk indefinitely.
+      programWorkout: null,
       currentExerciseIndex: 0,
       currentSetIndex: 0,
       restTimerActive: false,
@@ -203,8 +215,18 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
   setLastCoachMessageDate: (date) => set({ lastCoachMessageDate: date }),
 
   saveSession: async (weightUnit) => {
-    const { activeSession, activeSets, todayWorkout } = get();
-    if (!activeSession || !todayWorkout) return;
+    const { activeSession, activeSets, todayWorkout, programWorkout } = get();
+    if (!activeSession) return;
+
+    // Resolve by the session's own workout_id rather than assuming the session
+    // is today's plan workout — otherwise a predesigned program would be saved
+    // under the plan workout's name, with its sets failing to match any
+    // exercise. For a plan workout this still lands on todayWorkout, which
+    // selectWorkout keeps in step with the chosen day.
+    const workout =
+      (programWorkout && programWorkout.id === activeSession.workout_id ? programWorkout : null) ??
+      todayWorkout;
+    if (!workout) return;
 
     const feltMap: Record<string, number> = { easy: 2, just_right: 3, hard: 5 };
     const duration = activeSession.completed_at
@@ -215,7 +237,7 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
       : null;
 
     const sets = activeSets.map((s) => {
-      const we = todayWorkout.exercises.find((e) => e.id === s.workoutExerciseId);
+      const we = workout.exercises.find((e) => e.id === s.workoutExerciseId);
       return {
         exercise_name: we?.exercise.name ?? 'Unknown',
         exercise_id: we?.exercise.id,
@@ -229,9 +251,9 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
       await supabase.functions.invoke('save-workout-session', {
         body: {
           workout_id: activeSession.workout_id,
-          workout_name: todayWorkout.name,
-          week_number: todayWorkout.week_number,
-          day_number: todayWorkout.day_number,
+          workout_name: workout.name,
+          week_number: workout.week_number,
+          day_number: workout.day_number,
           started_at: activeSession.started_at,
           completed_at: activeSession.completed_at ?? new Date().toISOString(),
           duration_seconds: duration,
@@ -385,6 +407,7 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
   partialize: (state) => ({
     workouts: state.workouts,
     todayWorkout: state.todayWorkout,
+    programWorkout: state.programWorkout,
     currentWorkoutIndex: state.currentWorkoutIndex,
     pendingCoachMessages: state.pendingCoachMessages,
     lastCoachMessageDate: state.lastCoachMessageDate,
