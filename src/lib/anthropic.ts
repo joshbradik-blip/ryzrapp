@@ -4,8 +4,14 @@ import { EXERCISES } from '../constants/exercises';
 import { ReadinessResult, readinessPromptContext } from './readiness';
 import { conflictsWithInjuries } from './injuries';
 import { ReferenceObject, wholeDishPromptAddendum, coerceServings, MAX_DISH_GRAMS } from './wholeDish';
+import { logUsage } from './usage';
 
-async function callAnthropic(body: object): Promise<any> {
+/**
+ * `feature` labels the row written to `api_usage` (see lib/usage.ts) so cost
+ * can be read per feature. It is optional only so an unlabelled call still
+ * works; every call site here passes one.
+ */
+async function callAnthropic(body: object, feature?: string): Promise<any> {
   console.log('[Anthropic] invoking edge function...');
   const { data, error } = await supabase.functions.invoke('anthropic-proxy', { body });
   if (error) {
@@ -17,10 +23,12 @@ async function callAnthropic(body: object): Promise<any> {
     throw new Error(`Anthropic error: ${JSON.stringify(data.error)}`);
   }
   console.log('[Anthropic] success');
+  // Fire and forget — telemetry must not delay the caller.
+  if (feature) logUsage(feature, (body as { model?: string }).model ?? 'unknown', data?.usage);
   return data;
 }
 
-async function callWorkoutCoach(body: object): Promise<any> {
+async function callWorkoutCoach(body: object, feature?: string): Promise<any> {
   console.log('[WorkoutCoach] invoking edge function...');
   const { data, error } = await supabase.functions.invoke('workout-coach', { body });
   if (error) {
@@ -32,6 +40,7 @@ async function callWorkoutCoach(body: object): Promise<any> {
     throw new Error(`Coach error: ${JSON.stringify(data.error)}`);
   }
   console.log('[WorkoutCoach] success');
+  if (feature) logUsage(feature, (body as { model?: string }).model ?? 'workout-coach', data?.usage);
   return data;
 }
 
@@ -146,7 +155,7 @@ RULES:
     max_tokens: 8192,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
-  });
+  }, 'plan_generation');
 
   const raw: string = data.content?.[0]?.text ?? '';
   console.log('[generateWorkoutPlan] raw length:', raw.length, 'preview:', raw.slice(0, 200));
@@ -233,7 +242,7 @@ export async function getLiveFormCue(
       role: 'user',
       content: `You are a terse, motivating strength coach. Exercise: ${exerciseName}. ${context} Give ONE coaching cue — max 12 words, starts with an action verb, no filler. No quotes.`,
     }],
-  });
+  }, 'form_coach_live_cue');
   return (data.content?.[0]?.text ?? '').trim() || 'Stay tight — own every rep.';
 }
 
@@ -256,7 +265,7 @@ export async function askWorkoutCoach(
     workout_name: context.workoutName,
     current_exercises: context.exerciseNames ?? [],
     mode: 'chat',
-  });
+  }, 'coach_ask');
   return data.content?.[0]?.text ?? "Let's focus — what do you need help with?";
 }
 
@@ -288,7 +297,7 @@ export async function coachChatTurn(apiMessages: object[], ctx: CoachChatTurnCon
     tools: ctx.tools ?? undefined,
     model: 'claude-sonnet-4-6',
     max_tokens: 2048,
-  });
+  }, 'coach_chat');
 }
 
 export async function generatePreWorkoutChallenge(
@@ -304,7 +313,7 @@ export async function generatePreWorkoutChallenge(
     current_exercises: exerciseNames,
     mode: 'pre_workout_challenge',
     readiness: readiness ?? undefined,
-  });
+  }, 'pre_workout_challenge');
   return data.content?.[0]?.text ?? '';
 }
 
@@ -320,7 +329,7 @@ export async function generateDailyCoachMessage(
     current_exercises: [],
     mode: 'daily_encouragement',
     readiness: readiness ?? undefined,
-  });
+  }, 'daily_coach_message');
   return data.content?.[0]?.text ?? '';
 }
 
@@ -329,7 +338,7 @@ export async function generateCoachNotice(name: string, fact: string): Promise<s
     messages: [{ role: 'user', content: `OBSERVATION: ${fact}` }],
     user_name: name,
     mode: 'coach_notice',
-  });
+  }, 'coach_notice');
   return data.content?.[0]?.text ?? '';
 }
 
@@ -343,7 +352,7 @@ export async function askCoach(
     max_tokens: 300,
     system,
     messages,
-  });
+  }, 'coach_ask');
   return data.content?.[0]?.text ?? "Let's focus — what do you need help with?";
 }
 
@@ -374,7 +383,7 @@ export async function askCoachWithImage(
         ],
       },
     ],
-  });
+  }, 'coach_ask_image');
 
   return data.content?.[0]?.text ?? "I couldn't analyze that image. Try again.";
 }
@@ -430,7 +439,7 @@ Respond with ONLY valid JSON (no markdown, no commentary):
         ],
       },
     ],
-  });
+  }, 'form_coach_snapshot');
 
   const text: string = data.content?.[0]?.text ?? '{}';
   try {
@@ -508,7 +517,7 @@ Write 2-3 sentences of coaching, spoken directly to the lifter:
 - No markdown, no lists, no preamble. Just the coaching.`,
       },
     ],
-  });
+  }, 'form_coach_set_summary');
 
   return data.content?.[0]?.text?.trim()
     ?? 'Solid work. Keep your tempo controlled on the next set.';
@@ -545,7 +554,7 @@ Analyze this image and return ONLY valid JSON, no explanation or markdown:
         ],
       },
     ],
-  });
+  }, 'form_analysis_image');
 
   const text: string = data.content?.[0]?.text ?? '{}';
   try {
@@ -577,7 +586,7 @@ Write 3-4 warm, specific sentences: celebrate what the data shows (use the actua
 
 Progress, not perfection: if this week fell short of their usual or their goal — fewer sessions, a missed target, a dip — treat it as neutral data, never a failure. Never scold, guilt-trip, or express disappointment; find the genuine win however small, and keep the focus line encouraging and doable. The goal is that they feel glad to come back next week.`,
     }],
-  });
+  }, 'weekly_recap');
   return (data.content?.[0]?.text ?? '').trim();
 }
 
@@ -629,7 +638,7 @@ Return ONLY valid JSON, no markdown, mapping each exercise id to its challenge s
       model: 'claude-haiku-4-5-20251001',
       max_tokens: Math.min(1024, 40 + 40 * inputs.length),
       messages: [{ role: 'user', content: prompt }],
-    });
+    }, 'exercise_challenges');
     const text: string = data.content?.[0]?.text ?? '{}';
     const start = text.indexOf('{');
     const end = text.lastIndexOf('}');
@@ -694,7 +703,7 @@ Respond with ONLY valid JSON, no markdown or commentary:
 If there is no food or drink, return {"items":[]}.`,
       },
     ],
-  });
+  }, 'nutrition_text');
 
   return coerceFoodItems(data.content?.[0]?.text ?? '{}');
 }
@@ -753,7 +762,7 @@ export async function parseNutritionPhoto(
         ],
       },
     ],
-  });
+  }, 'nutrition_photo');
 
   const drafts = coercePhotoItems(data.content?.[0]?.text ?? '{}');
   return applyUsdaMatches(drafts, await lookupUsda(drafts));

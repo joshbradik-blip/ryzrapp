@@ -17,7 +17,8 @@
     "test:web": "node --test ./web/tracking/ryzr-web.test.mjs",
     "test:funnels": "node --test ./scripts/lib/funnelStats.test.mjs",
     "funnels": "node ./scripts/funnels.mjs",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test:usage": "node --import ./scripts/ts-resolve-hook.mjs --test ./src/lib/usageCost.test.ts"
   },
   "bin": {
     "ryzr": "./scripts/cli.mjs"
