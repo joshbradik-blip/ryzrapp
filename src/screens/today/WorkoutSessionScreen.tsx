@@ -43,13 +43,18 @@ function fmtWeight(kg: number, unit: WeightUnit): string {
 export function WorkoutSessionScreen({ navigation, route }: Props) {
   const formCoachEnabled = useFormCoachEnabled();
   const { workoutId } = route.params;
-  const { workouts, todayWorkout, startSession, logSet, nextExercise, currentExerciseIndex, completeSession, exerciseChallenges, challengesLoading, loadChallenges } = useWorkoutStore();
+  const { workouts, todayWorkout, programWorkout, startSession, logSet, nextExercise, currentExerciseIndex, completeSession, exerciseChallenges, challengesLoading, loadChallenges } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
   const { profile, setProfile } = useProfileStore();
   const { lastSets, bestWeights, lastSessionPerf } = useHistoryStore();
   const userId = useAuthStore((s) => s.session?.user?.id);
 
-  const workout = workouts.find((w) => w.id === workoutId) ?? todayWorkout;
+  // A predesigned program lives outside `workouts` so starting one never
+  // disturbs the plan, so check it before falling back to today's workout.
+  const workout =
+    workouts.find((w) => w.id === workoutId) ??
+    (programWorkout && programWorkout.id === workoutId ? programWorkout : null) ??
+    todayWorkout;
 
   const [setIndex, setSetIndex] = useState(0);
   const [weight, setWeight] = useState('');

@@ -27,6 +27,7 @@ import { useOpenMembership } from '../../lib/openMembership';
 import { usePremiumPrompt } from '../../lib/usePremiumPrompt';
 import { ReadinessCard } from '../../components/today/ReadinessCard';
 import { InjuryRiskCard } from '../../components/today/InjuryRiskCard';
+import { ProgramSections } from '../../components/today/ProgramSections';
 import { EnergyBalanceCard } from '../../components/nutrition/EnergyBalanceCard';
 import { useWearablesStore } from '../../store/wearablesStore';
 import { useNutritionStore } from '../../store/nutritionStore';
@@ -355,6 +356,10 @@ export function TodayScreen() {
           <StatTile label="Longest streak" value={String(longestStreak)} sub="days" icon="flame" />
           <StatTile label="Total sessions" value={String(totalSessions)} sub="all time" icon="stats-chart" />
         </View>
+
+        {/* Focused programs (Flexibility, Balance, Strength, ...) from
+            Supabase. Renders nothing when none are active. */}
+        <ProgramSections />
 
         {/* Regenerate workout */}
         <TouchableOpacity

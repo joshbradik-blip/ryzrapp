@@ -79,6 +79,47 @@ export interface Workout {
   day_number: number;
 }
 
+/**
+ * A predesigned program from the `workout_programs` Supabase table — the
+ * focused sections (Flexibility, Balance, Strength, ...). Edited from the
+ * dashboard, so the app must treat every field as untrusted. See
+ * `src/lib/programs.ts` and the migration for the authoring rules.
+ */
+export interface WorkoutProgram {
+  id: string;
+  /** Stable key, e.g. 'hamstring-reset'. Safe to use for analytics. */
+  slug: string;
+  /** Section heading the program is listed under, e.g. 'Flexibility'. */
+  category: string;
+  name: string;
+  description: string;
+  /** The specific outcome, e.g. 'Looser hamstrings'. Absent on older rows. */
+  goal?: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  durationMin: number;
+  /** Empty means bodyweight — nothing needed. */
+  equipment: string[];
+  /** Ionicons name. */
+  icon: string;
+  /**
+   * Not gated anywhere today: the app is free and premium means no ads. Carried
+   * so a program can be gated later without a migration.
+   */
+  isPremium: boolean;
+  /**
+   * Exercises in order, already resolved against the compiled-in library.
+   * Entries this build does not recognise are dropped, so this can be shorter
+   * than the row count in the table.
+   */
+  exercises: WorkoutExercise[];
+}
+
+/** Programs grouped under their category heading, both in display order. */
+export interface WorkoutProgramCategory {
+  title: string;
+  programs: WorkoutProgram[];
+}
+
 export interface SessionSet {
   id: string;
   workout_exercise_id: string;
@@ -199,6 +240,10 @@ export type TodayStackParamList = {
   SubstituteExercise: { exerciseId: string; workoutId: string; workoutExerciseId: string };
   FormCoach: { exerciseId: string; exerciseName: string };
   WorkoutComplete: { sessionId: string };
+  // Predesigned programs (src/lib/programs.ts). The category screen lists one
+  // section in full; the detail screen starts a program.
+  ProgramCategory: { category: string };
+  ProgramDetail: { programId: string };
 };
 
 export interface ExerciseDBExercise {
