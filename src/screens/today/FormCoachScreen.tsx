@@ -67,7 +67,19 @@ export function FormCoachScreen({ navigation, route }: Props) {
   // Camera
   const [cameraFacing, setCameraFacing] = useState<'back' | 'front'>('back');
   const device = useCameraDevice(cameraFacing);
+  // The frame processor reads the VIDEO stream, so that is the one that has
+  // to be constrained. Only photoResolution was pinned, which left the video
+  // stream free to take the sensor's maximum — the on-screen readout on a
+  // real device reported 3840x2160, so every frame reached ML Kit at 8.3
+  // megapixels.
+  //
+  // Bigger input does not make pose detection better: Google's guidance is
+  // that resolution above the model's own input size only costs time, and
+  // the plugin gives up on a frame after 500ms. It costs memory too — a 4K
+  // YUV buffer per frame at 15fps is the bitmap churn Play Console flagged.
+  // 720p is comfortably above ML Kit's recommended minimum.
   const format = useCameraFormat(device, [
+    { videoResolution: { width: 1280, height: 720 } },
     { photoResolution: { width: 1280, height: 720 } },
   ]);
   const cameraRef = useRef<Camera>(null);
