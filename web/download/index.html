@@ -48,18 +48,35 @@
     var isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
     var isAndroid = /Android/.test(ua);
 
+    var p = new URLSearchParams(window.location.search);
     var target = isAndroid ? ANDROID_URL : IOS_URL;
 
-    // Google Play carries ad attribution through the install via the
-    // `referrer` parameter. (The App Store has no equivalent without an
-    // App Store Connect campaign provider token, so iOS is unchanged.)
     if (isAndroid) {
-      var p = new URLSearchParams(window.location.search);
+      // Play carries attribution through the install in a single `referrer`
+      // parameter. The UTMs have to be nested inside it and the whole string
+      // URL-encoded: top-level utm_* on a Play URL is silently dropped, and
+      // the install then reports as untracked with nothing to say why.
       var ref = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']
         .filter(function (k) { return p.get(k); })
         .map(function (k) { return k + '=' + encodeURIComponent(p.get(k)); })
         .join('&');
       if (ref) target += '&referrer=' + encodeURIComponent(ref);
+    } else {
+      // The App Store does have an equivalent: a campaign token, reported
+      // under App Analytics -> Acquisition -> Campaigns. The provider token
+      // (`pt`) that agencies use is optional — `ct` alone is attributed — so
+      // iOS does not have to stay untracked, which an earlier note here
+      // assumed it did. Untagged clicks all collapse into one "Web referrer"
+      // bucket, which is why iOS acquisition currently reads as a single lump.
+      //
+      // Apple accepts a short token, so the campaign name is normalised and
+      // capped rather than passed through: an over-long or oddly punctuated
+      // value is dropped on their side, silently, exactly like the Play case.
+      var ct = (p.get('utm_campaign') || p.get('utm_source') || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, '')
+        .slice(0, 40);
+      if (ct) target += (target.indexOf('?') === -1 ? '?' : '&') + 'ct=' + encodeURIComponent(ct);
     }
     document.getElementById('fallback').href = target;
 
