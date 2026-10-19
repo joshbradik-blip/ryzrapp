@@ -36,6 +36,8 @@ export type FunnelStep =
   | 'login_completed'
   | 'social_signin_started'
   | 'social_signin_completed'
+  | 'social_signin_cancelled'
+  | 'social_signin_failed'
   // Plan choice (fast-path onboarding)
   | 'plan_choice_viewed'
   | 'plan_choice_selected'
