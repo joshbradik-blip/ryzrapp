@@ -585,9 +585,11 @@ export function FormCoachScreen({ navigation, route }: Props) {
               <Text style={styles.statusText}>
                 {framing?.severity === 'ok' ? 'TRACKING' : (framing?.code ?? 'STARTING').replace(/_/g, ' ').toUpperCase()}
               </Text>
-              {__DEV__ && (
+              {(__DEV__ || blocking) && (
                 <Text style={[styles.statusText, { color: Colors.muted }]}>
-                  {`${coach.tracker === 'platform' ? 'NATIVE' : 'MOVENET'} · ${coach.state.fps}FPS`}
+                  {`${coach.tracker === 'platform' ? 'NATIVE' : 'MOVENET'} · ${coach.state.fps}FPS · ${
+                    coach.state.detector?.count ?? 0
+                  }KP · ${Math.round((coach.state.detector?.best ?? 0) * 100)}%`}
                 </Text>
               )}
             </>
@@ -838,10 +840,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statusPill: {
-    position: 'absolute', top: 100, left: 20,
+    // `right` keeps the pill clear of the FORM badge, which shares this top
+    // offset; wrapping lets the longer diagnostic line drop instead of
+    // sliding under it.
+    position: 'absolute', top: 100, left: 20, right: 92,
     backgroundColor: 'rgba(0,0,0,0.6)',
     borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,
     flexDirection: 'row', alignItems: 'center', gap: 6,
+    flexWrap: 'wrap',
   },
   statusText: { color: Colors.primary, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
 

@@ -52,6 +52,16 @@ export interface CoachState {
   fps: number;
   /** Smoothed keypoints of the latest frame, for the skeleton overlay. */
   pose: LivePose | null;
+  /**
+   * Raw detector output of the latest frame, before any smoothing.
+   *
+   * Exists so the on-screen readout can tell apart the two ways Form Coach
+   * reports nobody there: no landmarks at all (the detector found nothing)
+   * versus landmarks whose confidence is below MIN_KEYPOINT_SCORE (it found
+   * something it does not trust). Those have different causes and the
+   * difference is invisible from the outside.
+   */
+  detector: { count: number; best: number } | null;
 }
 
 export interface LivePose {
@@ -71,6 +81,7 @@ const IDLE_STATE: CoachState = {
   cue: null,
   fps: 0,
   pose: null,
+  detector: null,
 };
 
 export interface UseFormCoachOptions {
@@ -135,6 +146,18 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
     if (!s) return;
 
     const landmarks = normalizeLandmarks(raw);
+
+    // Measured on the raw landmarks on purpose: the smoother drops points the
+    // pipeline has already rejected, so reading it here would hide the very
+    // thing this is meant to show.
+    let count = 0;
+    let best = 0;
+    for (const kp of Object.values(landmarks)) {
+      if (!kp) continue;
+      count += 1;
+      if (kp.score > best) best = kp.score;
+    }
+
     const tick = s.push({ t: timestamp, landmarks, xMax, brightness });
     const drawn = smootherRef.current.push(landmarks, timestamp);
 
@@ -162,6 +185,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
       cue: cue ?? prev.cue,
       fps: w.length,
       pose: { landmarks: drawn, xMax, frameMirrored: frameMirrored === true },
+      detector: { count, best },
     }));
   }, []);
 
