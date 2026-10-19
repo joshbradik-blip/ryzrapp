@@ -53,8 +53,27 @@ export function SocialAuthButtons({ context, disabled }: Props) {
       else await signInWithGoogle();
       logFunnelStep('social_signin_completed', { provider, context }, false);
     } catch (e: any) {
-      // Backing out of the provider sheet is a normal action, not an error.
-      if (e instanceof SocialAuthCancelled) return;
+      // Backing out of the provider sheet is a normal action, not an error —
+      // so it stays silent for the user. It is still recorded, because a
+      // provider misconfigured for this build fails in a cancellation-shaped
+      // way, and without the code the two are identical from the outside.
+      // That is why 52 Apple attempts produced 5 sign-ins and no evidence.
+      if (e instanceof SocialAuthCancelled) {
+        logFunnelStep('social_signin_cancelled', { provider, context, code: e.code }, false);
+        return;
+      }
+      logFunnelStep(
+        'social_signin_failed',
+        {
+          provider,
+          context,
+          code: String(e?.code ?? 'none'),
+          // Truncated: this lands in a jsonb column and a provider message is
+          // for diagnosis, not storage.
+          message: String(e?.message ?? '').slice(0, 180),
+        },
+        false,
+      );
       Alert.alert(
         provider === 'apple' ? 'Apple Sign-In Failed' : 'Google Sign-In Failed',
         e?.message ?? 'Please try again.',

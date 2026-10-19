@@ -13,11 +13,21 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { supabase } from './supabase';
 
-/** The user backed out of the provider sheet. Callers swallow this silently. */
+/**
+ * The provider reported a cancellation. Callers swallow this silently.
+ *
+ * Carries the provider's own code, because "cancelled" is not always the user
+ * backing out: a provider that is misconfigured for this build can fail in a
+ * cancellation-shaped way, and swallowing that silently is indistinguishable
+ * from a deliberate dismissal. Recording the code is what tells the two apart
+ * after the fact.
+ */
 export class SocialAuthCancelled extends Error {
-  constructor() {
+  readonly code: string;
+  constructor(code = 'unknown') {
     super('Sign-in cancelled');
     this.name = 'SocialAuthCancelled';
+    this.code = code;
   }
 }
 
@@ -68,7 +78,7 @@ export async function signInWithApple(): Promise<void> {
       ],
     });
   } catch (e: any) {
-    if (e?.code === 'ERR_REQUEST_CANCELED') throw new SocialAuthCancelled();
+    if (e?.code === 'ERR_REQUEST_CANCELED') throw new SocialAuthCancelled(String(e.code));
     throw e;
   }
 
@@ -119,11 +129,11 @@ export async function signInWithGoogle(): Promise<void> {
     }
 
     const response = await GoogleSignin.signIn();
-    if (response.type === 'cancelled') throw new SocialAuthCancelled();
+    if (response.type === 'cancelled') throw new SocialAuthCancelled('response_cancelled');
     idToken = response.data?.idToken;
   } catch (e: any) {
     if (e instanceof SocialAuthCancelled) throw e;
-    if (e?.code === statusCodes.SIGN_IN_CANCELLED) throw new SocialAuthCancelled();
+    if (e?.code === statusCodes.SIGN_IN_CANCELLED) throw new SocialAuthCancelled(String(e.code));
     if (e?.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
       throw new Error('Google Play Services is unavailable or out of date on this device.');
     }
