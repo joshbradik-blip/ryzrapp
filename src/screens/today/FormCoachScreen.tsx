@@ -599,6 +599,11 @@ export function FormCoachScreen({ navigation, route }: Props) {
                   }KP · ${Math.round((coach.state.detector?.best ?? 0) * 100)}%`}
                 </Text>
               )}
+              {(__DEV__ || blocking) && coach.state.frameInfo && (
+                <Text style={[styles.statusText, { color: Colors.muted }]}>
+                  {coach.state.frameInfo}
+                </Text>
+              )}
             </>
           ) : (
             <>
