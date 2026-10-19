@@ -11,6 +11,23 @@ import { logUsage } from './usage';
  * can be read per feature. It is optional only so an unlabelled call still
  * works; every call site here passes one.
  */
+/**
+ * The model to record for a call.
+ *
+ * Prefers the response, because that is what was billed. workout-coach picks
+ * the model itself when the caller does not name one, so reading the request
+ * body alone recorded the literal string 'workout-coach' — not a model, so
+ * `costOf()` could not price it and every such row logged a null cost. The
+ * response has carried the real model all along.
+ */
+function resolveModel(data: unknown, body: object, fallback: string): string {
+  const fromResponse = (data as { model?: unknown } | null | undefined)?.model;
+  if (typeof fromResponse === 'string' && fromResponse) return fromResponse;
+  const fromRequest = (body as { model?: unknown }).model;
+  if (typeof fromRequest === 'string' && fromRequest) return fromRequest;
+  return fallback;
+}
+
 async function callAnthropic(body: object, feature?: string): Promise<any> {
   console.log('[Anthropic] invoking edge function...');
   const { data, error } = await supabase.functions.invoke('anthropic-proxy', { body });
@@ -24,7 +41,12 @@ async function callAnthropic(body: object, feature?: string): Promise<any> {
   }
   console.log('[Anthropic] success');
   // Fire and forget — telemetry must not delay the caller.
-  if (feature) logUsage(feature, (body as { model?: string }).model ?? 'unknown', data?.usage);
+  //
+  // The model comes off the response first. Both edge functions return
+  // Anthropic's raw reply, so `data.model` is the model that was actually
+  // billed; the request body only says what was asked for, and the two differ
+  // whenever the function substitutes or defaults.
+  if (feature) logUsage(feature, resolveModel(data, body, 'unknown'), data?.usage);
   return data;
 }
 
@@ -40,7 +62,7 @@ async function callWorkoutCoach(body: object, feature?: string): Promise<any> {
     throw new Error(`Coach error: ${JSON.stringify(data.error)}`);
   }
   console.log('[WorkoutCoach] success');
-  if (feature) logUsage(feature, (body as { model?: string }).model ?? 'workout-coach', data?.usage);
+  if (feature) logUsage(feature, resolveModel(data, body, 'workout-coach'), data?.usage);
   return data;
 }
 
