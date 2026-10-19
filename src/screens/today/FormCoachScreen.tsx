@@ -463,9 +463,16 @@ export function FormCoachScreen({ navigation, route }: Props) {
                 icon="bulb-outline"
                 text="Normal room light is fine. If it's too dark to track, I'll say so and offer the torch."
               />
+              {/*
+                Must stay true in BOTH modes. Pose tracking is on-device, but
+                the Basic-mode fallback posts a still frame to the AI coach
+                every few seconds — and the mode can flip to Basic mid-session
+                if the pose model drops out, with no second chance to say so.
+                Claiming nothing leaves the phone was wrong for those users.
+              */}
               <IntroTip
                 icon="lock-closed-outline"
-                text="Everything runs on your phone. No video leaves the device."
+                text="Tracking runs on your phone. In Basic mode, still photos — never video — are sent to the AI coach to read your form."
               />
             </View>
 
@@ -682,8 +689,8 @@ export function FormCoachScreen({ navigation, route }: Props) {
                   {coach.poseStatus === 'loading'
                     ? 'Warming up on-device tracking…'
                     : coach.poseStatus === 'error'
-                      ? `Basic mode — pose model didn't load. ${coach.poseDetail ?? ''}`.trim()
-                      : 'Basic mode — update the app for live on-device tracking.'}
+                      ? `Basic mode — pose model didn't load, so still photos go to the AI coach. ${coach.poseDetail ?? ''}`.trim()
+                      : 'Basic mode — still photos go to the AI coach. Update the app for on-device tracking.'}
                 </Text>
               </View>
             )}
