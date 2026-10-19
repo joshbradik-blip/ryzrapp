@@ -14,7 +14,7 @@ import { OneEuroFilter, Debouncer } from './filter';
 import { angleAt, boundingBox, torsoScale, jointAngle } from './geometry';
 import {
   planLetterbox, letterboxInto, decodeMoveNet,
-  orientationToRotation, rotatedSize,
+  orientationToRotation, uprightRotation, rotatedSize,
 } from './movenet';
 import { profileFor, depthFromAngle, measureAngle } from './profiles';
 import { RepDetector } from './repDetector';
@@ -571,6 +571,46 @@ test('letterboxInto reuses the supplied buffer', () => {
   const empty = new Uint8Array(plan.width * plan.height * 3).fill(0);
   letterboxInto(empty, plan, buf);
   assert.equal(Math.max(...buf), 0);
+});
+
+test('a landscape buffer labelled portrait is still turned upright', () => {
+  // The reported bug: an Android device hands over the sensor's landscape
+  // buffer while calling it 'portrait'. Taken at face value the detector sees
+  // a person lying on their side and reports nobody there, while the preview
+  // looks perfectly normal.
+  assert.equal(uprightRotation('portrait', 1280, 720), '90deg');
+  assert.equal(uprightRotation(undefined, 1280, 720), '90deg');
+  assert.equal(uprightRotation('nonsense', 1280, 720), '90deg');
+
+  // Front camera: the sensor is mounted the other way round.
+  assert.equal(uprightRotation('portrait', 1280, 720, true), '270deg');
+});
+
+test('a buffer that is already upright is left alone', () => {
+  assert.equal(uprightRotation('portrait', 720, 1280), '0deg');
+  assert.equal(uprightRotation(undefined, 720, 1280), '0deg');
+  // Square frames have no landscape tell, so they are not rotated on a guess.
+  assert.equal(uprightRotation('portrait', 720, 720), '0deg');
+});
+
+test('an orientation label naming a rotation is trusted over the dimensions', () => {
+  // These devices were never broken — the label already says what to do, so
+  // the dimension check must not override it.
+  assert.equal(uprightRotation('landscape-left', 1280, 720), '90deg');
+  assert.equal(uprightRotation('landscape-right', 1280, 720), '270deg');
+  assert.equal(uprightRotation('portrait-upside-down', 720, 1280), '180deg');
+  // Mirroring must not flip a label-driven answer.
+  assert.equal(uprightRotation('landscape-left', 1280, 720, true), '90deg');
+});
+
+test('every rotation uprightRotation returns makes the frame portrait-shaped', () => {
+  // The property that actually matters: whatever we return, the frame it
+  // produces must be taller than it is wide for a phone held upright.
+  for (const mirrored of [false, true]) {
+    const r = uprightRotation('portrait', 1280, 720, mirrored);
+    const size = rotatedSize(1280, 720, r);
+    assert.ok(size.height > size.width, `${r} left the frame landscape`);
+  }
 });
 
 test('orientation maps to the rotation that brings a frame upright', () => {

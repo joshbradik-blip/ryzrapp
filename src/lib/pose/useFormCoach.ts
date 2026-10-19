@@ -17,6 +17,7 @@ import {
   decodeMoveNet,
   letterboxInto,
   orientationToRotation,
+  uprightRotation,
   planLetterbox,
   rotatedSize,
 } from './movenet';
@@ -225,8 +226,11 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
           isMirrored?: boolean;
         };
 
-        // Bring the frame upright before anything measures it.
-        const rotation = orientationToRotation(f.orientation);
+        // Bring the frame upright before anything measures it. Dimensions
+        // beat the orientation label: some Android devices report 'portrait'
+        // for a landscape sensor buffer, which fed the detector a sideways
+        // person and made it report nobody there.
+        const rotation = uprightRotation(f.orientation, f.width, f.height, f.isMirrored === true);
 
         if (plugin) {
           const parsed = nativePoseToFrame(

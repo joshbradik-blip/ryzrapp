@@ -140,6 +140,40 @@ export function orientationToRotation(orientation: string | undefined): FrameRot
   }
 }
 
+/**
+ * The rotation that actually brings a frame upright, trusting its dimensions
+ * over its label.
+ *
+ * `frame.orientation` is not reliable across Android devices: some report
+ * 'portrait' while still handing over the sensor's landscape buffer. Taken at
+ * face value that yields 0°, the detector is fed a person lying on their side,
+ * and it reports no person at all while the preview looks perfectly normal —
+ * the exact failure docs/form-coach.md warns about under "Orientation".
+ *
+ * So: a label that already names a landscape orientation is trusted, and
+ * otherwise a landscape-shaped buffer (width > height) is taken as a portrait
+ * frame that still needs turning.
+ *
+ * Which way to turn is the sensor's business, and Android's two conventions
+ * split on camera facing: the back sensor is mounted at 90°, the front at 270°.
+ * `isMirrored` is VisionCamera's front-camera tell. If a device ends up
+ * upside down, those two constants are the only thing to swap.
+ */
+export function uprightRotation(
+  orientation: string | undefined,
+  width: number,
+  height: number,
+  isMirrored = false
+): FrameRotation {
+  'worklet';
+  const labelled = orientationToRotation(orientation);
+  // A label naming a rotation is already telling us what we need.
+  if (labelled !== '0deg') return labelled;
+  // Square or portrait buffer: nothing to correct.
+  if (!(width > height)) return '0deg';
+  return isMirrored ? '270deg' : '90deg';
+}
+
 /** Frame dimensions after rotation — 90°/270° swap width and height. */
 export function rotatedSize(
   width: number,
