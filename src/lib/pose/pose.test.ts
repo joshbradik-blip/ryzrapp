@@ -15,6 +15,8 @@ import { angleAt, boundingBox, torsoScale, jointAngle } from './geometry';
 import {
   planLetterbox, letterboxInto, decodeMoveNet,
   orientationToRotation, uprightRotation, rotatedSize,
+  createRotationProbe, probeRotation, recordProbeResult,
+  ROTATION_CANDIDATES, PROBE_AFTER_FRAMES, PROBE_FRAMES_EACH, MIN_LOCK_LANDMARKS,
 } from './movenet';
 import { profileFor, depthFromAngle, measureAngle } from './profiles';
 import { RepDetector } from './repDetector';
@@ -922,9 +924,88 @@ test('every function the frame processor calls is a worklet', () => {
   // directive is present rather than trusting it to survive edits.
   const called = [
     planLetterbox, letterboxInto, decodeMoveNet, orientationToRotation, rotatedSize,
-    nativePoseToFrame, rotationDegrees,
+    nativePoseToFrame, rotationDegrees, uprightRotation,
+    probeRotation, recordProbeResult,
   ];
   for (const fn of called) {
     assert.match(fn.toString(), /['"]worklet['"]/, `${fn.name} must start with 'worklet'`);
   }
+});
+
+
+// ── Rotation auto-calibration ─────────────────────────────────────────────
+//
+// The bug this exists for: a wrong rotation makes the platform tracker
+// return nothing, so the Form Coach says "no person" forever while the
+// preview looks fine. Nothing on screen points at rotation, and the repo
+// cannot know which way a given sensor is mounted — so the probe has to find
+// it. These pin the behaviour that makes that safe.
+
+test('the probe leaves a working guess alone', () => {
+  const state = createRotationProbe();
+  // A guess that finds a body is never second-guessed, so devices that
+  // already work keep their exact path and pay nothing.
+  for (let i = 0; i < 100; i++) {
+    const r = probeRotation(state, '90deg');
+    assert.equal(r, '90deg');
+    recordProbeResult(state, r, 21);
+  }
+  assert.equal(state.locked, '90deg');
+});
+
+test('the probe gives the guess a fair run before doubting it', () => {
+  const state = createRotationProbe();
+  // Someone simply out of shot must not cause a rotation hunt on frame two.
+  for (let i = 0; i < PROBE_AFTER_FRAMES; i++) {
+    assert.equal(probeRotation(state, '90deg'), '90deg', `frame ${i}`);
+    recordProbeResult(state, '90deg', 0);
+  }
+  assert.notEqual(probeRotation(state, '90deg'), '90deg');
+});
+
+test('the probe reaches every other rotation, and never retries the guess', () => {
+  const state = createRotationProbe();
+  // Burn through the guess's fair run first, so what follows is search mode.
+  for (let i = 0; i < PROBE_AFTER_FRAMES; i++) recordProbeResult(state, '0deg', 0);
+
+  const seen = new Set<string>();
+  for (let i = 0; i < PROBE_FRAMES_EACH * 8; i++) {
+    const r = probeRotation(state, '0deg');
+    seen.add(r);
+    recordProbeResult(state, r, 0);
+  }
+  for (const c of ROTATION_CANDIDATES) {
+    if (c === '0deg') continue;
+    assert.ok(seen.has(c), `never tried ${c}`);
+  }
+  // Re-running the guess would cost a second re-confirming a known failure.
+  assert.ok(!seen.has('0deg'), 'retried the guess that already failed');
+});
+
+test('the probe locks the rotation that finds a body, and stays there', () => {
+  const state = createRotationProbe();
+  // Burn through the guess so the hunt starts.
+  for (let i = 0; i < PROBE_AFTER_FRAMES; i++) recordProbeResult(state, '0deg', 0);
+
+  // Whatever it tries next, answer only that one with a body.
+  const winner = probeRotation(state, '0deg');
+  recordProbeResult(state, winner, 21);
+  assert.equal(state.locked, winner);
+
+  // Once locked it must not drift — a person stepping out of shot produces
+  // empty frames too, and re-opening the search would strobe the detector
+  // through wrong rotations every time someone walked away.
+  for (let i = 0; i < 200; i++) {
+    assert.equal(probeRotation(state, '0deg'), winner);
+    recordProbeResult(state, winner, 0);
+  }
+  assert.equal(state.locked, winner);
+});
+
+test('a stray landmark or two is not enough to lock a rotation', () => {
+  const state = createRotationProbe();
+  for (let i = 0; i < PROBE_AFTER_FRAMES; i++) recordProbeResult(state, '0deg', 0);
+  const tried = probeRotation(state, '0deg');
+  recordProbeResult(state, tried, MIN_LOCK_LANDMARKS - 1);
+  assert.equal(state.locked, null, 'locked on too few points');
 });

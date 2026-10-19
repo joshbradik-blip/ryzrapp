@@ -20,6 +20,9 @@ import {
   uprightRotation,
   planLetterbox,
   rotatedSize,
+  createRotationProbe,
+  probeRotation,
+  recordProbeResult,
 } from './movenet';
 
 /**
@@ -62,6 +65,12 @@ export interface CoachState {
    * difference is invisible from the outside.
    */
   detector: { count: number; best: number } | null;
+  /**
+   * Frame geometry and the rotation actually applied, for the on-screen
+   * readout. The rotation a device needs is not knowable from the repo, so
+   * when it goes wrong this is the only way to see it.
+   */
+  frameInfo: string | null;
 }
 
 export interface LivePose {
@@ -82,6 +91,7 @@ const IDLE_STATE: CoachState = {
   fps: 0,
   pose: null,
   detector: null,
+  frameInfo: null,
 };
 
 export interface UseFormCoachOptions {
@@ -140,7 +150,8 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
     timestamp: number,
     xMax: number,
     brightness?: number,
-    frameMirrored?: boolean
+    frameMirrored?: boolean,
+    frameInfo?: string
   ) => {
     const s = sessionRef.current;
     if (!s) return;
@@ -186,6 +197,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
       fps: w.length,
       pose: { landmarks: drawn, xMax, frameMirrored: frameMirrored === true },
       detector: { count, best },
+      frameInfo: frameInfo ?? prev.frameInfo,
     }));
   }, []);
 
@@ -225,7 +237,12 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
   // Shared across frames so we are not allocating a 110k-element tensor at
   // 15fps. Worklets see the same object each call.
   const scratch = useMemo(
-    () => ({ input: null as Float32Array | null, lastAt: 0, nativeMisses: 0 }),
+    () => ({
+      input: null as Float32Array | null,
+      lastAt: 0,
+      nativeMisses: 0,
+      rotation: createRotationProbe(),
+    }),
     []
   );
 
@@ -254,9 +271,13 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
         // beat the orientation label: some Android devices report 'portrait'
         // for a landscape sensor buffer, which fed the detector a sideways
         // person and made it report nobody there.
-        const rotation = uprightRotation(f.orientation, f.width, f.height, f.isMirrored === true);
+        const guess = uprightRotation(f.orientation, f.width, f.height, f.isMirrored === true);
 
         if (plugin) {
+          // The platform tracker returns nothing when it cannot find a body,
+          // so an empty result is usable signal: it says this rotation is
+          // wrong. Try the others until one produces a body, then stay there.
+          const rotation = probeRotation(scratch.rotation, guess);
           const parsed = nativePoseToFrame(
             plugin.call(frame as never, { rotation: rotationDegrees(rotation) })
           );
@@ -266,9 +287,16 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
             return;
           }
           scratch.nativeMisses = 0;
-          runOnJs(parsed.landmarks, nowMs, parsed.xMax, undefined, f.isMirrored === true);
+          const found = Object.keys(parsed.landmarks).length;
+          recordProbeResult(scratch.rotation, rotation, found);
+          const info = `${f.width}x${f.height} ${f.orientation ?? '?'}${
+            f.isMirrored === true ? ' mir' : ''
+          } ${rotation}${scratch.rotation.locked ? '' : '?'}`;
+          runOnJs(parsed.landmarks, nowMs, parsed.xMax, undefined, f.isMirrored === true, info);
           return;
         }
+
+        const rotation = guess;
 
         if (!model || !resize) return;
         const upright = rotatedSize(f.width, f.height, rotation);
@@ -293,7 +321,10 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
 
         const aspect = upright.height > 0 ? upright.width / upright.height : 1;
         const landmarks = decodeMoveNet(out, { plan, aspect });
-        runOnJs(landmarks, nowMs, aspect, undefined, f.isMirrored === true);
+        const info = `${f.width}x${f.height} ${f.orientation ?? '?'}${
+          f.isMirrored === true ? ' mir' : ''
+        } ${rotation}`;
+        runOnJs(landmarks, nowMs, aspect, undefined, f.isMirrored === true, info);
       } catch {
         // Never throw inside a frame processor — it takes down the camera.
         if (plugin) {

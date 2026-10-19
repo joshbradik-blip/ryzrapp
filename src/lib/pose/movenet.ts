@@ -174,6 +174,92 @@ export function uprightRotation(
   return isMirrored ? '270deg' : '90deg';
 }
 
+/**
+ * Rotation auto-calibration.
+ *
+ * `uprightRotation()` is a good guess, but which way a sensor is mounted is
+ * genuinely device-specific and the repo cannot know it. When the guess is
+ * wrong the platform tracker is handed a sideways person, returns no
+ * landmarks at all, and the Form Coach says "no person" forever — while the
+ * preview looks perfectly normal, so nothing on screen suggests rotation.
+ *
+ * Rather than ship a guess per device, try the other rotations when the guess
+ * produces nothing, and keep the first one that actually yields a body. One
+ * frame costs one inference, so a wrong guess costs about a second.
+ *
+ * Only useful for a detector that returns nothing when it finds nobody. The
+ * MoveNet path always decodes 17 keypoints whatever it is shown, so landmark
+ * count carries no signal there and the probe is not used.
+ */
+export const ROTATION_CANDIDATES: FrameRotation[] = ['0deg', '90deg', '180deg', '270deg'];
+
+/** Empty frames to accept before doubting the guess — about a second at 15fps. */
+export const PROBE_AFTER_FRAMES = 15;
+/** Empty frames to give each candidate before moving on. */
+export const PROBE_FRAMES_EACH = 8;
+/**
+ * Landmarks needed before locking a rotation in.
+ *
+ * Matches the bounding-box threshold in framing.ts: fewer than this is not a
+ * body as far as the rest of the pipeline is concerned, so locking on it
+ * would pin the wrong rotation on a stray point.
+ */
+export const MIN_LOCK_LANDMARKS = 3;
+
+export interface RotationProbe {
+  /** The rotation that produced a body, once one has. Never re-opened. */
+  locked: FrameRotation | null;
+  /** Consecutive frames yielding too few landmarks. */
+  empty: number;
+  /** Index into ROTATION_CANDIDATES while searching. */
+  probe: number;
+}
+
+export function createRotationProbe(): RotationProbe {
+  return { locked: null, empty: 0, probe: 0 };
+}
+
+/** The rotation to use for this frame. */
+export function probeRotation(state: RotationProbe, guess: FrameRotation): FrameRotation {
+  'worklet';
+  if (state.locked) return state.locked;
+  if (state.empty < PROBE_AFTER_FRAMES) return guess;
+
+  // Skip the guess while searching: it has already had its run and produced
+  // nothing, so cycling back through it just spends a second of the user's
+  // time re-confirming a known answer.
+  const others = ROTATION_CANDIDATES.length - 1;
+  let skip = state.probe % others;
+  for (let i = 0; i < ROTATION_CANDIDATES.length; i++) {
+    const candidate = ROTATION_CANDIDATES[i];
+    if (candidate === guess) continue;
+    if (skip === 0) return candidate;
+    skip -= 1;
+  }
+  return guess;
+}
+
+/** Feed back what that rotation produced. Mutates `state`. */
+export function recordProbeResult(
+  state: RotationProbe,
+  rotation: FrameRotation,
+  landmarkCount: number
+): void {
+  'worklet';
+  if (landmarkCount >= MIN_LOCK_LANDMARKS) {
+    state.locked = rotation;
+    state.empty = 0;
+    return;
+  }
+  state.empty += 1;
+  if (
+    state.empty >= PROBE_AFTER_FRAMES &&
+    (state.empty - PROBE_AFTER_FRAMES) % PROBE_FRAMES_EACH === 0
+  ) {
+    state.probe += 1;
+  }
+}
+
 /** Frame dimensions after rotation — 90°/270° swap width and height. */
 export function rotatedSize(
   width: number,
