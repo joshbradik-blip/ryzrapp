@@ -278,9 +278,8 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
           // so an empty result is usable signal: it says this rotation is
           // wrong. Try the others until one produces a body, then stay there.
           const rotation = probeRotation(scratch.rotation, guess);
-          const parsed = nativePoseToFrame(
-            plugin.call(frame as never, { rotation: rotationDegrees(rotation) })
-          );
+          const raw = plugin.call(frame as never, { rotation: rotationDegrees(rotation) });
+          const parsed = nativePoseToFrame(raw);
           if (!parsed) {
             scratch.nativeMisses += 1;
             if (scratch.nativeMisses === NATIVE_MISS_LIMIT && onNativeFailed) onNativeFailed();
@@ -289,9 +288,13 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
           scratch.nativeMisses = 0;
           const found = Object.keys(parsed.landmarks).length;
           recordProbeResult(scratch.rotation, rotation, found);
+          // The plugin's own account of the frame it was handed: buffer shape,
+          // luma brightness, and whether the detector threw or simply found
+          // nobody. Without it an empty result is unreadable from here.
+          const detail = (raw as { debug?: string } | null)?.debug ?? '';
           const info = `${f.width}x${f.height} ${f.orientation ?? '?'}${
             f.isMirrored === true ? ' mir' : ''
-          } ${rotation}${scratch.rotation.locked ? '' : '?'}`;
+          } ${rotation}${scratch.rotation.locked ? '' : '?'}\n${detail}`;
           runOnJs(parsed.landmarks, nowMs, parsed.xMax, undefined, f.isMirrored === true, info);
           return;
         }
