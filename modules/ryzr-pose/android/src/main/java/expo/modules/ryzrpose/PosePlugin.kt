@@ -1,5 +1,6 @@
 package expo.modules.ryzrpose
 
+import android.media.Image
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.pose.PoseDetection
@@ -9,6 +10,8 @@ import com.mrousavy.camera.frameprocessors.Frame
 import com.mrousavy.camera.frameprocessors.FrameProcessorPlugin
 import com.mrousavy.camera.frameprocessors.VisionCameraProxy
 import java.util.concurrent.TimeUnit
+import kotlin.math.max
+import kotlin.math.sqrt
 
 // Google ML Kit pose detector, exposed to JS as the VisionCamera frame
 // processor plugin "ryzrPose".
@@ -30,21 +33,26 @@ class PosePlugin(proxy: VisionCameraProxy, options: Map<String, Any>?) : FramePr
     // convention ML Kit's rotationDegrees uses.
     val rotation = ((params?.get("rotation") as? Number)?.toInt() ?: 0).let { ((it % 360) + 360) % 360 }
 
-    val image = frame.image
-    val input = InputImage.fromMediaImage(image, rotation)
-
-    // Frame processors run on the camera thread, never the main thread, so
-    // blocking here is allowed. The timeout keeps a stalled detector from
-    // freezing the camera.
-    val pose = try {
-      Tasks.await(detector.process(input), 500, TimeUnit.MILLISECONDS)
+    val image = try {
+      frame.image
     } catch (e: Exception) {
       return null
     }
 
-    val swap = rotation == 90 || rotation == 270
-    val width = (if (swap) image.height else image.width).toDouble()
-    val height = (if (swap) image.width else image.height).toDouble()
+    // An empty result used to mean two different things — the detector threw,
+    // or it ran and found nobody — and JS could not tell them apart. It also
+    // could not tell a detector that sees a real room from one handed a black
+    // or garbled buffer. `debug` answers both, so a device that reports no
+    // person can be diagnosed from the screen instead of from guesses.
+    val shape = describeBuffer(image)
+
+    val startedAt = System.nanoTime()
+    val pose = try {
+      Tasks.await(detector.process(InputImage.fromMediaImage(image, rotation)), 500, TimeUnit.MILLISECONDS)
+    } catch (e: Exception) {
+      return result(image, rotation, emptyMap(), "$shape err:${e.javaClass.simpleName}")
+    }
+    val tookMs = (System.nanoTime() - startedAt) / 1_000_000
 
     val landmarks = HashMap<String, Any>()
     for ((type, name) in NAMES) {
@@ -56,11 +64,67 @@ class PosePlugin(proxy: VisionCameraProxy, options: Map<String, Any>?) : FramePr
       )
     }
 
-    return hashMapOf<String, Any>(
-      "width" to width,
-      "height" to height,
+    return result(image, rotation, landmarks, "$shape ${landmarks.size}lm ${tookMs}ms")
+  }
+
+  private fun result(
+    image: Image,
+    rotation: Int,
+    landmarks: Map<String, Any>,
+    debug: String,
+  ): Map<String, Any> {
+    val swap = rotation == 90 || rotation == 270
+    return hashMapOf(
+      "width" to (if (swap) image.height else image.width).toDouble(),
+      "height" to (if (swap) image.width else image.height).toDouble(),
       "landmarks" to landmarks,
+      "debug" to debug,
     )
+  }
+
+  /**
+   * Format, plane layout and brightness of the luma plane, as one short
+   * string. A real scene reads as a mid mean with a wide spread; a black or
+   * garbled buffer reads as a near-zero mean, a near-zero spread, or both.
+   */
+  private fun describeBuffer(image: Image): String {
+    return try {
+      val plane = image.planes[0]
+      val buffer = plane.buffer
+      val rowStride = plane.rowStride
+      val pixelStride = max(1, plane.pixelStride)
+
+      // Sampled on a coarse grid: this runs on every frame, so it has to cost
+      // nothing next to the detector itself.
+      val stepX = max(1, image.width / 48)
+      val stepY = max(1, image.height / 48)
+      var sum = 0L
+      var sumSquares = 0L
+      var count = 0
+      var y = 0
+      while (y < image.height) {
+        val rowStart = y * rowStride
+        var x = 0
+        while (x < image.width) {
+          val index = rowStart + x * pixelStride
+          if (index < buffer.limit()) {
+            val value = buffer.get(index).toInt() and 0xFF
+            sum += value
+            sumSquares += (value * value).toLong()
+            count++
+          }
+          x += stepX
+        }
+        y += stepY
+      }
+
+      if (count == 0) return "fmt${image.format} p${image.planes.size} rs$rowStride ps$pixelStride y:none"
+      val mean = sum / count
+      val spread = sqrt(((sumSquares / count) - mean * mean).toDouble().coerceAtLeast(0.0)).toInt()
+      "fmt${image.format} p${image.planes.size} rs$rowStride ps$pixelStride y$mean±$spread"
+    } catch (e: Exception) {
+      "shape err:${e.javaClass.simpleName}"
+    }
   }
 
   companion object {

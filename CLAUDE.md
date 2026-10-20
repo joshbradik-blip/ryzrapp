@@ -25,6 +25,16 @@ RYZR is a React Native + Expo workout app with AI-generated training plans, a re
 - Exercise demo art: in the public Supabase `exercise-media` bucket, resolved by convention — looping clip `exercise-media/{id}.mp4` → still `exercise-media/{id}.png` → branded fallback (see `src/lib/exerciseMedia.ts` + `ExerciseHero`). All optional; missing media degrades gracefully. Generation prompts in `docs/exercise-image-prompts.md`.
 - Never hardcode API keys — use `process.env.EXPO_PUBLIC_*` and `.env` (see `.env.example`)
 
+## Supabase migrations
+- **Every migration that creates a table in `public` must grant access in the same migration.** From 2026-10-30 Supabase no longer auto-grants the Data API roles on new tables, so a table created without grants is invisible to supabase-js, PostgREST and GraphQL — the client gets `permission denied`, not an empty result. Existing tables keep the grants they already have; this only bites new ones.
+  ```sql
+  grant select                         on public.your_table to anon;
+  grant select, insert, update, delete on public.your_table to authenticated;
+  grant select, insert, update, delete on public.your_table to service_role;
+  ```
+  Narrow it where the table warrants it — a config table nobody writes from the app wants `select` only for `anon`/`authenticated`. Grants are not a substitute for RLS: they say which roles may reach the table at all, RLS policies say which rows.
+- This matters most when the whole schema is rebuilt — a preview branch, a second project, `supabase db reset`. Every table comes back from the migrations, so a migration missing its grants takes that environment's table down with it, not just the newest one.
+
 ## Premium vs free
 - **Free**: manual workout logging, exercise library, basic progress/streak
 - **Premium**: AI workout generation, Form Coach camera, advanced charts, plan regeneration
