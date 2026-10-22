@@ -163,6 +163,26 @@ export function __resetPosePluginCache(): void {
   cached = undefined;
 }
 
+/**
+ * Every landmark name either platform plugin can emit: ML Kit's 21 on
+ * Android, a subset of the same names from Apple Vision on iOS. Used only
+ * when enumeration comes back empty, so a plugin that one day emits a new
+ * name still works through the normal path.
+ */
+const NATIVE_LANDMARK_NAMES: string[] = [
+  'nose',
+  'left_eye', 'right_eye',
+  'left_ear', 'right_ear',
+  'left_shoulder', 'right_shoulder',
+  'left_elbow', 'right_elbow',
+  'left_wrist', 'right_wrist',
+  'left_hip', 'right_hip',
+  'left_knee', 'right_knee',
+  'left_ankle', 'right_ankle',
+  'left_heel', 'right_heel',
+  'left_foot_index', 'right_foot_index',
+];
+
 /** What the ryzrPose plugin returns: pixels in the upright image. */
 export interface NativePoseResult {
   width: number;
@@ -189,7 +209,13 @@ export function nativePoseToFrame(
   if (!(width > 0) || !(height > 0) || !r.landmarks || typeof r.landmarks !== 'object') return null;
 
   const out: Landmarks = {};
-  const names = Object.keys(r.landmarks);
+  // `Object.keys` is the natural way to walk this, but the value crossing the
+  // JSI boundary is a host object on some runtimes, and enumerating one there
+  // yields nothing even though every property reads back fine. That is how a
+  // plugin reporting 21 landmarks arrived here as an empty skeleton. Falling
+  // back to the fixed name list makes the walk independent of enumeration.
+  let names = Object.keys(r.landmarks);
+  if (names.length === 0) names = NATIVE_LANDMARK_NAMES;
   for (let i = 0; i < names.length; i++) {
     const p = r.landmarks[names[i]];
     if (!p) continue;

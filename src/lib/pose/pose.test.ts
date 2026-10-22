@@ -1009,3 +1009,27 @@ test('a stray landmark or two is not enough to lock a rotation', () => {
   recordProbeResult(state, tried, MIN_LOCK_LANDMARKS - 1);
   assert.equal(state.locked, null, 'locked on too few points');
 });
+
+test('nativePoseToFrame reads landmarks the runtime will not enumerate', () => {
+  // The plugin's result crosses JSI as a host object on some runtimes: every
+  // property reads back correctly, but Object.keys on it returns nothing.
+  // That turned a detector reporting 21 landmarks into an empty skeleton on
+  // device while every unit test here passed, because a plain object literal
+  // enumerates fine.
+  const landmarks = {};
+  const point = (x: number, y: number) => ({ x, y, score: 0 });
+  for (const [name, p] of [
+    ['left_shoulder', point(100, 200)],
+    ['right_shoulder', point(200, 200)],
+    ['left_hip', point(120, 400)],
+  ] as const) {
+    Object.defineProperty(landmarks, name, { value: p, enumerable: false });
+  }
+  assert.deepEqual(Object.keys(landmarks), [], 'test subject must not enumerate');
+
+  const f = nativePoseToFrame({ width: 720, height: 1280, landmarks });
+  assert.ok(f, 'returned null for a readable result');
+  assert.equal(Object.keys(f.landmarks).length, 3);
+  assert.ok(f.landmarks.left_shoulder);
+  assert.equal(f.landmarks.left_shoulder.y, 200 / 1280);
+});
