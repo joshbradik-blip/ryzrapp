@@ -1,0 +1,26 @@
+name: Publish OTA update (preview)
+
+# Manual only, same as publish-update.yml but aimed at the `preview` update
+# branch. Internally distributed builds (the `preview` build profile) run on
+# the preview channel, so a production update never reaches them — without
+# this, a fix cannot be delivered to a test build at all.
+# The runtime is app.json `version` (appVersion policy), so never bump
+# `version` for a JS-only change: that cuts off already-installed apps.
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        type: string
+        required: false
+        description: 'Update message'
+        default: 'OTA update (preview)'
+
+jobs:
+  publish_update:
+    name: Publish update to preview
+    type: update
+    params:
+      branch: preview
+      platform: all
+      message: ${{ inputs.message }}

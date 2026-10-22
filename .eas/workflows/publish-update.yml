@@ -1,9 +1,7 @@
 name: Publish OTA update
 
 # Manual only: run with `eas workflow:run publish-update.yml` or from the EAS
-# dashboard. Publishes the checked-out JS to an update branch — `production`
-# by default, or `preview` to reach internally distributed test builds, which
-# run on the preview channel and never see a production update.
+# dashboard. Publishes the checked-out JS to the production update branch.
 # The runtime is app.json `version` (appVersion policy), so never bump
 # `version` for a JS-only change: that cuts off already-installed apps.
 
@@ -15,17 +13,12 @@ on:
         required: false
         description: 'Update message'
         default: 'OTA update'
-      branch:
-        type: string
-        required: false
-        description: 'Update branch: production or preview'
-        default: 'production'
 
 jobs:
   publish_update:
-    name: Publish update
+    name: Publish update to production
     type: update
     params:
-      branch: ${{ inputs.branch }}
+      branch: production
       platform: all
       message: ${{ inputs.message }}
