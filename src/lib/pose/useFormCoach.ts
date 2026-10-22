@@ -294,7 +294,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
           const detail = (raw as { debug?: string } | null)?.debug ?? '';
           const info = `${f.width}x${f.height} ${f.orientation ?? '?'}${
             f.isMirrored === true ? ' mir' : ''
-          } ${rotation}${scratch.rotation.locked ? '' : '?'}\n${detail}`;
+          } ${rotation}${scratch.rotation.locked ? '' : '?'} js${found}\n${detail}`;
           runOnJs(parsed.landmarks, nowMs, parsed.xMax, undefined, f.isMirrored === true, info);
           return;
         }
