@@ -3,7 +3,7 @@ import { Platform, Linking } from 'react-native';
 import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 import { supabase } from '../lib/supabase';
 import { getFreeTrial } from '../lib/trial';
-import { logFunnelStep } from '../lib/funnel';
+import { logFunnelStep, logMetaPurchase, logMetaTrialStart } from '../lib/funnel';
 
 export const REVENUECAT_API_KEY_IOS = 'appl_ncBNRQuNkRYHyRUGOxYRenoKvGA';
 export const REVENUECAT_API_KEY_ANDROID = 'goog_SqmsQvDGeXhkJJrdDoFDeQAiyeP';
@@ -140,12 +140,18 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       // Logged here rather than in each paywall so every purchase surface is
       // covered by one call site and none can drift out of sync.
       const trial = getFreeTrial(pkg);
-      if (isPremium && trial) {
-        logFunnelStep(
-          'trial_started',
-          { plan: pkg.packageType, days: trial.count, unit: trial.unit },
-          false
-        );
+      if (isPremium) {
+        const { price, currencyCode } = pkg.product;
+        if (trial) {
+          logFunnelStep(
+            'trial_started',
+            { plan: pkg.packageType, days: trial.count, unit: trial.unit },
+            false
+          );
+          logMetaTrialStart(price, currencyCode, { plan: pkg.packageType });
+        } else {
+          logMetaPurchase(price, currencyCode, { plan: pkg.packageType });
+        }
       }
       return isPremium;
     } catch (e: any) {
@@ -168,6 +174,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       const isPremium = customerInfo.entitlements.active[ENTITLEMENT_PREMIUM] !== undefined;
       if (isPremium) {
         set({ isPremium, customerInfo });
+        logMetaPurchase(pkg.product.price, pkg.product.currencyCode, { plan: 'lifetime' });
         await supabase.rpc('decrement_lifetime_slots');
         await get().fetchLifetimeSlots();
       }
