@@ -48,6 +48,14 @@ const MIN_FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
  */
 const NATIVE_MISS_LIMIT = 30;
 
+/**
+ * Bumped by hand on every OTA that touches this file, and shown on the
+ * diagnostic readout. Without it a screenshot cannot say whether the update
+ * actually landed, and an unchanged number reads as a failed fix rather than
+ * a bundle that never swapped in.
+ */
+const JS_BUILD = 'b4';
+
 export interface CoachState {
   reps: number;
   score: number | null;
@@ -300,7 +308,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
           const detail = (raw as { debug?: string } | null)?.debug ?? '';
           const info = `${f.width}x${f.height} ${f.orientation ?? '?'}${
             f.isMirrored === true ? ' mir' : ''
-          } ${rotation}${scratch.rotation.locked ? '' : '?'} js${found}\n${detail}`;
+          } ${rotation}${scratch.rotation.locked ? '' : '?'} js${found} ${JS_BUILD}\n${detail}`;
           runOnJs(packLandmarks(parsed.landmarks), nowMs, parsed.xMax, undefined, f.isMirrored === true, info);
           return;
         }
@@ -332,7 +340,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
         const landmarks = decodeMoveNet(out, { plan, aspect });
         const info = `${f.width}x${f.height} ${f.orientation ?? '?'}${
           f.isMirrored === true ? ' mir' : ''
-        } ${rotation}`;
+        } ${rotation} ${JS_BUILD}`;
         runOnJs(packLandmarks(landmarks), nowMs, aspect, undefined, f.isMirrored === true, info);
       } catch {
         // Never throw inside a frame processor — it takes down the camera.

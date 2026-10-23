@@ -184,33 +184,54 @@ export const NATIVE_LANDMARK_NAMES: LandmarkName[] = [
 ];
 
 /**
- * Flatten landmarks to `[index, x, y, score, ...]` for the trip from the
- * frame-processor worklet to the JS thread.
+ * Flatten landmarks to the string `"index,x,y,score,index,x,y,score,..."`
+ * for the trip from the frame-processor worklet to the JS thread.
  *
- * Objects do not survive that crossing intact on this runtime — the copy
- * arrives with every property readable but nothing enumerable, so anything
- * that walks it with Object.keys/entries sees an empty skeleton. Numbers copy
- * faithfully, so the skeleton travels as a flat number array and is rebuilt
- * on arrival. Both ends index into NATIVE_LANDMARK_NAMES, so neither has to
- * enumerate anything.
+ * Objects do not survive that crossing on this runtime — the copy arrives
+ * with every property readable but nothing enumerable, so anything walking
+ * it with Object.keys/entries sees an empty skeleton. A flat number array
+ * was tried next and did not land either. A string is the one shape this
+ * boundary is *known* to carry intact, because the diagnostic readout rides
+ * across it on every frame and arrives whole. Both ends index into
+ * NATIVE_LANDMARK_NAMES, so neither enumerates anything.
  */
-export function packLandmarks(landmarks: Landmarks): number[] {
+export function packLandmarks(landmarks: Landmarks): string {
   'worklet';
-  const flat: number[] = [];
+  let packed = '';
   for (let i = 0; i < NATIVE_LANDMARK_NAMES.length; i++) {
     const kp = landmarks[NATIVE_LANDMARK_NAMES[i]];
     if (!kp) continue;
-    flat.push(i, kp.x, kp.y, kp.score);
+    if (packed.length > 0) packed += ',';
+    packed += i + ',' + kp.x + ',' + kp.y + ',' + kp.score;
   }
-  return flat;
+  return packed;
 }
 
-/** Rebuild what packLandmarks flattened. Anything malformed is skipped. */
-export function unpackLandmarks(flat: unknown): Landmarks {
+/**
+ * Rebuild what packLandmarks flattened. Anything malformed is skipped.
+ *
+ * Also accepts an array or array-like, which is what packLandmarks used to
+ * produce: tolerating both means a JS bundle and a frame processor from
+ * different updates cannot blank the skeleton between them.
+ */
+export function unpackLandmarks(packed: unknown): Landmarks {
   const out: Landmarks = {};
-  if (!Array.isArray(flat)) return out;
+
+  let flat: ArrayLike<unknown>;
+  if (typeof packed === 'string') {
+    if (packed.length === 0) return out;
+    flat = packed.split(',');
+  } else if (packed && typeof (packed as ArrayLike<unknown>).length === 'number') {
+    // Deliberately not Array.isArray: a copy that crosses the worklet
+    // boundary can arrive as an array-like that fails that check while
+    // indexing and .length both work.
+    flat = packed as ArrayLike<unknown>;
+  } else {
+    return out;
+  }
+
   for (let i = 0; i + 3 < flat.length; i += 4) {
-    const name = NATIVE_LANDMARK_NAMES[flat[i]];
+    const name = NATIVE_LANDMARK_NAMES[Number(flat[i])];
     if (!name) continue;
     const x = Number(flat[i + 1]);
     const y = Number(flat[i + 2]);

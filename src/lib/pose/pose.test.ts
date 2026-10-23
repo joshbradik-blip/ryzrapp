@@ -1045,11 +1045,11 @@ test('landmarks survive the worklet boundary as flat numbers', () => {
     left_shoulder: { x: 0.4, y: 0.3, score: 0.9 },
     right_knee: { x: 0.6, y: 0.8, score: 0 },
   };
-  const flat = packLandmarks(landmarks);
-  assert.equal(flat.length, 8, 'two landmarks pack to two quads');
-  assert.ok(flat.every((n) => typeof n === 'number'), 'everything crossing must be a number');
+  const packed = packLandmarks(landmarks);
+  assert.equal(typeof packed, 'string', 'only a string is known to cross intact');
+  assert.equal(packed.split(',').length, 8, 'two landmarks pack to two quads');
 
-  const back = unpackLandmarks(flat);
+  const back = unpackLandmarks(packed);
   assert.deepEqual(back, landmarks);
 });
 
@@ -1070,8 +1070,26 @@ test('packLandmarks does not enumerate the object it is given', () => {
 });
 
 test('unpackLandmarks drops a malformed quad rather than throwing', () => {
-  const flat = [0, Number.NaN, 0.5, 1, 999, 0.1, 0.1, 1, 5, 0.2, 0.3, 0.8];
-  const back = unpackLandmarks(flat);
+  const back = unpackLandmarks('0,NaN,0.5,1,999,0.1,0.1,1,5,0.2,0.3,0.8');
   assert.equal(Object.keys(back).length, 1, 'kept only the usable quad');
   assert.ok(back.left_shoulder);
+});
+
+test('unpackLandmarks still reads an array-like that is not an Array', () => {
+  // A copy crossing the worklet boundary can arrive indexable and sized but
+  // failing Array.isArray, and an older frame processor may still be sending
+  // the array form after a JS-only update.
+  const arrayLike = { 0: 5, 1: 0.2, 2: 0.3, 3: 0.8, length: 4 };
+  assert.equal(Array.isArray(arrayLike), false, 'test subject must not be an Array');
+
+  const back = unpackLandmarks(arrayLike);
+  assert.ok(back.left_shoulder, 'dropped a readable array-like');
+  assert.equal(back.left_shoulder.x, 0.2);
+});
+
+test('unpackLandmarks returns empty for nothing usable', () => {
+  assert.deepEqual(unpackLandmarks(''), {});
+  assert.deepEqual(unpackLandmarks(null), {});
+  assert.deepEqual(unpackLandmarks(undefined), {});
+  assert.deepEqual(unpackLandmarks(42), {});
 });
