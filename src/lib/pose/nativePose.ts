@@ -169,7 +169,7 @@ export function __resetPosePluginCache(): void {
  * when enumeration comes back empty, so a plugin that one day emits a new
  * name still works through the normal path.
  */
-const NATIVE_LANDMARK_NAMES: string[] = [
+export const NATIVE_LANDMARK_NAMES: LandmarkName[] = [
   'nose',
   'left_eye', 'right_eye',
   'left_ear', 'right_ear',
@@ -182,6 +182,44 @@ const NATIVE_LANDMARK_NAMES: string[] = [
   'left_heel', 'right_heel',
   'left_foot_index', 'right_foot_index',
 ];
+
+/**
+ * Flatten landmarks to `[index, x, y, score, ...]` for the trip from the
+ * frame-processor worklet to the JS thread.
+ *
+ * Objects do not survive that crossing intact on this runtime — the copy
+ * arrives with every property readable but nothing enumerable, so anything
+ * that walks it with Object.keys/entries sees an empty skeleton. Numbers copy
+ * faithfully, so the skeleton travels as a flat number array and is rebuilt
+ * on arrival. Both ends index into NATIVE_LANDMARK_NAMES, so neither has to
+ * enumerate anything.
+ */
+export function packLandmarks(landmarks: Landmarks): number[] {
+  'worklet';
+  const flat: number[] = [];
+  for (let i = 0; i < NATIVE_LANDMARK_NAMES.length; i++) {
+    const kp = landmarks[NATIVE_LANDMARK_NAMES[i]];
+    if (!kp) continue;
+    flat.push(i, kp.x, kp.y, kp.score);
+  }
+  return flat;
+}
+
+/** Rebuild what packLandmarks flattened. Anything malformed is skipped. */
+export function unpackLandmarks(flat: unknown): Landmarks {
+  const out: Landmarks = {};
+  if (!Array.isArray(flat)) return out;
+  for (let i = 0; i + 3 < flat.length; i += 4) {
+    const name = NATIVE_LANDMARK_NAMES[flat[i]];
+    if (!name) continue;
+    const x = Number(flat[i + 1]);
+    const y = Number(flat[i + 2]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const score = Number(flat[i + 3]);
+    out[name] = { x, y, score: Number.isFinite(score) ? score : 0 };
+  }
+  return out;
+}
 
 /** What the ryzrPose plugin returns: pixels in the upright image. */
 export interface NativePoseResult {

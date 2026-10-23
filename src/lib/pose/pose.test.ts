@@ -22,7 +22,13 @@ import { profileFor, depthFromAngle, measureAngle } from './profiles';
 import { RepDetector } from './repDetector';
 import { analyzeFraming } from './framing';
 import { FormCoachSession } from './session';
-import { normalizeLandmarks, nativePoseToFrame, rotationDegrees } from './nativePose';
+import {
+  normalizeLandmarks,
+  nativePoseToFrame,
+  packLandmarks,
+  rotationDegrees,
+  unpackLandmarks,
+} from './nativePose';
 import { supportsFormCoach } from './coverage';
 import { SkeletonSmoother, buildSkeleton, focusJoints, toView } from './skeleton';
 
@@ -1032,4 +1038,40 @@ test('nativePoseToFrame reads landmarks the runtime will not enumerate', () => {
   assert.equal(Object.keys(f.landmarks).length, 3);
   assert.ok(f.landmarks.left_shoulder);
   assert.equal(f.landmarks.left_shoulder.y, 200 / 1280);
+});
+
+test('landmarks survive the worklet boundary as flat numbers', () => {
+  const landmarks = {
+    left_shoulder: { x: 0.4, y: 0.3, score: 0.9 },
+    right_knee: { x: 0.6, y: 0.8, score: 0 },
+  };
+  const flat = packLandmarks(landmarks);
+  assert.equal(flat.length, 8, 'two landmarks pack to two quads');
+  assert.ok(flat.every((n) => typeof n === 'number'), 'everything crossing must be a number');
+
+  const back = unpackLandmarks(flat);
+  assert.deepEqual(back, landmarks);
+});
+
+test('packLandmarks does not enumerate the object it is given', () => {
+  // Same hazard as the parse step: the value handed to the worklet reads back
+  // fine property by property but lists no keys. Packing has to index the
+  // known names rather than ask the object what it holds.
+  const landmarks = {};
+  Object.defineProperty(landmarks, 'left_hip', {
+    value: { x: 0.5, y: 0.5, score: 0.7 },
+    enumerable: false,
+  });
+  assert.deepEqual(Object.keys(landmarks), [], 'test subject must not enumerate');
+
+  const back = unpackLandmarks(packLandmarks(landmarks));
+  assert.ok(back.left_hip, 'landmark lost crossing the boundary');
+  assert.equal(back.left_hip.x, 0.5);
+});
+
+test('unpackLandmarks drops a malformed quad rather than throwing', () => {
+  const flat = [0, Number.NaN, 0.5, 1, 999, 0.1, 0.1, 1, 5, 0.2, 0.3, 0.8];
+  const back = unpackLandmarks(flat);
+  assert.equal(Object.keys(back).length, 1, 'kept only the usable quad');
+  assert.ok(back.left_shoulder);
 });

@@ -8,7 +8,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrameProcessor } from 'react-native-vision-camera';
 import type { FramingResult, Landmarks, RepPhase, SessionSummary } from './index';
 import { FormCoachSession } from './session';
-import { loadPosePlugin, nativePoseToFrame, normalizeLandmarks, rotationDegrees } from './nativePose';
+import {
+  loadPosePlugin,
+  nativePoseToFrame,
+  packLandmarks,
+  rotationDegrees,
+  unpackLandmarks,
+} from './nativePose';
 import { useFeatureFlags } from '../featureFlags';
 import { SkeletonSmoother } from './skeleton';
 import { useTflitePose } from './tflitePose';
@@ -156,7 +162,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
     const s = sessionRef.current;
     if (!s) return;
 
-    const landmarks = normalizeLandmarks(raw);
+    const landmarks = unpackLandmarks(raw);
 
     // Measured on the raw landmarks on purpose: the smoother drops points the
     // pipeline has already rejected, so reading it here would hide the very
@@ -295,7 +301,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
           const info = `${f.width}x${f.height} ${f.orientation ?? '?'}${
             f.isMirrored === true ? ' mir' : ''
           } ${rotation}${scratch.rotation.locked ? '' : '?'} js${found}\n${detail}`;
-          runOnJs(parsed.landmarks, nowMs, parsed.xMax, undefined, f.isMirrored === true, info);
+          runOnJs(packLandmarks(parsed.landmarks), nowMs, parsed.xMax, undefined, f.isMirrored === true, info);
           return;
         }
 
@@ -327,7 +333,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
         const info = `${f.width}x${f.height} ${f.orientation ?? '?'}${
           f.isMirrored === true ? ' mir' : ''
         } ${rotation}`;
-        runOnJs(landmarks, nowMs, aspect, undefined, f.isMirrored === true, info);
+        runOnJs(packLandmarks(landmarks), nowMs, aspect, undefined, f.isMirrored === true, info);
       } catch {
         // Never throw inside a frame processor — it takes down the camera.
         if (plugin) {
