@@ -77,6 +77,20 @@ export type FunnelStep =
   | 'coach_chat_opened'
   | 'coach_chat_message_sent';
 
+/**
+ * Funnel steps that also have a name in Meta's own vocabulary.
+ *
+ * The `ryzr_*` custom events are ours to query, but campaign optimization only
+ * bids against Meta's standard events — a custom event is invisible to it. The
+ * few steps that matter commercially are therefore sent under both names.
+ * Purchases are not in here: they carry a value and go through
+ * `logMetaPurchase` / `logMetaTrialStart` below.
+ */
+const META_STANDARD_EVENTS: Partial<Record<FunnelStep, string>> = {
+  signup_completed: 'fb_mobile_complete_registration',
+  social_signin_completed: 'fb_mobile_complete_registration',
+};
+
 const DEVICE_ID_KEY = 'ryzr_anon_device_id';
 
 let cachedDeviceId: string | null = null;
@@ -151,10 +165,59 @@ export function logFunnelStep(
       // module scope would take the whole screen down with it.
       const { AppEventsLogger } = require('react-native-fbsdk-next');
       AppEventsLogger.logEvent(`ryzr_${step}`, props ?? {});
+      const standard = META_STANDARD_EVENTS[step];
+      if (standard) AppEventsLogger.logEvent(standard, props ?? {});
     } catch {
       // Meta SDK absent or not initialized — the Supabase copy still landed.
     }
   })();
+}
+
+/**
+ * Report a completed purchase to Meta as `fb_mobile_purchase`.
+ *
+ * This is the ads-side twin of the `paywall_purchased` funnel step: our own
+ * copy records that it happened, this one carries the money, which is what
+ * value-based campaign optimization bids against. Called from the purchase
+ * choke points in subscriptionStore so every paywall surface is covered once.
+ */
+export function logMetaPurchase(
+  amount: number,
+  currency: string,
+  props?: Record<string, string | number | boolean>,
+): void {
+  if (!Number.isFinite(amount) || amount <= 0 || !currency) return;
+  try {
+    const { AppEventsLogger } = require('react-native-fbsdk-next');
+    AppEventsLogger.logPurchase(amount, currency, props ?? {});
+  } catch {
+    // Meta SDK absent or not initialized — the Supabase copy still landed.
+  }
+}
+
+/**
+ * Report a started free trial to Meta as `StartTrial`.
+ *
+ * Deliberately not a purchase: no money has changed hands yet, so reporting it
+ * as one would teach the campaign to bid against revenue that may never
+ * arrive. The value is the price the trial converts into, which is what Meta
+ * expects on this event.
+ */
+export function logMetaTrialStart(
+  amount: number,
+  currency: string,
+  props?: Record<string, string | number | boolean>,
+): void {
+  if (!currency) return;
+  try {
+    const { AppEventsLogger } = require('react-native-fbsdk-next');
+    AppEventsLogger.logEvent('StartTrial', Number.isFinite(amount) ? amount : 0, {
+      fb_currency: currency,
+      ...(props ?? {}),
+    });
+  } catch {
+    // Meta SDK absent or not initialized — the Supabase copy still landed.
+  }
 }
 
 /**
