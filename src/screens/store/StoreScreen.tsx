@@ -17,6 +17,7 @@ import { TrialBadge } from '../../components/ui/TrialBadge';
 import { getFreeTrial, trialPriceLine } from '../../lib/trial';
 import { trialHeadline } from '../../lib/trialHeadline';
 import { PromoCodeRow } from '../../components/ui/PromoCodeRow';
+import { GearArtwork, GEAR_IMAGE_DISCLAIMER } from '../../components/ui/GearArtwork';
 import {
   useSubscriptionStore,
   PRICE_MONTHLY,
@@ -423,6 +424,9 @@ export function StoreScreen() {
               </Text>
             ) : (
               <>
+              <Text style={{ color: Colors.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 20 }}>
+                {GEAR_IMAGE_DISCLAIMER}
+              </Text>
               {gearSections.map((section) => (
               <View key={section.title} style={{ marginBottom: 24 }}>
                 <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: '800', letterSpacing: 1, marginBottom: 12, textTransform: 'uppercase' }}>
@@ -434,9 +438,7 @@ export function StoreScreen() {
                       key={item.asin}
                       style={{ flexDirection: 'row', gap: 14, alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}
                     >
-                      <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Ionicons name={item.icon} size={24} color={Colors.primary} />
-                      </View>
+                      <GearArtwork asin={item.asin} icon={item.icon} />
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 15 }}>{item.name}</Text>
                         <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 }}>{item.desc}</Text>

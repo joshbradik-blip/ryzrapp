@@ -16,6 +16,7 @@ import { Colors } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { openAmazonProduct, REFUEL_SECTION } from '../../lib/gear';
 import { SectionLabel } from '../ui/SectionLabel';
+import { GearArtwork, GEAR_IMAGE_DISCLAIMER } from '../ui/GearArtwork';
 
 interface RefuelPick {
   name: string;
@@ -84,9 +85,7 @@ export function RefuelCard({ style }: { style?: ViewStyle }) {
       <SectionLabel style={{ marginBottom: 8 }}>Refuel</SectionLabel>
       <View style={{ height: CARD_HEIGHT, backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' }}>
         <Animated.View style={{ flex: 1, flexDirection: 'row', gap: 14, alignItems: 'center', padding: 16, opacity }}>
-          <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.primary + '22', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Ionicons name={pick.icon} size={24} color={Colors.primary} />
-          </View>
+          <GearArtwork asin={pick.asin} icon={pick.icon} size={56} />
           <View style={{ flex: 1 }}>
             <Text numberOfLines={1} style={{ color: Colors.text, fontWeight: '700', fontSize: 15 }}>{pick.name}</Text>
             <Text numberOfLines={2} style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 }}>{pick.description}</Text>
@@ -112,6 +111,9 @@ export function RefuelCard({ style }: { style?: ViewStyle }) {
       )}
       <Text style={{ color: Colors.muted, fontSize: 11, marginTop: 6, textAlign: 'center' }}>
         Affiliate link — as an Amazon Associate RYZR earns from qualifying purchases.
+      </Text>
+      <Text style={{ color: Colors.muted, fontSize: 11, lineHeight: 16, marginTop: 6, textAlign: 'center' }}>
+        {GEAR_IMAGE_DISCLAIMER}
       </Text>
     </View>
   );
