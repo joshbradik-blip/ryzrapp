@@ -11,12 +11,17 @@ interface Props {
   videoUrl?: string;
   muscles: string[];
   cues: string[];
+  height?: number;
+  active?: boolean;
+  fit?: 'cover' | 'contain';
 }
 
 const HERO_HEIGHT = 260;
 const STEP_MS = 2500;
 
-export function ExerciseHero({ name, mediaUrl, videoUrl, muscles, cues }: Props) {
+export function ExerciseHero({
+  name, mediaUrl, videoUrl, muscles, cues, height = HERO_HEIGHT, active = true, fit = 'cover',
+}: Props) {
   const [failed, setFailed] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
   const [walkthrough, setWalkthrough] = useState(false);
@@ -27,7 +32,7 @@ export function ExerciseHero({ name, mediaUrl, videoUrl, muscles, cues }: Props)
   const hasCues = cues.length > 0;
 
   useEffect(() => {
-    if (walkthrough && !paused && hasCues) {
+    if (active && walkthrough && !paused && hasCues) {
       timer.current = setInterval(() => {
         setCueIndex((i) => (i + 1) % cues.length);
       }, STEP_MS);
@@ -35,7 +40,7 @@ export function ExerciseHero({ name, mediaUrl, videoUrl, muscles, cues }: Props)
     return () => {
       if (timer.current) clearInterval(timer.current);
     };
-  }, [walkthrough, paused, cues.length]);
+  }, [active, walkthrough, paused, cues.length]);
 
   const startWalkthrough = () => {
     setCueIndex(0);
@@ -53,13 +58,13 @@ export function ExerciseHero({ name, mediaUrl, videoUrl, muscles, cues }: Props)
   const showImage = !showVideo && !failed && !!mediaUrl;
 
   return (
-    <View style={{ height: HERO_HEIGHT, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+    <View style={{ height, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
       {showVideo ? (
         <Video
           source={{ uri: videoUrl! }}
           style={{ width: '100%', height: '100%' }}
-          resizeMode={ResizeMode.COVER}
-          shouldPlay
+          resizeMode={fit === 'contain' ? ResizeMode.CONTAIN : ResizeMode.COVER}
+          shouldPlay={active}
           isLooping
           isMuted
           onError={() => setVideoFailed(true)}
@@ -68,7 +73,7 @@ export function ExerciseHero({ name, mediaUrl, videoUrl, muscles, cues }: Props)
         <Image
           source={{ uri: mediaUrl }}
           style={{ width: '100%', height: '100%' }}
-          resizeMode="cover"
+          resizeMode={fit}
           onError={() => setFailed(true)}
         />
       ) : (
@@ -105,7 +110,7 @@ export function ExerciseHero({ name, mediaUrl, videoUrl, muscles, cues }: Props)
           onPress={startWalkthrough}
           activeOpacity={0.85}
           style={{
-            position: 'absolute', top: HERO_HEIGHT / 2 - 28, left: '50%', marginLeft: -28,
+            position: 'absolute', top: height / 2 - 28, left: '50%', marginLeft: -28,
             width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary,
             alignItems: 'center', justifyContent: 'center',
           }}

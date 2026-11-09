@@ -1,5 +1,5 @@
 import { trackEvent } from '../../lib/funnel';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,11 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TodayStackParamList } from '../../types';
 import { useWorkoutStore } from '../../store/workoutStore';
@@ -20,13 +22,15 @@ import { useAuthStore } from '../../store/authStore';
 import { useWearablesStore } from '../../store/wearablesStore';
 import { ChallengeInput } from '../../lib/anthropic';
 import { kgToDisplay, displayToKg, WeightUnit } from '../../lib/units';
-import { scheduleRestOverNotification, cancelNotification } from '../../lib/notifications';
+import { exerciseHeroMedia } from '../../lib/exerciseMedia';
 import { Button } from '../../components/ui/Button';
 import { GradientButton } from '../../components/ui/GradientButton';
+import { ExerciseHero } from '../../components/workout/ExerciseHero';
 import { Colors } from '../../constants/theme';
 import { haptic } from '../../lib/feedback';
 import { supportsFormCoach } from '../../lib/pose/coverage';
 import { useFormCoachEnabled } from '../../lib/featureFlags';
+import { WorkoutRestScreen } from './WorkoutRestScreen';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutSession'>;
 
@@ -41,6 +45,7 @@ function fmtWeight(kg: number, unit: WeightUnit): string {
 }
 
 export function WorkoutSessionScreen({ navigation, route }: Props) {
+  const isFocused = useIsFocused();
   const formCoachEnabled = useFormCoachEnabled();
   const { workoutId } = route.params;
   const { workouts, todayWorkout, programWorkout, startSession, logSet, nextExercise, currentExerciseIndex, completeSession, exerciseChallenges, challengesLoading, loadChallenges } = useWorkoutStore();
@@ -56,23 +61,15 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
     (programWorkout && programWorkout.id === workoutId ? programWorkout : null) ??
     todayWorkout;
 
-  const [setIndex, setSetIndex] = useState(0);
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
-  const [restActive, setRestActive] = useState(false);
-  const [restRemaining, setRestRemaining] = useState(0);
-  const [restTotal, setRestTotal] = useState(0);
+  const [resting, setResting] = useState(false);
   const [completedSets, setCompletedSets] = useState<Record<string, LoggedSet[]>>({});
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Wall-clock end of the current rest — remaining time is derived from this,
-  // so the timer stays correct after the app is backgrounded.
-  const restEndRef = useRef(0);
-  const restNotifIdRef = useRef<string | null>(null);
-
-  const clearRestNotification = () => {
-    cancelNotification(restNotifIdRef.current);
-    restNotifIdRef.current = null;
-  };
+  const scrollRef = useRef<ScrollView>(null);
+  const endRest = useCallback(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+    setResting(false);
+  }, []);
 
   const currentExercise = workout?.exercises[currentExerciseIndex];
   const isLastExercise = workout && currentExerciseIndex >= workout.exercises.length - 1;
@@ -109,29 +106,6 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
     })();
   }, []);
 
-  useEffect(() => {
-    if (restActive) {
-      timerRef.current = setInterval(() => {
-        const remaining = Math.max(0, Math.ceil((restEndRef.current - Date.now()) / 1000));
-        setRestRemaining((prev) => {
-          if (remaining <= 0) {
-            clearInterval(timerRef.current!);
-            setRestActive(false);
-            clearRestNotification(); // finished in-app — banner not needed
-            haptic.success();
-            return 0;
-          }
-          if (remaining <= 4 && remaining < prev) haptic.impact('light');
-          return remaining;
-        });
-      }, 500);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [restActive]);
-
-  // Leaving the session screen entirely — drop any pending rest alert.
-  useEffect(() => () => clearRestNotification(), []);
-
   if (!workout || !currentExercise) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }}>
@@ -141,9 +115,11 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
   }
 
   const unit: WeightUnit = profile?.weight_unit ?? 'lbs';
-  const exId = currentExercise.exercise.id;
+  const { exercise } = currentExercise;
+  const exId = exercise.id;
   const logged = completedSets[currentExercise.id] ?? [];
   const completedCount = logged.length;
+  const hasSetToLog = completedCount < currentExercise.target_sets;
 
   const last = lastSets[exId];
   const best = bestWeights[exId];
@@ -157,12 +133,19 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
   const challengeText = exerciseChallenges[exId];
 
   const handleLogSet = () => {
-    if (!reps) return;
+    if (!reps || !hasSetToLog || resting) return;
+    const setNumber = completedCount + 1;
+    // A second tap before the logger re-renders must not save the same set twice.
+    if (useWorkoutStore.getState().activeSets.some(
+      (set) => set.workoutExerciseId === currentExercise.id && set.setNumber === setNumber,
+    )) return;
+
+    Keyboard.dismiss();
     haptic.impact('medium');
     const weightKg = displayToKg(parseFloat(weight) || 0, unit);
     logSet({
       workoutExerciseId: currentExercise.id,
-      setNumber: setIndex + 1,
+      setNumber,
       reps: parseInt(reps, 10),
       weight: parseFloat(weight) || 0,
     });
@@ -171,34 +154,17 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
     const newSets = [...(completedSets[key] ?? []), { weightKg, reps: parseInt(reps, 10) }];
     setCompletedSets((prev) => ({ ...prev, [key]: newSets }));
 
-    const restSecs = currentExercise.rest_seconds || 90;
-    setRestTotal(restSecs);
-    setRestRemaining(restSecs);
-    restEndRef.current = Date.now() + restSecs * 1000;
-    setRestActive(true);
     setReps('');
-    // If the user backgrounds the app mid-rest, a local notification calls
-    // them back; it's suppressed while the app stays foregrounded.
-    clearRestNotification();
     if (newSets.length < currentExercise.target_sets) {
-      scheduleRestOverNotification(restSecs, currentExercise.exercise.name, newSets.length + 1)
-        .then((id) => { restNotifIdRef.current = id; });
-    }
-
-    if (newSets.length < currentExercise.target_sets) {
-      setSetIndex((i) => i + 1);
+      setResting(true);
     } else if (!isLastExercise) {
       handleNextExercise();
     }
   };
 
   const handleNextExercise = () => {
-    setRestActive(false);
-    clearRestNotification();
-    setSetIndex(0);
     setWeight('');
     setReps('');
-    if (timerRef.current) clearInterval(timerRef.current);
     nextExercise();
   };
 
@@ -237,8 +203,6 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
     setReps((r) => String(Math.max(0, (parseInt(r, 10) || 0) + delta)));
 
   const exerciseProgress = `${currentExerciseIndex + 1}/${workout.exercises.length}`;
-  const restPct = restTotal > 0 ? Math.min(1, restRemaining / restTotal) : 0;
-  const restClock = `${Math.floor(restRemaining / 60)}:${String(restRemaining % 60).padStart(2, '0')}`;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
@@ -251,7 +215,12 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
         }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24 }} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        key={`${currentExercise.id}:${exId}`}
+        ref={scrollRef}
+        contentContainerStyle={{ flexGrow: 1, padding: 24 }}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Exercise header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>
@@ -262,53 +231,35 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
               exerciseId: currentExercise.exercise.id,
               workoutId,
               workoutExerciseId: currentExercise.id,
+              exercise,
             })}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+            accessibilityRole="button"
+            style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4 }}
           >
-            <Ionicons name="play-circle-outline" size={15} color={Colors.primary} />
-            <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '700' }}>Demo</Text>
+            <Ionicons name="information-circle-outline" size={15} color={Colors.primary} />
+            <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '700' }}>Exercise details</Text>
           </TouchableOpacity>
         </View>
 
         <Text style={{ color: Colors.text, fontSize: 28, fontWeight: '900', marginBottom: 4 }}>
           {currentExercise.exercise.name}
         </Text>
-        <Text style={{ color: Colors.textSecondary, fontSize: 16, marginBottom: 20 }}>
+        <Text style={{ color: Colors.textSecondary, fontSize: 16, marginBottom: 12 }}>
           {currentExercise.target_sets} sets × {currentExercise.target_reps}
           {currentExercise.target_rpe > 0 ? ` · RPE ${currentExercise.target_rpe}` : ''}
         </Text>
 
-        {/* COACH card */}
-        {isPremium ? (
-          <View style={{ backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.primary + '33', padding: 14, marginBottom: 20 }}>
-            <Text style={{ color: Colors.primary, fontSize: 11, fontWeight: '800', letterSpacing: 1.5, marginBottom: 8 }}>COACH</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: (challengeText || challengesLoading) ? 8 : 0 }}>
-              <Ionicons name="time-outline" size={15} color={Colors.textSecondary} />
-              <Text style={{ color: Colors.textSecondary, fontSize: 13, flex: 1 }}>
-                {recallText ? `Last time: ${recallText}` : 'First time — set your baseline.'}
-              </Text>
-            </View>
-            {challengesLoading && !challengeText ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="barbell-outline" size={15} color={Colors.muted} />
-                <Text style={{ color: Colors.muted, fontSize: 13, fontStyle: 'italic', flex: 1 }}>Coach is reviewing your last session…</Text>
-              </View>
-            ) : challengeText ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="flame" size={15} color={Colors.primary} />
-                <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700', flex: 1 }}>{challengeText}</Text>
-              </View>
-            ) : null}
-          </View>
-        ) : (
-          <TouchableOpacity
-            onPress={() => Alert.alert('Premium Feature', 'Upgrade to RYZR Premium to unlock AI challenges that push you past last time.')}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: Colors.primary + '44', padding: 12, marginBottom: 20 }}
-          >
-            <Ionicons name="lock-closed-outline" size={16} color={Colors.primary} />
-            <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '700' }}>Unlock AI challenges with Premium</Text>
-          </TouchableOpacity>
-        )}
+        <View style={{ borderRadius: 14, overflow: 'hidden', marginBottom: 16 }}>
+          <ExerciseHero
+            name={exercise.name}
+            {...exerciseHeroMedia(exercise)}
+            muscles={exercise.muscles_primary}
+            cues={[...exercise.setup_cues, ...exercise.execution_cues]}
+            height={168}
+            fit="contain"
+            active={isFocused && !resting}
+          />
+        </View>
 
         {/* Set pills */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
@@ -331,7 +282,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
                 }}
               >
                 <Text style={{ color: done ? Colors.primary : isCurrent ? Colors.text : Colors.muted, fontSize: 12, fontWeight: '700' }}>
-                  {done ? `${fmtWeight(done.weightKg, unit)}×${done.reps}` : `SET ${i + 1}`}
+                  {done ? `${fmtWeight(done.weightKg, unit)} ${unit} × ${done.reps}` : `SET ${i + 1}`}
                 </Text>
                 {done && <Ionicons name="checkmark" size={12} color={Colors.primary} />}
               </View>
@@ -416,52 +367,44 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {/* Inline rest bar */}
-        {restActive && (
-          <View style={{ backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, padding: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Ionicons name="hourglass-outline" size={20} color={Colors.primary} />
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>REST</Text>
-                <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: '800' }}>{restClock}</Text>
-              </View>
-              <View style={{ height: 4, backgroundColor: Colors.surface3, borderRadius: 2 }}>
-                <View style={{ height: 4, width: `${restPct * 100}%`, backgroundColor: Colors.primary, borderRadius: 2 }} />
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              <TouchableOpacity onPress={() => { restEndRef.current -= 15000; setRestRemaining((r) => Math.max(0, r - 15)); }} style={restBtn}>
-                <Text style={restBtnText}>−15</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => { setRestActive(false); clearRestNotification(); if (timerRef.current) clearInterval(timerRef.current); }} style={restBtn}>
-                <Text style={restBtnText}>Skip</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => { restEndRef.current += 15000; setRestRemaining((r) => r + 15); }} style={restBtn}>
-                <Text style={restBtnText}>+15</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
         {/* Log set */}
-        <GradientButton title="Log Set" icon="flash" onPress={handleLogSet} disabled={!reps} style={{ marginBottom: prDeltaKg > 0 ? 8 : 12 }} />
+        <GradientButton title="Log Set" icon="flash" onPress={handleLogSet} disabled={!reps || !hasSetToLog} style={{ marginBottom: prDeltaKg > 0 ? 8 : 12 }} />
         {prDeltaKg > 0 && (
           <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600', textAlign: 'center', marginBottom: 12 }}>
             🔥 {fmtWeight(prDeltaKg, unit)} {unit} over your best — PR pace
           </Text>
         )}
 
-        {/* Completed-set ledger */}
-        {logged.length > 0 && (
-          <View style={{ gap: 6, marginBottom: 12 }}>
-            {logged.map((s, i) => (
-              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, opacity: 0.7 }}>
-                <Text style={{ color: Colors.textSecondary, fontSize: 13, fontWeight: '600' }}>Set {i + 1}</Text>
-                <Text style={{ color: Colors.text, fontSize: 14 }}>{fmtWeight(s.weightKg, unit)} {unit} × {s.reps}</Text>
-                <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
+        {/* COACH card */}
+        {isPremium ? (
+          <View style={{ backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.primary + '33', padding: 14, marginBottom: 20 }}>
+            <Text style={{ color: Colors.primary, fontSize: 11, fontWeight: '800', letterSpacing: 1.5, marginBottom: 8 }}>COACH</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: (challengeText || challengesLoading) ? 8 : 0 }}>
+              <Ionicons name="time-outline" size={15} color={Colors.textSecondary} />
+              <Text style={{ color: Colors.textSecondary, fontSize: 13, flex: 1 }}>
+                {recallText ? `Last time: ${recallText}` : 'First time — set your baseline.'}
+              </Text>
+            </View>
+            {challengesLoading && !challengeText ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="barbell-outline" size={15} color={Colors.muted} />
+                <Text style={{ color: Colors.muted, fontSize: 13, fontStyle: 'italic', flex: 1 }}>Coach is reviewing your last session…</Text>
               </View>
-            ))}
+            ) : challengeText ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="flame" size={15} color={Colors.primary} />
+                <Text style={{ color: Colors.text, fontSize: 14, fontWeight: '700', flex: 1 }}>{challengeText}</Text>
+              </View>
+            ) : null}
           </View>
+        ) : (
+          <TouchableOpacity
+            onPress={() => Alert.alert('Premium Feature', 'Upgrade to RYZR Premium to unlock AI challenges that push you past last time.')}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: Colors.primary + '44', padding: 12, marginBottom: 20 }}
+          >
+            <Ionicons name="lock-closed-outline" size={16} color={Colors.primary} />
+            <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '700' }}>Unlock AI challenges with Premium</Text>
+          </TouchableOpacity>
         )}
 
         {/* Form coach (premium) — hidden on mobility work the pipeline cannot score. */}
@@ -535,6 +478,14 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
           )
         )}
       </ScrollView>
+      {resting && (
+        <WorkoutRestScreen
+          durationSeconds={currentExercise.rest_seconds || 90}
+          exerciseName={exercise.name}
+          nextSet={completedCount + 1}
+          onDone={endRest}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -551,12 +502,3 @@ const stepperStyle = {
 };
 
 const stepperText = { color: Colors.text, fontSize: 24, fontWeight: '700' as const };
-
-const restBtn = {
-  paddingHorizontal: 10,
-  paddingVertical: 8,
-  backgroundColor: Colors.surface3,
-  borderRadius: 8,
-};
-
-const restBtnText = { color: Colors.text, fontWeight: '600' as const, fontSize: 12 };

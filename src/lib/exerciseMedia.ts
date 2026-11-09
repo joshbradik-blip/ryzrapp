@@ -1,3 +1,5 @@
+import type { Exercise } from '../types';
+
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 
 // Convention: curated exercises have a stylized PNG at exercise-media/{id}.png
@@ -11,4 +13,11 @@ export function exerciseImageUrl(exerciseId: string): string {
 
 export function exerciseVideoUrl(exerciseId: string): string {
   return `${SUPABASE_URL}/storage/v1/object/public/exercise-media/${exerciseId}.mp4`;
+}
+
+export function exerciseHeroMedia({ id, media_url }: Pick<Exercise, 'id' | 'media_url'>) {
+  return {
+    mediaUrl: media_url ?? exerciseImageUrl(id),
+    videoUrl: id.startsWith('edb_') ? undefined : exerciseVideoUrl(id),
+  };
 }
