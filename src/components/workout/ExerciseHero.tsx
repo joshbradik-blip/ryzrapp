@@ -27,6 +27,14 @@ export function ExerciseHero({ name, mediaUrl, videoUrl, muscles, cues }: Props)
   const hasCues = cues.length > 0;
 
   useEffect(() => {
+    setFailed(false);
+    setVideoFailed(false);
+    setWalkthrough(false);
+    setCueIndex(0);
+    setPaused(false);
+  }, [mediaUrl, videoUrl]);
+
+  useEffect(() => {
     if (walkthrough && !paused && hasCues) {
       timer.current = setInterval(() => {
         setCueIndex((i) => (i + 1) % cues.length);
@@ -58,7 +66,7 @@ export function ExerciseHero({ name, mediaUrl, videoUrl, muscles, cues }: Props)
         <Video
           source={{ uri: videoUrl! }}
           style={{ width: '100%', height: '100%' }}
-          resizeMode={ResizeMode.COVER}
+          resizeMode={ResizeMode.CONTAIN}
           shouldPlay
           isLooping
           isMuted

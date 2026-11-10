@@ -1,3 +1,4 @@
+import { FeatureTip } from '../../components/ui/FeatureTip';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
@@ -178,7 +179,7 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
       {!loading && !error && results && (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
 
-          <View style={{
+          <FeatureTip id="search-substitution" title="Choose a replacement" message="Search for a replacement exercise and review whether it works with your equipment. You can choose how the swap applies before confirming."><View style={{
             flexDirection: 'row',
             alignItems: 'center',
             gap: 10,
@@ -200,7 +201,7 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
               style={{ flex: 1, color: Colors.text, fontSize: 14, paddingVertical: 13 }}
             />
             {searching && <ActivityIndicator size="small" color={Colors.primary} />}
-          </View>
+          </View></FeatureTip>
 
           {(searchError || (!results.externalCatalogAvailable && query.trim().length < 3)) && (
             <View style={{

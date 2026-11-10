@@ -9,6 +9,7 @@ export interface HistorySession {
 }
 
 export interface HistorySet {
+  duration_seconds?: number | null;
   session_id: string;
   exercise_id: string | null;
   exercise_name: string;
@@ -66,7 +67,7 @@ export function lastSetByExercise(sets: HistorySet[]): Record<string, { weight_k
 }
 
 export interface LastSessionPerf {
-  sets: { weight_kg: number; reps: number }[];
+  sets: { weight_kg: number; reps: number; duration_seconds?: number | null }[];
   at: string; // date of that session (latest set's created_at)
 }
 
@@ -87,7 +88,7 @@ export function lastSessionByExercise(sets: HistorySet[]): Record<string, LastSe
     const sessionSets = sets
       .filter((s) => s.exercise_id === exId && s.session_id === sessionId)
       .sort((a, b) => a.set_number - b.set_number)
-      .map((s) => ({ weight_kg: s.weight_kg, reps: s.reps }));
+      .map((s) => ({ weight_kg: s.weight_kg, reps: s.reps, duration_seconds: s.duration_seconds }));
     out[exId] = { sets: sessionSets, at };
   }
   return out;

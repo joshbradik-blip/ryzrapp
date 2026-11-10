@@ -1,3 +1,4 @@
+import { FeatureTip } from '../../components/ui/FeatureTip';
 import React, { useState } from 'react';
 import {
   View,
@@ -189,7 +190,7 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
 
           {/* Swap exercise button — hidden when browsing without a workout. */}
           {canSwap && (
-          <TouchableOpacity
+          <FeatureTip id="swap-exercise" title="Swap this exercise" message="Choose a replacement exercise when this movement does not fit your equipment or needs."><TouchableOpacity
             onPress={handleSwap}
             style={{
               backgroundColor: Colors.surface2,
@@ -215,7 +216,7 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={Colors.muted} />
-          </TouchableOpacity>
+          </TouchableOpacity></FeatureTip>
           )}
 
           {/* Form Coach CTA — hidden on mobility work the pipeline cannot score. */}

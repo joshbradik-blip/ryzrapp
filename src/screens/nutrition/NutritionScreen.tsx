@@ -1,3 +1,4 @@
+import { FeatureTip } from '../../components/ui/FeatureTip';
 import { trackEvent } from '../../lib/funnel';
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView } from 'react-native';
@@ -130,24 +131,24 @@ export function NutritionScreen() {
         {/* Header */}
         <View style={{ padding: 24, paddingBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={{ color: Colors.text, fontSize: 26, fontWeight: '900' }}>Nutrition</Text>
-          <TouchableOpacity
+          <FeatureTip id="log-food" title="Log your food" message="Add a food entry, choose its meal, and enter calories and macros."><TouchableOpacity
             onPress={() => setAddOpen(true)}
             style={{ backgroundColor: Colors.primary + '22', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: Colors.primary, flexDirection: 'row', alignItems: 'center', gap: 6 }}
           >
             <Ionicons name="add" size={18} color={Colors.primary} />
             <Text style={{ color: Colors.primary, fontWeight: '800', fontSize: 14 }}>Log food</Text>
-          </TouchableOpacity>
+          </TouchableOpacity></FeatureTip>
         </View>
 
         {/* Day switcher */}
         <View style={{ paddingHorizontal: 24, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <TouchableOpacity
+          <FeatureTip id="nutrition-days" title="Review another day" message="Use the arrows to review your food log for earlier days."><TouchableOpacity
             onPress={() => userId && fetchDay(userId, shiftDay(day, -1))}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={{ padding: 6 }}
           >
             <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          </TouchableOpacity></FeatureTip>
           <Text style={{ color: Colors.textSecondary, fontSize: 15, fontWeight: '700' }}>{dayLabel(day)}</Text>
           <TouchableOpacity
             onPress={() => day < localDayKey() && userId && fetchDay(userId, shiftDay(day, 1))}
@@ -169,7 +170,7 @@ export function NutritionScreen() {
         ) : (
           <>
             {/* Calorie ring + macros */}
-            <View style={{ marginHorizontal: 24, marginTop: 8, backgroundColor: Colors.surface, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: Colors.primary + '44', alignItems: 'center' }}>
+            <FeatureTip id="nutrition-targets" title="Daily nutrition targets" message="Track logged calories and macros against your daily targets. Estimates are a guide; review food entries for accuracy."><View style={{ marginHorizontal: 24, marginTop: 8, backgroundColor: Colors.surface, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: Colors.primary + '44', alignItems: 'center' }}>
               <CalorieRing consumed={totals.calories} target={targets!.calories} />
               <View style={{ flexDirection: 'row', gap: 16, marginTop: 20, alignSelf: 'stretch' }}>
                 <MacroBar label="Protein" consumed={totals.protein_g} target={targets!.protein_g} color={Colors.primary} />
@@ -179,7 +180,7 @@ export function NutritionScreen() {
               <Text style={{ color: Colors.muted, fontSize: 11, marginTop: 16, textAlign: 'center', lineHeight: 16 }}>
                 Targets estimated from your profile, training days, and goal — a starting point you can refine as you track.
               </Text>
-            </View>
+            </View></FeatureTip>
 
             {/* Meals */}
             <View style={{ marginHorizontal: 24, marginTop: 24 }}>
@@ -193,11 +194,11 @@ export function NutritionScreen() {
                       <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '700' }}>{mealCals} kcal</Text>
                     </View>
                     <View style={{ flexDirection: 'row', gap: 16, marginBottom: mealEntries.length ? 10 : 0 }}>
-                      <TouchableOpacity onPress={() => { setMeal(m); setAddOpen(true); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 }}>
+                      <FeatureTip id="log-food" title="Log your food" message="Add a food entry, choose its meal, and enter calories and macros."><TouchableOpacity onPress={() => { setMeal(m); setAddOpen(true); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 }}>
                         <Ionicons name="add" size={14} color={Colors.muted} />
                         <Text style={{ color: Colors.muted, fontSize: 13 }}>Add to {MEAL_LABEL[m].toLowerCase()}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
+                      </TouchableOpacity></FeatureTip>
+                      <FeatureTip id="ai-food-log" title="Snap or describe a meal" message="Use a meal photo or description to estimate nutrition. Review the estimate before saving."><TouchableOpacity
                         onPress={() => {
                           if (!isPremium) { promptPremium('AI Meal Logging'); return; }
                           setAiMeal(m);
@@ -208,7 +209,7 @@ export function NutritionScreen() {
                       >
                         <Ionicons name={isPremium ? 'camera-outline' : 'lock-closed-outline'} size={14} color={Colors.primary} />
                         <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '600' }}>Snap or describe</Text>
-                      </TouchableOpacity>
+                      </TouchableOpacity></FeatureTip>
                     </View>
                     {mealEntries.length > 0 && (
                       mealEntries.map((e, i) => (

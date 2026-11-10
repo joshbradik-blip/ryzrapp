@@ -1,3 +1,4 @@
+import { FeatureTip } from '../../components/ui/FeatureTip';
 import { trackEvent } from '../../lib/funnel';
 import React, { useState, useEffect } from 'react';
 import {
@@ -73,7 +74,25 @@ function SettingRow({
 }: {
   icon: keyof typeof Ionicons.glyphMap; label: string; value?: string; onPress?: () => void; rightElement?: React.ReactNode;
 }) {
+  const tips: Record<string, string> = {
+    'Body stats': 'Update your height, weight, and other body stats used by your training profile.',
+    'Injuries & limitations': 'Keep injuries and limitations current so your training profile reflects movements to avoid.',
+    'Adaptive needs': 'Record adaptive needs so your training profile reflects your abilities.',
+    'Equipment': 'Select the equipment you can use when generating your workouts.',
+    'Goals': 'Update your training goals as your priorities change.',
+    'Edit training profile': 'Review your training profile and rebuild your plan with updated information.',
+    'Wearables': 'Connect supported health data to bring activity and recovery information into RYZR.',
+    'Units': 'Choose metric or imperial units for your measurements and workout weights.',
+    'Voice coaching': 'Turn spoken coaching on or off.',
+    'Trainer voice': 'Choose the voice you hear during coaching.',
+    'Haptics': 'Turn vibration feedback on or off.',
+    'Future You visual': 'Choose whether to enable the optional Future You visual.',
+    'Rate RYZR': 'Open the store review flow to share your experience.',
+    'Send feedback': 'Send feedback to the RYZR team.',
+    'Restore Purchases': 'Restore eligible purchases made through your current store account.',
+  };
   return (
+    <FeatureTip id={`profile-${label}`} title={label} message={tips[label] ?? `Use ${label.toLowerCase()} to manage this part of your RYZR account. Review any confirmation before continuing.`}>
     <TouchableOpacity
       onPress={onPress}
       disabled={!onPress}
@@ -93,6 +112,7 @@ function SettingRow({
       {rightElement}
       {onPress && <Ionicons name="chevron-forward" size={16} color={Colors.muted} />}
     </TouchableOpacity>
+    </FeatureTip>
   );
 }
 
@@ -381,7 +401,7 @@ export function ProfileScreen() {
 
         {/* Regenerate plan */}
         <View style={{ marginHorizontal: 16, marginBottom: 8 }}>
-          <TouchableOpacity
+          <FeatureTip id="regenerate-plan" title="Build a fresh plan" message="Regenerate your training plan using your current profile, goals, equipment, and limitations."><TouchableOpacity
             onPress={handleRegenerate}
             disabled={regenerating}
             style={{
@@ -405,12 +425,12 @@ export function ProfileScreen() {
               </Text>
             </View>
             {!isPremium && <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '700' }}>Upgrade</Text>}
-          </TouchableOpacity>
+          </TouchableOpacity></FeatureTip>
         </View>
 
         {/* Refer a friend */}
         <View style={{ marginHorizontal: 16, marginBottom: 8 }}>
-          <TouchableOpacity
+          <FeatureTip id="referral" title="Invite a friend" message="Open your referral details to share RYZR and see the current referral offer."><TouchableOpacity
             onPress={() => navigation.navigate('Referral')}
             style={{
               backgroundColor: Colors.surface,
@@ -431,7 +451,7 @@ export function ProfileScreen() {
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={Colors.muted} />
-          </TouchableOpacity>
+          </TouchableOpacity></FeatureTip>
         </View>
 
         {/* Profile settings */}

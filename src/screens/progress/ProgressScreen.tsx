@@ -1,3 +1,4 @@
+import { FeatureTip } from '../../components/ui/FeatureTip';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
@@ -258,23 +259,23 @@ export function ProgressScreen() {
         {/* AI weekly recap (premium) */}
         {isPremium && recapText && (
           <View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.primary + '44' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <FeatureTip id="weekly-recap" title="Your weekly recap" message="Read your coach’s summary of recent training and progress."><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
               <SectionLabel>Your Week, Coached</SectionLabel>
               <Ionicons name="sparkles" size={13} color={Colors.primary} />
-            </View>
+            </View></FeatureTip>
             <Text style={{ color: Colors.text, fontSize: 14, lineHeight: 21 }}>{recapText}</Text>
           </View>
         )}
 
         {/* Future Self: deterministic trend projection + morphing silhouette */}
-        <FutureSelfCard
+        <FeatureTip id="future-self" title="Your future progress" message="Explore your progress outlook and the optional Future You visual. Projections are estimates based on your data."><FutureSelfCard
           liftProjection={liftProjection}
           bodyProjection={bodyProjection}
           outlook={bodyFatOutlook}
           sex={profile?.sex}
           unit={unit}
           onSeePhoto={bodyFatOutlook ? () => setPhotoSheetOpen(true) : undefined}
-        />
+        /></FeatureTip>
 
         <FutureSelfPhotoSheet
           visible={photoSheetOpen}
@@ -285,7 +286,7 @@ export function ProgressScreen() {
         />
 
         {/* Training volume */}
-        <View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+        <FeatureTip id="training-volume" title="Training volume" message="See the total weight you lifted each week. Timed holds are recorded separately from lifting volume."><View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
           <SectionLabel style={{ marginBottom: 8 }}>Training Volume</SectionLabel>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 16 }}>
             <Text style={{ color: Colors.text, fontSize: 30, fontWeight: '900' }}>
@@ -313,16 +314,16 @@ export function ProgressScreen() {
               );
             })}
           </View>
-        </View>
+        </View></FeatureTip>
 
         {/* Muscle groups heatmap */}
-        <View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+        <FeatureTip id="muscle-map" title="Muscle activity" message="See which muscle groups your logged workouts have trained recently."><View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
           <SectionLabel style={{ marginBottom: 12 }}>Muscle Groups</SectionLabel>
           <MuscleHeatmap heat={muscleHeatMap} />
-        </View>
+        </View></FeatureTip>
 
         {/* Streak calendar heatmap */}
-        <View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+        <FeatureTip id="training-calendar" title="Your training calendar" message="Each square shows your training activity for a day. Build consistency by recording completed workouts."><View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
           <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5, marginBottom: 12 }}>TRAINING HEATMAP</Text>
           <HeatmapCalendar data={heatmapData} />
           <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 12 }}>
@@ -332,10 +333,10 @@ export function ProgressScreen() {
             ))}
             <Text style={{ color: Colors.muted, fontSize: 11 }}>More</Text>
           </View>
-        </View>
+        </View></FeatureTip>
 
         {/* Strength charts */}
-        <View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
+        <FeatureTip id="strength-chart" title="Strength progression" message="Choose an exercise to compare your logged weights across sessions."><View style={{ marginHorizontal: 24, marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
           <Text style={{ color: Colors.muted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5, marginBottom: 12 }}>STRENGTH PROGRESSION</Text>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
@@ -399,7 +400,7 @@ export function ProgressScreen() {
               </Text>
             </View>
           )}
-        </View>
+        </View></FeatureTip>
 
         {/* PRs — strength records from logged sets + activity records from wearables */}
         <View style={{ marginHorizontal: 24, marginBottom: 24 }}>
@@ -465,9 +466,9 @@ export function ProgressScreen() {
         <View style={{ marginHorizontal: 24, marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>Body Weight</Text>
-            <TouchableOpacity onPress={() => setWeightOpen(true)} style={{ backgroundColor: Colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border }}>
+            <FeatureTip id="log-weight" title="Track your body weight" message="Add a weight entry to follow your trend over time. Use consistent conditions for useful comparisons."><TouchableOpacity onPress={() => setWeightOpen(true)} style={{ backgroundColor: Colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border }}>
               <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 13 }}>+ Log</Text>
-            </TouchableOpacity>
+            </TouchableOpacity></FeatureTip>
           </View>
           <View style={{ backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' }}>
             {latestWeightKg != null ? (
@@ -493,9 +494,9 @@ export function ProgressScreen() {
         <View style={{ marginHorizontal: 24, marginBottom: 8, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <SectionLabel>Body Composition</SectionLabel>
-            <TouchableOpacity onPress={() => setLogOpen(true)} style={{ backgroundColor: Colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border }}>
+            <FeatureTip id="measurements" title="Track measurements" message="Record body measurements to follow changes beyond the scale."><TouchableOpacity onPress={() => setLogOpen(true)} style={{ backgroundColor: Colors.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border }}>
               <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 13 }}>+ Log</Text>
-            </TouchableOpacity>
+            </TouchableOpacity></FeatureTip>
           </View>
 
           {latest?.body_fat_pct != null ? (

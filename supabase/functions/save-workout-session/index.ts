@@ -9,6 +9,7 @@ const cors = {
 const LB_PER_KG = 2.20462;
 
 interface IncomingSet {
+  duration_seconds?: number | null;
   exercise_name: string;
   exercise_id?: string;
   set_number: number;
@@ -49,8 +50,14 @@ serve(async (req: Request) => {
     const toKg = (w: number) => (unit === 'lbs' ? w / LB_PER_KG : w);
 
     const sets: IncomingSet[] = Array.isArray(body.sets) ? body.sets : [];
+    if (sets.some((s) => s.duration_seconds != null &&
+      (!Number.isFinite(s.duration_seconds) || s.duration_seconds <= 0 || s.duration_seconds > 86400))) {
+      return new Response(JSON.stringify({ error: 'Invalid hold duration' }), {
+        status: 400, headers: { ...cors, 'Content-Type': 'application/json' },
+      });
+    }
     const totalVolumeKg = sets.reduce(
-      (sum, s) => sum + (s.reps || 0) * toKg(s.weight || 0),
+      (sum, s) => sum + (s.duration_seconds ? 0 : s.reps || 0) * toKg(s.weight || 0),
       0,
     );
 
@@ -82,8 +89,9 @@ serve(async (req: Request) => {
         exercise_id: s.exercise_id ?? null,
         exercise_name: s.exercise_name,
         set_number: s.set_number,
-        reps: s.reps,
-        weight_kg: Math.round(toKg(s.weight || 0) * 100) / 100,
+        reps: s.duration_seconds ? 0 : s.reps,
+        duration_seconds: s.duration_seconds == null ? null : Math.max(1, Math.round(s.duration_seconds)),
+        weight_kg: Math.round(toKg(s.duration_seconds ? 0 : s.weight || 0) * 100) / 100,
       }));
       const { error: setsErr } = await db.from('session_sets').insert(rows);
       if (setsErr) throw setsErr;

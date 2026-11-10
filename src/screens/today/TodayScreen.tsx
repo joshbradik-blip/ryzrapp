@@ -1,3 +1,4 @@
+import { FeatureTip } from '../../components/ui/FeatureTip';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
@@ -227,7 +228,7 @@ export function TodayScreen() {
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             {/* Exercise Library — look up any movement without a workout running. */}
-            <TouchableOpacity
+            <FeatureTip id="exercise-library" title="Exercise library" message="Search the exercise library to review movements, form cues, and demos."><TouchableOpacity
               onPress={() => navigation.navigate('ExerciseLibrary')}
               accessibilityRole="button"
               accessibilityLabel="Exercise library"
@@ -244,7 +245,7 @@ export function TodayScreen() {
               }}
             >
               <Ionicons name="search" size={20} color={Colors.text} />
-            </TouchableOpacity>
+            </TouchableOpacity></FeatureTip>
             {/* Streak badge */}
             <View style={{
               backgroundColor: '#FF6B2222',
@@ -267,14 +268,14 @@ export function TodayScreen() {
         </View>
 
         {/* Recovery readiness (shows once wearable data has synced) */}
-        {readiness && <ReadinessCard readiness={readiness} isPremium={isPremium} />}
+        {readiness && <FeatureTip id="readiness" title="Recovery readiness" message="Review your synced recovery signals before deciding how hard to train today."><ReadinessCard readiness={readiness} isPremium={isPremium} /></FeatureTip>}
 
         {/* Predictive injury risk (shows only when a joint has an elevated signal) */}
-        <InjuryRiskCard signals={riskSignals} />
+        <FeatureTip id="injury-signals" title="Training signals" message="Review elevated training signals and adjust your workout if needed. These signals are not a medical diagnosis."><InjuryRiskCard signals={riskSignals} /></FeatureTip>
 
         {/* Energy balance — food in vs calories burned (shows once food is logged
             today, or as soon as the wearable reports active calories) */}
-        {energyBalance && <EnergyBalanceCard balance={energyBalance} goalCategory={goals[0]?.category} />}
+        {energyBalance && <FeatureTip id="energy-balance" title="Energy balance" message="Compare logged food energy with your available activity data."><EnergyBalanceCard balance={energyBalance} goalCategory={goals[0]?.category} /></FeatureTip>}
 
         {/* Today's workout hero card */}
         {todayWorkout ? (
@@ -324,11 +325,11 @@ export function TodayScreen() {
                   )}
                 </View>
 
-                <GradientButton
+                <FeatureTip id="start-workout" title="Start your workout" message="Open your workout to follow each exercise, record your sets or timed holds, and track your rest."><GradientButton
                   title="Start Workout"
                   icon="flash"
                   onPress={() => navigation.navigate('WorkoutSession', { workoutId: todayWorkout.id })}
-                />
+                /></FeatureTip>
               </View>
             </View>
           </View>
@@ -359,10 +360,10 @@ export function TodayScreen() {
 
         {/* Focused programs (Flexibility, Balance, Strength, ...) from
             Supabase. Renders nothing when none are active. */}
-        <ProgramSections />
+        <FeatureTip id="focused-programs" title="Explore focused programs" message="Browse focused programs for additional training options and open a program to see its exercises."><ProgramSections /></FeatureTip>
 
         {/* Regenerate workout */}
-        <TouchableOpacity
+        <FeatureTip id="regenerate-today" title="Refresh today’s workout" message="Generate another workout using your current training profile. Review your settings first if your needs have changed."><TouchableOpacity
           onPress={handleRegenerate}
           disabled={regenerating}
           activeOpacity={0.8}
@@ -385,7 +386,7 @@ export function TodayScreen() {
             {regenerating ? 'Generating new plan…' : 'Regenerate today\'s workout'}
           </Text>
           {!regenerating && <Ionicons name="chevron-forward" size={16} color={Colors.muted} />}
-        </TouchableOpacity>
+        </TouchableOpacity></FeatureTip>
 
         {/* Premium upsell card */}
         {!isPremium && (
@@ -422,10 +423,10 @@ export function TodayScreen() {
         {/* Upcoming workouts */}
         {upcoming.length > 0 && (
           <View style={{ paddingHorizontal: 24, marginTop: 20 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <FeatureTip id="switch-workout" title="Choose another workout" message="Tap an upcoming workout to make it your selected workout for today."><View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <Text style={{ color: Colors.text, fontSize: 18, fontWeight: '800' }}>Coming up</Text>
               <Text style={{ color: Colors.muted, fontSize: 11, fontWeight: '600', letterSpacing: 0.5 }}>TAP TO SWITCH</Text>
-            </View>
+            </View></FeatureTip>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -24, paddingHorizontal: 24 }}>
               {upcoming.map((w) => (
                 <TouchableOpacity
@@ -454,8 +455,10 @@ export function TodayScreen() {
     </SafeAreaView>
 
     {/* Floating coach button */}
+    <View style={styles.coachFab}>
+    <FeatureTip id="coach-chat" title="Ask your coach" message="Ask training questions or request workout changes. Open the coach to type, speak, or share an equipment photo.">
     <TouchableOpacity
-      style={styles.coachFab}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
       onPress={() => isPremium ? setChatOpen(true) : openPremium('AI Coach Chat')}
       activeOpacity={0.85}
     >
@@ -468,6 +471,8 @@ export function TodayScreen() {
         </View>
       )}
     </TouchableOpacity>
+    </FeatureTip>
+    </View>
 
     <CoachChatSheet visible={chatOpen} onClose={() => setChatOpen(false)} />
     </View>

@@ -74,7 +74,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
           .limit(500),
         supabase
           .from('session_sets')
-          .select('session_id, exercise_id, exercise_name, set_number, reps, weight_kg, created_at')
+          .select('session_id, exercise_id, exercise_name, set_number, reps, weight_kg, duration_seconds, created_at')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(2000),

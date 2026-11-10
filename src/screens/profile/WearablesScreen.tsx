@@ -1,3 +1,4 @@
+import { FeatureTip } from '../../components/ui/FeatureTip';
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -308,11 +309,11 @@ export function WearablesScreen() {
 
         {/* Always reachable, connected or not — reviewers and users can see exactly
             which data types RYZR reads and what each one powers. */}
-        <TouchableOpacity onPress={() => setDisclosureOpen(true)} style={{ paddingVertical: 14 }}>
+        <FeatureTip id="connect-health" title="Connect health data" message="Review the health disclosure, then choose which supported health data you want to share with RYZR."><TouchableOpacity onPress={() => setDisclosureOpen(true)} style={{ paddingVertical: 14 }}>
           <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '700', textAlign: 'center', textDecorationLine: 'underline' }}>
             What health data does RYZR read?
           </Text>
-        </TouchableOpacity>
+        </TouchableOpacity></FeatureTip>
       </ScrollView>
 
       <HealthDisclosureSheet

@@ -233,8 +233,8 @@ export const EXERCISES: Exercise[] = [
     setup_cues: ['Stand tall, core braced', 'Hold dumbbells at sides if adding weight'],
     execution_cues: [
       'Step forward, lower back knee toward floor',
-      'Front knee stays behind toes',
-      'Push through front heel to step forward',
+      'Front knee tracks in line with toes',
+      'Push through front foot and bring the trailing leg forward into the next lunge',
     ],
     common_mistakes: ['Front knee caving in', 'Leaning forward excessively'],
     contraindications: ['knees', 'hips'],

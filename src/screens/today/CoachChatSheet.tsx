@@ -1,3 +1,4 @@
+import { FeatureTip } from '../../components/ui/FeatureTip';
 import { trackEvent } from '../../lib/funnel';
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
@@ -332,16 +333,16 @@ export function CoachChatSheet({ visible, onClose }: Props) {
               </View>
             )}
             <View style={styles.inputRow}>
-              <TouchableOpacity onPress={showImagePicker} style={styles.cameraBtn}>
+              <FeatureTip id="coach-camera" title="Show your equipment" message="Share an equipment photo with your coach to ask about it or request a workout change." enabled={visible}><TouchableOpacity onPress={showImagePicker} style={styles.cameraBtn}>
                 <Ionicons name="camera-outline" size={22} color={pendingImage ? Colors.primary : Colors.textSecondary} />
-              </TouchableOpacity>
-              <TouchableOpacity
+              </TouchableOpacity></FeatureTip>
+              <FeatureTip id="coach-microphone" title="Speak to your coach" message="Tap the microphone to dictate your message, then review it before sending." enabled={visible}><TouchableOpacity
                 onPress={listening ? stopListening : startListening}
                 style={styles.cameraBtn}
                 disabled={loading}
               >
                 <Ionicons name={listening ? 'mic' : 'mic-outline'} size={22} color={listening ? Colors.danger : Colors.textSecondary} />
-              </TouchableOpacity>
+              </TouchableOpacity></FeatureTip>
               <TextInput
                 style={styles.input}
                 value={input}

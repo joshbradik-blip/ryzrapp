@@ -1,3 +1,5 @@
+import { EXERCISE_VIDEO_OVERRIDES, EXERCISE_IMAGE_OVERRIDES } from '../constants/exerciseVideoOverrides';
+
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 
 // Convention: curated exercises have a stylized PNG at exercise-media/{id}.png
@@ -6,9 +8,9 @@ const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 // dashboard — no app release needed to add or swap art. ExerciseHero resolves
 // video → still → branded fallback, so missing files degrade gracefully.
 export function exerciseImageUrl(exerciseId: string): string {
-  return `${SUPABASE_URL}/storage/v1/object/public/exercise-media/${exerciseId}.png`;
+  return EXERCISE_IMAGE_OVERRIDES[exerciseId] ?? `${SUPABASE_URL}/storage/v1/object/public/exercise-media/${exerciseId}.png`;
 }
 
 export function exerciseVideoUrl(exerciseId: string): string {
-  return `${SUPABASE_URL}/storage/v1/object/public/exercise-media/${exerciseId}.mp4`;
+  return EXERCISE_VIDEO_OVERRIDES[exerciseId] ?? `${SUPABASE_URL}/storage/v1/object/public/exercise-media/${exerciseId}.mp4`;
 }

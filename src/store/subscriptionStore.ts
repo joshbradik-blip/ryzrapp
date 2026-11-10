@@ -17,7 +17,8 @@ export const BETA_TESTERS: string[] = [
   'sendtojoshperry@gmail.com',
 ];
 
-// Pricing constants — update RevenueCat dashboard to match.
+// Fallback prices — update the actual products in App Store Connect / Play Console.
+// RevenueCat’s current offering must link its Lifetime package to those products.
 // The price people actually pay comes from the stores (App Store Connect, Play Console,
 // RevenueCat). These are only the fallback shown if the store price fails to load, so
 // keep them equal to the live prices.

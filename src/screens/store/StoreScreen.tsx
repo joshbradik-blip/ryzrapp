@@ -1,3 +1,4 @@
+import { FeatureTip } from '../../components/ui/FeatureTip';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
@@ -220,7 +221,7 @@ export function StoreScreen() {
         </View>
 
         {/* Segmented toggle */}
-        <View style={{ flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 12, padding: 4, marginHorizontal: 24, marginTop: 16, borderWidth: 1, borderColor: Colors.border }}>
+        <FeatureTip id="store-tabs" title="Explore the store" message="Choose Membership for plans, Gear for training products, or FAQ for answers about RYZR."><View style={{ flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 12, padding: 4, marginHorizontal: 24, marginTop: 16, borderWidth: 1, borderColor: Colors.border }}>
           {(['membership', 'gear', 'faq'] as const).map((t) => (
             <TouchableOpacity
               key={t}
@@ -238,7 +239,7 @@ export function StoreScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </View></FeatureTip>
 
         {tab === 'membership' && (
         <View style={{ padding: 24 }}>
@@ -310,7 +311,7 @@ export function StoreScreen() {
                 <View style={{ gap: 12, marginBottom: 16 }}>
                   {/* Lifetime founding member — shown when slots remain */}
                   {!slotsGone && (
-                    <TouchableOpacity
+                    <FeatureTip id="founding-membership" title="Lifetime membership" message="The founding membership is a one-time purchase for lifetime access. Review the displayed store price before buying."><TouchableOpacity
                       onPress={handleLifetime}
                       disabled={loading}
                       style={{
@@ -334,11 +335,11 @@ export function StoreScreen() {
                           <Text style={{ color: '#00000088', fontSize: 13, marginTop: 2 }}>Pay once · lifetime access · first 100 only</Text>
                         </>
                       )}
-                    </TouchableOpacity>
+                    </TouchableOpacity></FeatureTip>
                   )}
 
                   {/* Annual — best value */}
-                  <TouchableOpacity
+                  <FeatureTip id="annual-membership" title="Annual membership" message="Review the annual price and renewal terms. Your store will show a purchase confirmation before charging."><TouchableOpacity
                     onPress={() => handleSubscribe('annual')}
                     disabled={loading}
                     style={{
@@ -367,10 +368,10 @@ export function StoreScreen() {
                         ? trialPriceLine(annualTrial, annualPrice, 'year')
                         : `${annualPerMonth}/month · billed annually, auto-renews`}
                     </Text>
-                  </TouchableOpacity>
+                  </TouchableOpacity></FeatureTip>
 
                   {/* Monthly */}
-                  <TouchableOpacity
+                  <FeatureTip id="monthly-membership" title="Monthly membership" message="Review the monthly price and renewal terms. Manage cancellation through your store account."><TouchableOpacity
                     onPress={() => handleSubscribe('monthly')}
                     disabled={loading}
                     style={{
@@ -393,14 +394,14 @@ export function StoreScreen() {
                         ? trialPriceLine(monthlyTrial, monthlyPrice, 'month')
                         : 'Billed monthly, auto-renews · cancel anytime'}
                     </Text>
-                  </TouchableOpacity>
+                  </TouchableOpacity></FeatureTip>
                 </View>
 
                 <PromoCodeRow />
 
-                <TouchableOpacity onPress={handleRestore} style={{ alignItems: 'center', paddingVertical: 10 }}>
+                <FeatureTip id="restore-purchases" title="Restore purchases" message="Restore eligible purchases associated with your current store account."><TouchableOpacity onPress={handleRestore} style={{ alignItems: 'center', paddingVertical: 10 }}>
                   <Text style={{ color: Colors.muted, fontSize: 13 }}>Restore purchases</Text>
-                </TouchableOpacity>
+                </TouchableOpacity></FeatureTip>
 
                 <SubscriptionTerms hasTrial={!!(monthlyTrial || annualTrial)} />
               </>
@@ -443,12 +444,12 @@ export function StoreScreen() {
                         <Text style={{ color: Colors.text, fontWeight: '700', fontSize: 15 }}>{item.name}</Text>
                         <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 }}>{item.desc}</Text>
                       </View>
-                      <TouchableOpacity
+                      <FeatureTip id="gear-shop" title="View training gear" message="Open the selected product’s listing to review its current price and details. Purchases happen with the retailer."><TouchableOpacity
                         onPress={() => openAmazonProduct(item.asin)}
                         style={{ backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, flexShrink: 0 }}
                       >
                         <Text style={{ color: '#000', fontWeight: '800', fontSize: 13 }}>View</Text>
-                      </TouchableOpacity>
+                      </TouchableOpacity></FeatureTip>
                     </View>
                   ))}
                 </View>
@@ -467,7 +468,7 @@ export function StoreScreen() {
         {tab === 'faq' && (
           <View style={{ padding: 24, gap: 10 }}>
             {(formCoachEnabled ? FAQ_ITEMS : FAQ_ITEMS_NO_FORM_COACH).map((item, i) => (
-              <TouchableOpacity
+              <FeatureTip key={i} id="store-faq" title="Common questions" message="Tap a question to expand its answer."><TouchableOpacity
                 key={i}
                 onPress={() => toggleFaq(i)}
                 activeOpacity={0.8}
@@ -498,7 +499,7 @@ export function StoreScreen() {
                     </Text>
                   </View>
                 )}
-              </TouchableOpacity>
+              </TouchableOpacity></FeatureTip>
             ))}
           </View>
         )}

@@ -1,3 +1,4 @@
+import { FeatureTip } from '../../components/ui/FeatureTip';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -169,7 +170,7 @@ export function ExerciseLibraryScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['bottom']}>
       <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.md }}>
-        <View
+        <FeatureTip id="search-library" title="Find an exercise" message="Search by exercise name, muscle group, or equipment, then open a result for its details and demo."><View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
@@ -197,7 +198,7 @@ export function ExerciseLibraryScreen() {
               <Ionicons name="close-circle" size={19} color={Colors.muted} />
             </TouchableOpacity>
           )}
-        </View>
+        </View></FeatureTip>
       </View>
 
       <FlatList

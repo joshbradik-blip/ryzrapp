@@ -1,3 +1,4 @@
+import { FeatureTip } from '../../components/ui/FeatureTip';
 // One predesigned program: what it is, what is in it, and a Start button.
 //
 // Starting a program hands it to the workout store as `programWorkout` and
@@ -161,12 +162,12 @@ export function ProgramDetailScreen() {
           ))}
         </View>
 
-        <GradientButton
+        <FeatureTip id="start-program" title="Start a focused program" message="Start this program as a workout session. Your main training plan stays available."><GradientButton
           title="Start program"
           icon="play"
           onPress={handleStart}
           style={{ marginTop: 28 }}
-        />
+        /></FeatureTip>
 
         <Text
           style={{ color: Colors.muted, fontSize: 12, textAlign: 'center', marginTop: 12, lineHeight: 17 }}

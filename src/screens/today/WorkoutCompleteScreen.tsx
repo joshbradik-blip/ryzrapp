@@ -1,3 +1,4 @@
+import { FeatureTip } from '../../components/ui/FeatureTip';
 import { trackEvent } from '../../lib/funnel';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, Animated, TouchableOpacity, Share, ScrollView } from 'react-native';
@@ -33,6 +34,7 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
   const unit = profile?.weight_unit ?? 'kg';
   const totalVolume = activeSets.reduce((acc, s) => acc + s.reps * s.weight, 0);
   const totalSets = activeSets.length;
+  const totalHoldSeconds = activeSets.reduce((sum, set) => sum + (set.durationSeconds ?? 0), 0);
   const duration = activeSession?.started_at
     ? Math.round((Date.now() - new Date(activeSession.started_at).getTime()) / 60000)
     : 0;
@@ -189,6 +191,12 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
             ))}
           </View>
 
+          {totalHoldSeconds > 0 && (
+            <Text style={{ color: Colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>
+              Timed work: {totalHoldSeconds}s completed
+            </Text>
+          )}
+
           {/* PR cards */}
           {prs.length > 0 && (
             <View style={{ width: '100%', gap: 10, marginBottom: 20 }}>
@@ -242,13 +250,13 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
             </View>
           )}
 
-          <TouchableOpacity
+          <FeatureTip style={{ width: '100%' }} id="share-workout" title="Share your workout" message="Create a shareable workout summary and choose where to send it."><TouchableOpacity
             onPress={handleShare}
             style={{ backgroundColor: Colors.surface, borderRadius: 14, paddingVertical: 15, width: '100%', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10, borderWidth: 1, borderColor: Colors.border, marginBottom: 12 }}
           >
             <Ionicons name="share-outline" size={20} color={Colors.primary} />
             <Text style={{ color: Colors.text, fontWeight: '800', fontSize: 16 }}>Share workout</Text>
-          </TouchableOpacity>
+          </TouchableOpacity></FeatureTip>
 
           <TouchableOpacity
             onPress={handleDone}
