@@ -239,6 +239,7 @@ export type TodayStackParamList = {
   ExerciseDetail: { exerciseId: string; workoutId?: string; workoutExerciseId?: string; exercise?: Exercise };
   SubstituteExercise: { exerciseId: string; workoutId: string; workoutExerciseId: string };
   FormCoach: { exerciseId: string; exerciseName: string };
+  VideoFormReview: { exerciseId: string };
   WorkoutComplete: { sessionId: string };
   // Predesigned programs (src/lib/programs.ts). The category screen lists one
   // section in full; the detail screen starts a program.

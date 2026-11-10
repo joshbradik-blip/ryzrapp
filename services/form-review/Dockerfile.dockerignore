@@ -1,0 +1,12 @@
+**
+!src/
+!src/lib/
+!src/lib/pose/
+!src/lib/pose/*.ts
+!src/lib/usageCost.ts
+!services/
+!services/form-review/
+!services/form-review/*.ts
+!services/form-review/Dockerfile
+!services/form-review/requirements.txt
+!services/form-review/pose_frames.py

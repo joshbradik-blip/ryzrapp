@@ -16,9 +16,12 @@ import { useWorkoutStore } from '../../store/workoutStore';
 import { exerciseHeroMedia } from '../../lib/exerciseMedia';
 import { supportsFormCoach } from '../../lib/pose/coverage';
 import { ExerciseHero } from '../../components/workout/ExerciseHero';
+import { Button } from '../../components/ui/Button';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { Colors } from '../../constants/theme';
 import { useFormCoachEnabled } from '../../lib/featureFlags';
+import { useOpenMembership } from '../../lib/openMembership';
+import { supportsVideoFormReview, VIDEO_FORM_REVIEW_ENABLED } from '../../lib/videoFormReview';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'ExerciseDetail'>;
 
@@ -49,6 +52,7 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
   // no plan, so it travels as a route param rather than being looked up.
   const exercise = getExerciseById(exerciseId) ?? swapped ?? route.params.exercise;
   const { isPremium } = useSubscriptionStore();
+  const openMembership = useOpenMembership();
   const [activeTab, setActiveTab] = useState<typeof TABS[number]>('Setup');
 
   if (!exercise) {
@@ -215,6 +219,24 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
             </View>
             <Ionicons name="chevron-forward" size={18} color={Colors.muted} />
           </TouchableOpacity>
+          )}
+
+          {VIDEO_FORM_REVIEW_ENABLED && supportsVideoFormReview(exercise.id) && (
+            <Button
+              title={isPremium ? 'Review my form' : 'Review my form (Premium)'}
+              variant="secondary"
+              onPress={() => {
+                if (!isPremium) {
+                  Alert.alert('Premium Feature', 'Video form review is included with RYZR Premium.', [
+                    { text: 'Not now', style: 'cancel' },
+                    { text: 'View Premium', onPress: () => openMembership('Video Form Review') },
+                  ]);
+                  return;
+                }
+                navigation.navigate('VideoFormReview', { exerciseId: exercise.id });
+              }}
+              style={{ marginBottom: 12 }}
+            />
           )}
 
           {/* Form Coach CTA — hidden on mobility work the pipeline cannot score. */}

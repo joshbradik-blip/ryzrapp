@@ -6,6 +6,7 @@ import { TodayScreen } from '../screens/today/TodayScreen';
 import { ExerciseLibraryScreen } from '../screens/today/ExerciseLibraryScreen';
 import { WorkoutSessionScreen } from '../screens/today/WorkoutSessionScreen';
 import { ExerciseDetailScreen } from '../screens/today/ExerciseDetailScreen';
+import { VideoFormReviewScreen } from '../screens/today/VideoFormReviewScreen';
 import { SubstituteExerciseScreen } from '../screens/today/SubstituteExerciseScreen';
 import { WorkoutCompleteScreen } from '../screens/today/WorkoutCompleteScreen';
 import { ProgramCategoryScreen } from '../screens/today/ProgramCategoryScreen';
@@ -50,6 +51,11 @@ export function TodayNavigator() {
         name="ExerciseDetail"
         component={ExerciseDetailScreen}
         options={{ title: 'Exercise', headerBackTitle: '' }}
+      />
+      <Stack.Screen
+        name="VideoFormReview"
+        component={VideoFormReviewScreen}
+        options={{ title: 'Video Form Review', headerBackTitle: '' }}
       />
       <Stack.Screen
         name="SubstituteExercise"
