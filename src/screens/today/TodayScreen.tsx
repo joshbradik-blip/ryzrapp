@@ -20,6 +20,7 @@ import { useAuthStore } from '../../store/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { StatTile } from '../../components/ui/StatTile';
+import { WorkoutQuickTip, useWorkoutQuickTip } from '../../components/workout/WorkoutQuickTip';
 import { Colors } from '../../constants/theme';
 import { useFunnelStep } from '../../lib/funnel';
 import { CoachChatSheet } from './CoachChatSheet';
@@ -48,6 +49,7 @@ import { useFormCoachEnabled } from '../../lib/featureFlags';
 
 export function TodayScreen() {
   const formCoachEnabled = useFormCoachEnabled();
+  const { show: showCoachTip, dismiss: dismissCoachTip } = useWorkoutQuickTip('ask-coach');
   // End of funnel: the user is in the app and can train.
   useFunnelStep('activated_home_viewed');
   const navigation = useNavigation<NativeStackNavigationProp<TodayStackParamList>>();
@@ -350,6 +352,15 @@ export function TodayScreen() {
           </View>
         )}
 
+        {showCoachTip && (
+          <View style={{ marginHorizontal: 24, marginTop: 16 }}>
+            <WorkoutQuickTip
+              message={`Tap Ask Coach in the bottom right to ask about your workout, exercise swaps, or recovery.${isPremium ? '' : ' Requires Premium.'}`}
+              onDismiss={dismissCoachTip}
+            />
+          </View>
+        )}
+
         {/* Quick stats */}
         <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 24, marginTop: 20 }}>
           <StatTile label="This week" value={`${thisWeekSessions}/${weekPlanned}`} sub="workouts" icon="checkmark-circle" />
@@ -456,7 +467,12 @@ export function TodayScreen() {
     {/* Floating coach button */}
     <TouchableOpacity
       style={styles.coachFab}
-      onPress={() => isPremium ? setChatOpen(true) : openPremium('AI Coach Chat')}
+      onPress={() => {
+        dismissCoachTip();
+        if (isPremium) setChatOpen(true);
+        else openPremium('AI Coach Chat');
+      }}
+      accessibilityRole="button"
       activeOpacity={0.85}
     >
       {!isPremium && <Ionicons name="lock-closed" size={14} color="#000" />}

@@ -19,6 +19,7 @@ import { dbToSubstituteOption, findSubstitutes, SubstituteResults } from '../../
 import { mapEquipmentToDB, searchExercisesByName } from '../../lib/exercisedb';
 import { useWorkoutStore } from '../../store/workoutStore';
 import { useProfileStore } from '../../store/profileStore';
+import { WorkoutQuickTip, useWorkoutQuickTip } from '../../components/workout/WorkoutQuickTip';
 import { Colors } from '../../constants/theme';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'SubstituteExercise'>;
@@ -34,6 +35,7 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
   const exercise = getExerciseById(exerciseId);
   const { swapForSession, swapForPlan } = useWorkoutStore();
   const { equipment, injuries } = useProfileStore();
+  const { show: showSwapTip, dismiss: dismissSwapTip } = useWorkoutQuickTip('swap');
 
   const [results, setResults] = useState<SubstituteResults | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,6 +108,7 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
       } else {
         swapForPlan(workoutId, workoutExerciseId, exerciseId, replacement, option.source);
       }
+      dismissSwapTip();
       // Pop back to ExerciseDetail, then back to the workout
       navigation.pop(2);
     };
@@ -134,7 +137,7 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
         ]
       );
     }
-  }, [workoutId, workoutExerciseId, exerciseId, swapForSession, swapForPlan, navigation]);
+  }, [workoutId, workoutExerciseId, exerciseId, swapForSession, swapForPlan, dismissSwapTip, navigation]);
 
   if (!exercise) {
     return (
@@ -202,6 +205,13 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
             {searching && <ActivityIndicator size="small" color={Colors.primary} />}
           </View>
 
+          {showSwapTip && query.trim().length < 3 && (
+            <WorkoutQuickTip
+              message="Compatible options come first. Pick one, then choose Just for today or Always use this instead."
+              onDismiss={dismissSwapTip}
+            />
+          )}
+
           {(searchError || (!results.externalCatalogAvailable && query.trim().length < 3)) && (
             <View style={{
               backgroundColor: Colors.warning + '11',
@@ -235,27 +245,6 @@ export function SubstituteExerciseScreen({ navigation, route }: Props) {
               )}
             </>
           )}
-
-          {/* Equipment info banner */}
-          <View style={{
-            backgroundColor: Colors.primary + '11',
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 20,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 10,
-            borderWidth: 1,
-            borderColor: Colors.primary + '33',
-          }}>
-            <Ionicons name="flash-outline" size={18} color={Colors.primary} />
-            <Text style={{ color: Colors.textSecondary, fontSize: 13, flex: 1, lineHeight: 18 }}>
-              Compatible alternatives shown first. Tap any to choose{' '}
-              <Text style={{ color: Colors.text, fontWeight: '700' }}>just for today</Text>
-              {' '}or{' '}
-              <Text style={{ color: Colors.text, fontWeight: '700' }}>save to your plan</Text>.
-            </Text>
-          </View>
 
           {/* Compatible section */}
           {query.trim().length < 3 && results.compatible.length > 0 && (

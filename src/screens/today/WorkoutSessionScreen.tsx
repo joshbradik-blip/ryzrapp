@@ -26,6 +26,7 @@ import { exerciseHeroMedia } from '../../lib/exerciseMedia';
 import { Button } from '../../components/ui/Button';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { ExerciseHero } from '../../components/workout/ExerciseHero';
+import { WorkoutQuickTip, useWorkoutQuickTip } from '../../components/workout/WorkoutQuickTip';
 import { Colors } from '../../constants/theme';
 import { haptic } from '../../lib/feedback';
 import { supportsFormCoach } from '../../lib/pose/coverage';
@@ -47,6 +48,7 @@ function fmtWeight(kg: number, unit: WeightUnit): string {
 export function WorkoutSessionScreen({ navigation, route }: Props) {
   const isFocused = useIsFocused();
   const formCoachEnabled = useFormCoachEnabled();
+  const { show: showLogTip, dismiss: dismissLogTip } = useWorkoutQuickTip('log-set');
   const { workoutId } = route.params;
   const { workouts, todayWorkout, programWorkout, startSession, logSet, nextExercise, currentExerciseIndex, completeSession, exerciseChallenges, challengesLoading, loadChallenges } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
@@ -149,6 +151,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
       reps: parseInt(reps, 10),
       weight: parseFloat(weight) || 0,
     });
+    dismissLogTip();
 
     const key = currentExercise.id;
     const newSets = [...(completedSets[key] ?? []), { weightKg, reps: parseInt(reps, 10) }];
@@ -260,6 +263,13 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
             active={isFocused && !resting}
           />
         </View>
+
+        {showLogTip && hasSetToLog && !resting && (
+          <WorkoutQuickTip
+            message="Tap the numbers or use − and + to enter your actual weight and reps. Tap Log Set after each set. Rest starts automatically between sets."
+            onDismiss={dismissLogTip}
+          />
+        )}
 
         {/* Set pills */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
