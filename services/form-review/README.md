@@ -19,10 +19,11 @@ Configure these values in the service's secret or environment settings.
 | --- | --- |
 | `SUPABASE_URL` | HTTPS URL for the same Supabase project used by the app |
 | `SUPABASE_ANON_KEY` | That project's anon or publishable key |
-| `ANTHROPIC_KEY` | Server-side Anthropic key for the coaching cue |
-| `REVENUECAT_SECRET_API_KEY` | Server-side RevenueCat v1 key that can read the user's `premium` entitlement |
+| `REVENUECAT_PUBLIC_API_KEY` | SDK key for RYZR's shared RevenueCat project. Used to read the user's `premium` entitlement |
 | `FORM_REVIEW_BETA_USER_IDS` | Optional comma-separated Supabase UUIDs for invited testers whose app account already has Premium. A beta-only service can use this in place of the RevenueCat key |
 | `PORT` | Optional server port. Defaults to `8080` |
+
+The service sends the movement summary to RYZR's existing Supabase `anthropic-proxy` function using the authenticated caller's token. The Anthropic key stays in Supabase.
 
 The service listens on `GET /health` for health checks. Run one replica for the pilot. Its six submissions per account per UTC day and two concurrent requests are enforced in process and reset on restart. Configure shared quotas before scaling beyond a single replica.
 

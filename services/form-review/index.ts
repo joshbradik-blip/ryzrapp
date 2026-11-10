@@ -19,9 +19,8 @@ function required(name: string) {
 const supabaseUrl = new URL(required('SUPABASE_URL'));
 if (supabaseUrl.protocol !== 'https:') throw new Error('SUPABASE_URL must use HTTPS');
 const supabaseKey = required('SUPABASE_ANON_KEY');
-const anthropicKey = required('ANTHROPIC_KEY');
 const modelPath = resolve(required('FORM_REVIEW_MODEL_PATH'));
-const revenueCatKey = process.env.REVENUECAT_SECRET_API_KEY?.trim();
+const revenueCatKey = process.env.REVENUECAT_PUBLIC_API_KEY?.trim();
 const betaUsers = new Set((process.env.FORM_REVIEW_BETA_USER_IDS ?? '').split(',').map((id) => id.trim()).filter(Boolean));
 if (!revenueCatKey && betaUsers.size === 0) throw new Error('Configure RevenueCat or a review beta allowlist');
 
@@ -99,9 +98,9 @@ async function coachingCue(summary: SessionSummary, token: string, userId: strin
     relativeDepth: summary.averagePeakDepth,
     observedIssues: summary.topIssues.slice(0, 3),
   };
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch(new URL('/functions/v1/anthropic-proxy', supabaseUrl), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+    headers: { ...supabaseHeaders(token), 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: claudeModel,
       max_tokens: 96,
