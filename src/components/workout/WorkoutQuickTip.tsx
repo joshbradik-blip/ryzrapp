@@ -6,7 +6,7 @@ import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store/authStore';
 import { SectionLabel } from '../ui/SectionLabel';
 
-export function useWorkoutQuickTip(kind: 'log-set' | 'swap' | 'ask-coach') {
+export function useWorkoutQuickTip(kind: 'log-set' | 'swap' | 'ask-coach' | 'hold-timer') {
   const userId = useAuthStore((state) => state.session?.user.id);
   const storageKey = userId ? `ryzr-workout-tip:v1:${userId}:${kind}` : null;
   const [visibleKey, setVisibleKey] = useState<string | null>(null);

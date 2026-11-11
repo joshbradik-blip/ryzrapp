@@ -10,6 +10,7 @@ import { generateExerciseChallenges, ChallengeInput } from '../lib/anthropic';
 import type { ReadinessResult } from '../lib/readiness';
 
 interface ActiveSet {
+  durationSeconds?: number;
   workoutExerciseId: string;
   setNumber: number;
   reps: number;
@@ -243,6 +244,7 @@ export const useWorkoutStore = create<WorkoutState>()(persist((set, get) => ({
         exercise_id: we?.exercise.id,
         set_number: s.setNumber,
         reps: s.reps,
+        duration_seconds: s.durationSeconds ?? null,
         weight: s.weight,
       };
     });

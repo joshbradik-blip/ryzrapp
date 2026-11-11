@@ -26,7 +26,9 @@ import { exerciseHeroMedia } from '../../lib/exerciseMedia';
 import { Button } from '../../components/ui/Button';
 import { GradientButton } from '../../components/ui/GradientButton';
 import { ExerciseHero } from '../../components/workout/ExerciseHero';
+import { HoldTimer } from '../../components/workout/HoldTimer';
 import { WorkoutQuickTip, useWorkoutQuickTip } from '../../components/workout/WorkoutQuickTip';
+import { isStaticHold, timedExerciseSeconds } from '../../lib/timedExercise';
 import { Colors } from '../../constants/theme';
 import { haptic } from '../../lib/feedback';
 import { supportsFormCoach } from '../../lib/pose/coverage';
@@ -36,6 +38,7 @@ import { WorkoutRestScreen } from './WorkoutRestScreen';
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutSession'>;
 
 interface LoggedSet {
+  durationSeconds?: number;
   weightKg: number;
   reps: number;
 }
@@ -49,6 +52,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
   const isFocused = useIsFocused();
   const formCoachEnabled = useFormCoachEnabled();
   const { show: showLogTip, dismiss: dismissLogTip } = useWorkoutQuickTip('log-set');
+  const { show: showTimerTip, dismiss: dismissTimerTip } = useWorkoutQuickTip('hold-timer');
   const { workoutId } = route.params;
   const { workouts, todayWorkout, programWorkout, startSession, logSet, nextExercise, currentExerciseIndex, completeSession, exerciseChallenges, challengesLoading, loadChallenges } = useWorkoutStore();
   const { isPremium } = useSubscriptionStore();
@@ -87,7 +91,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
       if (!hist.loaded && userId) await hist.fetchHistory(userId);
       const fresh = useHistoryStore.getState();
       const u = useProfileStore.getState().profile?.weight_unit ?? 'lbs';
-      const inputs: ChallengeInput[] = workout.exercises.map((we) => {
+      const inputs: ChallengeInput[] = workout.exercises.filter((we) => timedExerciseSeconds(we.exercise.id, we.target_reps) === null).map((we) => {
         const id = we.exercise.id;
         const ls = fresh.lastSessionPerf[id];
         const b = fresh.bestWeights[id];
@@ -122,20 +126,25 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
   const logged = completedSets[currentExercise.id] ?? [];
   const completedCount = logged.length;
   const hasSetToLog = completedCount < currentExercise.target_sets;
+  const holdTarget = timedExerciseSeconds(exId, currentExercise.target_reps);
+  const isTimed = holdTarget !== null;
+  const isHold = isStaticHold(exId);
+  const effortLabel = isTimed ? (isHold ? 'Hold' : 'Interval') : 'Set';
 
   const last = lastSets[exId];
   const best = bestWeights[exId];
   const enteredKg = displayToKg(parseFloat(weight) || 0, unit);
-  const prDeltaKg = best && enteredKg > best.weight_kg ? enteredKg - best.weight_kg : 0;
+  const prDeltaKg = !isTimed && best && enteredKg > best.weight_kg ? enteredKg - best.weight_kg : 0;
 
   const lastSession = lastSessionPerf[exId];
   const recallText = lastSession && lastSession.sets.length > 0
-    ? lastSession.sets.map((s) => `${fmtWeight(s.weight_kg, unit)}×${s.reps}`).join(', ')
+    ? lastSession.sets.map((s) => s.duration_seconds ? `${s.duration_seconds}s` : isTimed ? 'duration not recorded' : `${fmtWeight(s.weight_kg, unit)}×${s.reps}`).join(', ')
     : null;
-  const challengeText = exerciseChallenges[exId];
+  const challengeText = isTimed ? undefined : exerciseChallenges[exId];
 
-  const handleLogSet = () => {
-    if (!reps || !hasSetToLog || resting) return;
+  const handleLogSet = (durationSeconds?: number) => {
+    if (!hasSetToLog || resting) return;
+    if (isTimed ? !(durationSeconds && durationSeconds > 0) : !(parseInt(reps, 10) > 0)) return;
     const setNumber = completedCount + 1;
     // A second tap before the logger re-renders must not save the same set twice.
     if (useWorkoutStore.getState().activeSets.some(
@@ -144,17 +153,20 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
 
     Keyboard.dismiss();
     haptic.impact('medium');
-    const weightKg = displayToKg(parseFloat(weight) || 0, unit);
+    const weightKg = isTimed ? 0 : displayToKg(parseFloat(weight) || 0, unit);
+    const loggedReps = isTimed ? 0 : parseInt(reps, 10);
     logSet({
       workoutExerciseId: currentExercise.id,
       setNumber,
-      reps: parseInt(reps, 10),
-      weight: parseFloat(weight) || 0,
+      reps: loggedReps,
+      weight: isTimed ? 0 : parseFloat(weight) || 0,
+      durationSeconds: isTimed ? durationSeconds : undefined,
     });
-    dismissLogTip();
+    if (isTimed) dismissTimerTip();
+    else dismissLogTip();
 
     const key = currentExercise.id;
-    const newSets = [...(completedSets[key] ?? []), { weightKg, reps: parseInt(reps, 10) }];
+    const newSets = [...(completedSets[key] ?? []), { weightKg, reps: loggedReps, durationSeconds: isTimed ? durationSeconds : undefined }];
     setCompletedSets((prev) => ({ ...prev, [key]: newSets }));
 
     setReps('');
@@ -178,8 +190,8 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
       return;
     }
     Alert.alert(
-      'Skip remaining sets?',
-      `You still have ${remaining} set${remaining === 1 ? '' : 's'} left of ${currentExercise.exercise.name}. Move on to the next exercise?`,
+      `Skip remaining ${effortLabel.toLowerCase()}s?`,
+      `You still have ${remaining} ${effortLabel.toLowerCase()}${remaining === 1 ? '' : 's'} left of ${currentExercise.exercise.name}. Move on to the next exercise?`,
       [
         { text: 'Stay', style: 'cancel' },
         { text: 'Skip', style: 'destructive', onPress: handleNextExercise },
@@ -248,7 +260,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
           {currentExercise.exercise.name}
         </Text>
         <Text style={{ color: Colors.textSecondary, fontSize: 16, marginBottom: 12 }}>
-          {currentExercise.target_sets} sets × {currentExercise.target_reps}
+          {currentExercise.target_sets} {effortLabel.toLowerCase()}s × {isTimed ? `${holdTarget}s` : currentExercise.target_reps}
           {currentExercise.target_rpe > 0 ? ` · RPE ${currentExercise.target_rpe}` : ''}
         </Text>
 
@@ -264,10 +276,12 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
           />
         </View>
 
-        {showLogTip && hasSetToLog && !resting && (
+        {(isTimed ? showTimerTip : showLogTip) && hasSetToLog && !resting && (
           <WorkoutQuickTip
-            message="Tap the numbers or use − and + to enter your actual weight and reps. Tap Log Set after each set. Rest starts automatically between sets."
-            onDismiss={dismissLogTip}
+            message={isTimed
+              ? `Tap Start Timer when ready. Pause and resume as needed, then tap Complete ${effortLabel} to save your time. Rest starts between efforts.`
+              : 'Tap the numbers or use − and + to enter your actual weight and reps. Tap Log Set after each set. Rest starts automatically between sets.'}
+            onDismiss={isTimed ? dismissTimerTip : dismissLogTip}
           />
         )}
 
@@ -292,7 +306,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
                 }}
               >
                 <Text style={{ color: done ? Colors.primary : isCurrent ? Colors.text : Colors.muted, fontSize: 12, fontWeight: '700' }}>
-                  {done ? `${fmtWeight(done.weightKg, unit)} ${unit} × ${done.reps}` : `SET ${i + 1}`}
+                  {done ? (done.durationSeconds ? `${done.durationSeconds}s` : `${fmtWeight(done.weightKg, unit)} ${unit} × ${done.reps}`) : `${effortLabel.toUpperCase()} ${i + 1}`}
                 </Text>
                 {done && <Ionicons name="checkmark" size={12} color={Colors.primary} />}
               </View>
@@ -300,6 +314,16 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
           })}
         </View>
 
+        {isTimed ? (
+          hasSetToLog && <HoldTimer
+            key={`${currentExercise.id}:${exId}:${completedCount}`}
+            target={holdTarget!}
+            isHold={isHold}
+            disabled={resting}
+            onComplete={handleLogSet}
+          />
+        ) : (
+        <>
         {/* Big-number stage */}
         <View style={{ backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 16 }}>
           <View style={{ flexDirection: 'row' }}>
@@ -378,11 +402,13 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
         </View>
 
         {/* Log set */}
-        <GradientButton title="Log Set" icon="flash" onPress={handleLogSet} disabled={!reps || !hasSetToLog} style={{ marginBottom: prDeltaKg > 0 ? 8 : 12 }} />
+        <GradientButton title="Log Set" icon="flash" onPress={() => handleLogSet()} disabled={!(parseInt(reps, 10) > 0) || !hasSetToLog} style={{ marginBottom: prDeltaKg > 0 ? 8 : 12 }} />
         {prDeltaKg > 0 && (
           <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600', textAlign: 'center', marginBottom: 12 }}>
             🔥 {fmtWeight(prDeltaKg, unit)} {unit} over your best — PR pace
           </Text>
+        )}
+        </>
         )}
 
         {/* COACH card */}
@@ -395,7 +421,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
                 {recallText ? `Last time: ${recallText}` : 'First time — set your baseline.'}
               </Text>
             </View>
-            {challengesLoading && !challengeText ? (
+            {challengesLoading && !isTimed && !challengeText ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ionicons name="barbell-outline" size={15} color={Colors.muted} />
                 <Text style={{ color: Colors.muted, fontSize: 13, fontStyle: 'italic', flex: 1 }}>Coach is reviewing your last session…</Text>
@@ -407,7 +433,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
               </View>
             ) : null}
           </View>
-        ) : (
+        ) : !isTimed && (
           <TouchableOpacity
             onPress={() => Alert.alert('Premium Feature', 'Upgrade to RYZR Premium to unlock AI challenges that push you past last time.')}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: Colors.primary + '44', padding: 12, marginBottom: 20 }}
@@ -493,6 +519,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
           durationSeconds={currentExercise.rest_seconds || 90}
           exerciseName={exercise.name}
           nextSet={completedCount + 1}
+          effortLabel={effortLabel}
           onDone={endRest}
         />
       )}

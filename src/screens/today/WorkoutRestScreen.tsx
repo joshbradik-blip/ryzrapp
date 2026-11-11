@@ -11,6 +11,7 @@ interface Props {
   durationSeconds: number;
   exerciseName: string;
   nextSet: number;
+  effortLabel?: string;
   onDone: () => void;
 }
 
@@ -18,7 +19,7 @@ function secondsUntil(deadline: number) {
   return Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
 }
 
-export function WorkoutRestScreen({ durationSeconds, exerciseName, nextSet, onDone }: Props) {
+export function WorkoutRestScreen({ durationSeconds, exerciseName, nextSet, effortLabel = 'Set', onDone }: Props) {
   const [deadline, setDeadline] = useState(() => Date.now() + durationSeconds * 1000);
   const [remaining, setRemaining] = useState(durationSeconds);
   const deadlineRef = useRef(deadline);
@@ -132,7 +133,7 @@ export function WorkoutRestScreen({ durationSeconds, exerciseName, nextSet, onDo
             <View style={styles.upNext}>
               <SectionLabel>Up next</SectionLabel>
               <Text style={styles.exercise}>{exerciseName}</Text>
-              <Text style={styles.set}>Set {nextSet}</Text>
+              <Text style={styles.set}>{effortLabel} {nextSet}</Text>
             </View>
             <GradientButton title="Skip Rest" icon="arrow-forward" onPress={skip} />
           </View>

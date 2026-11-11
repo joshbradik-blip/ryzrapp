@@ -33,6 +33,7 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
   const unit = profile?.weight_unit ?? 'kg';
   const totalVolume = activeSets.reduce((acc, s) => acc + s.reps * s.weight, 0);
   const totalSets = activeSets.length;
+  const totalHoldSeconds = activeSets.reduce((sum, set) => sum + (set.durationSeconds ?? 0), 0);
   const duration = activeSession?.started_at
     ? Math.round((Date.now() - new Date(activeSession.started_at).getTime()) / 60000)
     : 0;
@@ -188,6 +189,12 @@ export function WorkoutCompleteScreen({ navigation }: Props) {
               </View>
             ))}
           </View>
+
+          {totalHoldSeconds > 0 && (
+            <Text style={{ color: Colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>
+              Timed work: {totalHoldSeconds}s completed
+            </Text>
+          )}
 
           {/* PR cards */}
           {prs.length > 0 && (
