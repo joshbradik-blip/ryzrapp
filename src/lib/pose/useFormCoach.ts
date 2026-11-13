@@ -8,7 +8,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrameProcessor } from 'react-native-vision-camera';
 import type { FramingResult, Landmarks, RepPhase, SessionSummary } from './index';
 import { FormCoachSession } from './session';
-import { loadPosePlugin, nativePoseToFrame, normalizeLandmarks, rotationDegrees } from './nativePose';
+import {
+  loadPosePlugin,
+  nativePoseToFrame,
+  packLandmarks,
+  rotationDegrees,
+  unpackLandmarks,
+} from './nativePose';
 import { useFeatureFlags } from '../featureFlags';
 import { SkeletonSmoother } from './skeleton';
 import { useTflitePose } from './tflitePose';
@@ -41,6 +47,14 @@ const MIN_FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
  * with nobody in it is not a failure — only errors and malformed results are.
  */
 const NATIVE_MISS_LIMIT = 30;
+
+/**
+ * Bumped by hand on every OTA that touches this file, and shown on the
+ * diagnostic readout. Without it a screenshot cannot say whether the update
+ * actually landed, and an unchanged number reads as a failed fix rather than
+ * a bundle that never swapped in.
+ */
+const JS_BUILD = 'b4';
 
 export interface CoachState {
   reps: number;
@@ -156,7 +170,7 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
     const s = sessionRef.current;
     if (!s) return;
 
-    const landmarks = normalizeLandmarks(raw);
+    const landmarks = unpackLandmarks(raw);
 
     // Measured on the raw landmarks on purpose: the smoother drops points the
     // pipeline has already rejected, so reading it here would hide the very
@@ -278,9 +292,8 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
           // so an empty result is usable signal: it says this rotation is
           // wrong. Try the others until one produces a body, then stay there.
           const rotation = probeRotation(scratch.rotation, guess);
-          const parsed = nativePoseToFrame(
-            plugin.call(frame as never, { rotation: rotationDegrees(rotation) })
-          );
+          const raw = plugin.call(frame as never, { rotation: rotationDegrees(rotation) });
+          const parsed = nativePoseToFrame(raw);
           if (!parsed) {
             scratch.nativeMisses += 1;
             if (scratch.nativeMisses === NATIVE_MISS_LIMIT && onNativeFailed) onNativeFailed();
@@ -289,10 +302,14 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
           scratch.nativeMisses = 0;
           const found = Object.keys(parsed.landmarks).length;
           recordProbeResult(scratch.rotation, rotation, found);
+          // The plugin's own account of the frame it was handed: buffer shape,
+          // luma brightness, and whether the detector threw or simply found
+          // nobody. Without it an empty result is unreadable from here.
+          const detail = (raw as { debug?: string } | null)?.debug ?? '';
           const info = `${f.width}x${f.height} ${f.orientation ?? '?'}${
             f.isMirrored === true ? ' mir' : ''
-          } ${rotation}${scratch.rotation.locked ? '' : '?'}`;
-          runOnJs(parsed.landmarks, nowMs, parsed.xMax, undefined, f.isMirrored === true, info);
+          } ${rotation}${scratch.rotation.locked ? '' : '?'} js${found} ${JS_BUILD}\n${detail}`;
+          runOnJs(packLandmarks(parsed.landmarks), nowMs, parsed.xMax, undefined, f.isMirrored === true, info);
           return;
         }
 
@@ -323,8 +340,8 @@ export function useFormCoach({ exerciseName, active, onRep, onCue }: UseFormCoac
         const landmarks = decodeMoveNet(out, { plan, aspect });
         const info = `${f.width}x${f.height} ${f.orientation ?? '?'}${
           f.isMirrored === true ? ' mir' : ''
-        } ${rotation}`;
-        runOnJs(landmarks, nowMs, aspect, undefined, f.isMirrored === true, info);
+        } ${rotation} ${JS_BUILD}`;
+        runOnJs(packLandmarks(landmarks), nowMs, aspect, undefined, f.isMirrored === true, info);
       } catch {
         // Never throw inside a frame processor — it takes down the camera.
         if (plugin) {

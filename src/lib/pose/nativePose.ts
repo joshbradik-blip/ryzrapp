@@ -163,6 +163,85 @@ export function __resetPosePluginCache(): void {
   cached = undefined;
 }
 
+/**
+ * Every landmark name either platform plugin can emit: ML Kit's 21 on
+ * Android, a subset of the same names from Apple Vision on iOS. Used only
+ * when enumeration comes back empty, so a plugin that one day emits a new
+ * name still works through the normal path.
+ */
+export const NATIVE_LANDMARK_NAMES: LandmarkName[] = [
+  'nose',
+  'left_eye', 'right_eye',
+  'left_ear', 'right_ear',
+  'left_shoulder', 'right_shoulder',
+  'left_elbow', 'right_elbow',
+  'left_wrist', 'right_wrist',
+  'left_hip', 'right_hip',
+  'left_knee', 'right_knee',
+  'left_ankle', 'right_ankle',
+  'left_heel', 'right_heel',
+  'left_foot_index', 'right_foot_index',
+];
+
+/**
+ * Flatten landmarks to the string `"index,x,y,score,index,x,y,score,..."`
+ * for the trip from the frame-processor worklet to the JS thread.
+ *
+ * Objects do not survive that crossing on this runtime — the copy arrives
+ * with every property readable but nothing enumerable, so anything walking
+ * it with Object.keys/entries sees an empty skeleton. A flat number array
+ * was tried next and did not land either. A string is the one shape this
+ * boundary is *known* to carry intact, because the diagnostic readout rides
+ * across it on every frame and arrives whole. Both ends index into
+ * NATIVE_LANDMARK_NAMES, so neither enumerates anything.
+ */
+export function packLandmarks(landmarks: Landmarks): string {
+  'worklet';
+  let packed = '';
+  for (let i = 0; i < NATIVE_LANDMARK_NAMES.length; i++) {
+    const kp = landmarks[NATIVE_LANDMARK_NAMES[i]];
+    if (!kp) continue;
+    if (packed.length > 0) packed += ',';
+    packed += i + ',' + kp.x + ',' + kp.y + ',' + kp.score;
+  }
+  return packed;
+}
+
+/**
+ * Rebuild what packLandmarks flattened. Anything malformed is skipped.
+ *
+ * Also accepts an array or array-like, which is what packLandmarks used to
+ * produce: tolerating both means a JS bundle and a frame processor from
+ * different updates cannot blank the skeleton between them.
+ */
+export function unpackLandmarks(packed: unknown): Landmarks {
+  const out: Landmarks = {};
+
+  let flat: ArrayLike<unknown>;
+  if (typeof packed === 'string') {
+    if (packed.length === 0) return out;
+    flat = packed.split(',');
+  } else if (packed && typeof (packed as ArrayLike<unknown>).length === 'number') {
+    // Deliberately not Array.isArray: a copy that crosses the worklet
+    // boundary can arrive as an array-like that fails that check while
+    // indexing and .length both work.
+    flat = packed as ArrayLike<unknown>;
+  } else {
+    return out;
+  }
+
+  for (let i = 0; i + 3 < flat.length; i += 4) {
+    const name = NATIVE_LANDMARK_NAMES[Number(flat[i])];
+    if (!name) continue;
+    const x = Number(flat[i + 1]);
+    const y = Number(flat[i + 2]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const score = Number(flat[i + 3]);
+    out[name] = { x, y, score: Number.isFinite(score) ? score : 0 };
+  }
+  return out;
+}
+
 /** What the ryzrPose plugin returns: pixels in the upright image. */
 export interface NativePoseResult {
   width: number;
@@ -189,7 +268,13 @@ export function nativePoseToFrame(
   if (!(width > 0) || !(height > 0) || !r.landmarks || typeof r.landmarks !== 'object') return null;
 
   const out: Landmarks = {};
-  const names = Object.keys(r.landmarks);
+  // `Object.keys` is the natural way to walk this, but the value crossing the
+  // JSI boundary is a host object on some runtimes, and enumerating one there
+  // yields nothing even though every property reads back fine. That is how a
+  // plugin reporting 21 landmarks arrived here as an empty skeleton. Falling
+  // back to the fixed name list makes the walk independent of enumeration.
+  let names = Object.keys(r.landmarks);
+  if (names.length === 0) names = NATIVE_LANDMARK_NAMES;
   for (let i = 0; i < names.length; i++) {
     const p = r.landmarks[names[i]];
     if (!p) continue;
