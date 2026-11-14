@@ -28,12 +28,13 @@ function squatRep(score = 0.9): PoseFrame[] {
   });
 }
 
-test('review accepts only the four supported catalog exercises', () => {
+test('review accepts only the supported catalog exercises', () => {
   assert.deepEqual(REVIEW_EXERCISES, {
     squat: 'Back Squat',
     goblet_squat: 'Goblet Squat',
     rdl: 'Romanian Deadlift',
     push_up: 'Push-Up',
+    kb_swing: 'Kettlebell Swing',
   });
 });
 
@@ -45,6 +46,46 @@ test('review returns measured metrics for a trackable rep', () => {
   assert.equal(result.summary.profileId, 'squat');
   assert.equal(result.summary.trackingQuality, 0.9);
   assert.equal(result.summary.repScores.length, 1);
+});
+
+function quickHingeRep(): PoseFrame[] {
+  return Array.from({ length: 35 }, (_, index): PoseFrame => {
+    const depth = Math.max(0, Math.min((index - 6) / 6, (18 - index) / 6));
+    const hipX = 0.65 - 0.06 * depth;
+    const hipY = 0.50 + 0.05 * depth;
+    const torsoLean = Math.PI / 3 * depth;
+    const score = 0.9;
+    return {
+      t: Math.round(index * 1000 / 15),
+      xMax: 1.4,
+      landmarks: {
+        left_shoulder: {
+          x: hipX + Math.sin(torsoLean) * 0.23,
+          y: hipY - Math.cos(torsoLean) * 0.23,
+          score,
+        },
+        left_hip: { x: hipX, y: hipY, score },
+        left_knee: { x: 0.65 + 0.025 * depth, y: 0.71, score },
+        left_ankle: { x: 0.65, y: 0.93, score },
+      },
+    };
+  });
+}
+
+test('review detects a full kettlebell swing without a slow-lowering cue', () => {
+  const result = analyzeFrames('kb_swing', quickHingeRep());
+  assert.equal(result.status, 'ok');
+  if (result.status !== 'ok') return;
+  assert.equal(result.summary.profileId, 'hinge');
+  assert.equal(result.summary.reps, 1);
+  assert.deepEqual(result.summary.topIssues, []);
+});
+
+test('review still cues a fast descent on a Romanian deadlift', () => {
+  const result = analyzeFrames('rdl', quickHingeRep());
+  assert.equal(result.status, 'ok');
+  if (result.status !== 'ok') return;
+  assert.match(result.summary.topIssues[0].cue, /slow the way down/i);
 });
 
 test('review gives lighting guidance when a dark clip cannot be tracked', () => {

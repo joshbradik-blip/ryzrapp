@@ -31,8 +31,9 @@ import { WorkoutQuickTip, useWorkoutQuickTip } from '../../components/workout/Wo
 import { isStaticHold, timedExerciseSeconds } from '../../lib/timedExercise';
 import { Colors } from '../../constants/theme';
 import { haptic } from '../../lib/feedback';
-import { supportsFormCoach } from '../../lib/pose/coverage';
 import { useFormCoachEnabled } from '../../lib/featureFlags';
+import { useOpenMembership } from '../../lib/openMembership';
+import { supportsVideoFormReview } from '../../lib/videoFormReview';
 import { WorkoutRestScreen } from './WorkoutRestScreen';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'WorkoutSession'>;
@@ -51,6 +52,7 @@ function fmtWeight(kg: number, unit: WeightUnit): string {
 export function WorkoutSessionScreen({ navigation, route }: Props) {
   const isFocused = useIsFocused();
   const formCoachEnabled = useFormCoachEnabled();
+  const openMembership = useOpenMembership();
   const { show: showLogTip, dismiss: dismissLogTip } = useWorkoutQuickTip('log-set');
   const { show: showTimerTip, dismiss: dismissTimerTip } = useWorkoutQuickTip('hold-timer');
   const { workoutId } = route.params;
@@ -443,17 +445,18 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
           </TouchableOpacity>
         )}
 
-        {/* Form coach (premium) — hidden on mobility work the pipeline cannot score. */}
-        {formCoachEnabled && supportsFormCoach(currentExercise.exercise) && (
+        {formCoachEnabled && supportsVideoFormReview(currentExercise.exercise.id) && (
           <TouchableOpacity
             onPress={() => {
               if (!isPremium) {
-                Alert.alert('Premium Feature', 'Upgrade to RYZR Premium to unlock the AI Form Coach.');
+                Alert.alert('Premium Feature', 'Video form review is included with RYZR Premium.', [
+                  { text: 'Not now', style: 'cancel' },
+                  { text: 'View Premium', onPress: () => openMembership('Video Form Review') },
+                ]);
                 return;
               }
-              navigation.navigate('FormCoach', {
+              navigation.navigate('VideoFormReview', {
                 exerciseId: currentExercise.exercise.id,
-                exerciseName: currentExercise.exercise.name,
               });
             }}
             style={{
@@ -470,7 +473,7 @@ export function WorkoutSessionScreen({ navigation, route }: Props) {
           >
             <Ionicons name={isPremium ? 'camera-outline' : 'lock-closed-outline'} size={18} color={isPremium ? Colors.text : Colors.primary} />
             <Text style={{ color: isPremium ? Colors.text : Colors.primary, fontWeight: '700' }}>
-              {isPremium ? 'Check My Form' : 'Form Coach (Premium)'}
+              {isPremium ? 'Review my form' : 'Review my form (Premium)'}
             </Text>
           </TouchableOpacity>
         )}

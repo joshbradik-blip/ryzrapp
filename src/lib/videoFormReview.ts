@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-const EXERCISE_IDS = ['squat', 'goblet_squat', 'rdl', 'push_up'] as const;
+const EXERCISE_IDS = ['squat', 'goblet_squat', 'rdl', 'push_up', 'kb_swing'] as const;
 export type VideoFormReviewExerciseId = (typeof EXERCISE_IDS)[number];
 export const MAX_REVIEW_VIDEO_BYTES = 20 * 1024 * 1024;
 export const MAX_REVIEW_VIDEO_SECONDS = 20;

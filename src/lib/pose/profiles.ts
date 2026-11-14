@@ -319,7 +319,13 @@ export function resolveAngleSource(
 
 export function profileFor(exerciseName: string): ExerciseProfile {
   for (const p of PROFILES) {
-    if (p.patterns.some(re => re.test(exerciseName))) return p;
+    if (p.patterns.some(re => re.test(exerciseName))) {
+      if (exerciseName.toLowerCase() === 'kettlebell swing') {
+        // A swing is ballistic and does not use a slow eccentric phase.
+        return { ...p, rules: p.rules.filter((rule) => rule !== 'tempo_fast') };
+      }
+      return p;
+    }
   }
   return GENERIC_PROFILE;
 }

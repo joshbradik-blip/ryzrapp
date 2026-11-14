@@ -2,7 +2,7 @@
 
 RYZR records or selects one 2–20 second MP4 or MOV clip up to 20 MB. The user previews it locally and explicitly submits it to this service. The service verifies the Supabase session and Premium access. MediaPipe extracts pose landmarks from timestamped frames, and RYZR's existing exercise rules decide whether there is enough evidence to review the set. Claude receives the exercise name and a summary of the measurements to write one short cue.
 
-The initial exercise list is Back Squat, Goblet Squat, Romanian Deadlift, and Push-Up. Unclear clips return a retake cue. The service uses temporary files during analysis and removes them when the decoder finishes or errors. It has no upload bucket or clip history. Audio is ignored by the decoder.
+The supported exercises are Back Squat, Goblet Squat, Romanian Deadlift, Push-Up, and Kettlebell Swing. Unclear clips return a retake cue. The service uses temporary files during analysis and removes them when the decoder finishes or errors. It has no upload bucket or clip history. Audio is ignored by the decoder.
 
 ## Run the service
 

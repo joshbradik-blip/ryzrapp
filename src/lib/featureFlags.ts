@@ -14,9 +14,10 @@ import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { supabase } from './supabase';
+import { VIDEO_FORM_REVIEW_ENABLED } from './videoFormReview';
 
 export interface FeatureFlags {
-  /** Form Coach camera: every entry point and every marketing mention. */
+  /** Form Coach: every entry point and every marketing mention. */
   formCoach: boolean;
   /**
    * Use the platform body tracker (Apple Vision / ML Kit) when the build has
@@ -48,7 +49,7 @@ const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 export const useFeatureFlags = create<FeatureFlags>(() => ({ ...DEFAULTS }));
 
 export function useFormCoachEnabled(): boolean {
-  return useFeatureFlags((s) => s.formCoach);
+  return useFeatureFlags((s) => s.formCoach && VIDEO_FORM_REVIEW_ENABLED);
 }
 
 let lastFetchAt = 0;

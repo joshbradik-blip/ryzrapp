@@ -13,13 +13,6 @@ import { ProgramCategoryScreen } from '../screens/today/ProgramCategoryScreen';
 import { ProgramDetailScreen } from '../screens/today/ProgramDetailScreen';
 import { Colors } from '../constants/theme';
 
-// Lazy-load FormCoachScreen so Vision Camera is only initialized when the user
-// navigates to Form Coach, preventing a startup SIGABRT from early native API access.
-function LazyFormCoachScreen(props: any) {
-  const { FormCoachScreen } = require('../screens/today/FormCoachScreen');
-  return <FormCoachScreen {...props} />;
-}
-
 const Stack = createNativeStackNavigator<TodayStackParamList>();
 
 export function TodayNavigator() {
@@ -61,11 +54,6 @@ export function TodayNavigator() {
         name="SubstituteExercise"
         component={SubstituteExerciseScreen}
         options={{ title: 'Swap Exercise', headerBackTitle: '' }}
-      />
-      <Stack.Screen
-        name="FormCoach"
-        component={LazyFormCoachScreen}
-        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="WorkoutComplete"

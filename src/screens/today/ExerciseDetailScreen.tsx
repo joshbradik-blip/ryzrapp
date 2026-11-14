@@ -14,14 +14,13 @@ import { getExerciseById } from '../../constants/exercises';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useWorkoutStore } from '../../store/workoutStore';
 import { exerciseHeroMedia } from '../../lib/exerciseMedia';
-import { supportsFormCoach } from '../../lib/pose/coverage';
 import { ExerciseHero } from '../../components/workout/ExerciseHero';
 import { Button } from '../../components/ui/Button';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { Colors } from '../../constants/theme';
 import { useFormCoachEnabled } from '../../lib/featureFlags';
 import { useOpenMembership } from '../../lib/openMembership';
-import { supportsVideoFormReview, VIDEO_FORM_REVIEW_ENABLED } from '../../lib/videoFormReview';
+import { supportsVideoFormReview } from '../../lib/videoFormReview';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'ExerciseDetail'>;
 
@@ -221,7 +220,7 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
           </TouchableOpacity>
           )}
 
-          {VIDEO_FORM_REVIEW_ENABLED && supportsVideoFormReview(exercise.id) && (
+          {formCoachEnabled && supportsVideoFormReview(exercise.id) && (
             <Button
               title={isPremium ? 'Review my form' : 'Review my form (Premium)'}
               variant="secondary"
@@ -239,43 +238,6 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
             />
           )}
 
-          {/* Form Coach CTA — hidden on mobility work the pipeline cannot score. */}
-          {formCoachEnabled && supportsFormCoach(exercise) && (
-            <TouchableOpacity
-              onPress={() => {
-                if (!isPremium) {
-                  Alert.alert('Premium Feature', 'Upgrade to RYZR Premium for the AI Form Coach.');
-                  return;
-                }
-                navigation.navigate('FormCoach', { exerciseId: exercise.id, exerciseName: exercise.name });
-              }}
-              style={{
-                backgroundColor: isPremium ? Colors.primary + '22' : Colors.surface2,
-                borderRadius: 14,
-                padding: 18,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 14,
-                borderWidth: 1,
-                borderColor: isPremium ? Colors.primary : Colors.border,
-              }}
-            >
-              <Ionicons
-                name={isPremium ? 'camera-outline' : 'lock-closed-outline'}
-                size={28}
-                color={isPremium ? Colors.primary : Colors.muted}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: isPremium ? Colors.primary : Colors.text, fontWeight: '800', fontSize: 15 }}>
-                  Check My Form
-                </Text>
-                <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 2 }}>
-                  {isPremium ? 'Live AI feedback with your camera' : 'Premium feature — upgrade to unlock'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={isPremium ? Colors.primary : Colors.muted} />
-            </TouchableOpacity>
-          )}
         </View>
       </ScrollView>
     </SafeAreaView>

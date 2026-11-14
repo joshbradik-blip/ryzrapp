@@ -31,17 +31,17 @@ import { useRoute } from '@react-navigation/native';
 
 const PREMIUM_FEATURES: { icon: keyof typeof Ionicons.glyphMap; title: string; desc: string }[] = [
   { icon: 'hardware-chip-outline', title: 'AI Workout Generation',       desc: 'Personalized plans rebuilt weekly around your progress' },
-  { icon: 'camera-outline',        title: 'Form Coach',                  desc: 'Real-time camera analysis with rep counting and cues' },
+  { icon: 'camera-outline',        title: 'Form Coach',                  desc: 'Get a form cue from a recorded set' },
   { icon: 'trending-up-outline',   title: 'Advanced Analytics',          desc: 'Strength curves, volume trends, and goal projections' },
   { icon: 'refresh-outline',       title: 'Unlimited Plan Regeneration', desc: 'Update your goals anytime, new plan in 10 seconds' },
   { icon: 'flash-outline',         title: 'Priority Support',            desc: 'Direct access to the RYZR coaching team' },
 ];
 
 const FAQ_ITEMS: { q: string; a: string }[] = [
-  { q: 'How do I start a workout?', a: 'Go to the Today tab and tap "Start Workout" on your daily card. You\'ll enter the live session where you log sets, use the rest timer, and track form.' },
+  { q: 'How do I start a workout?', a: 'Go to the Today tab and tap "Start Workout" on your daily card. You can log sets and use the rest timer in the workout session.' },
   { q: 'How do I jump to a different workout day?', a: 'On the Today tab, scroll down to the "Coming up" section and tap any workout card. It becomes your active workout immediately.' },
   { q: 'What is RPE?', a: 'RPE stands for Rate of Perceived Exertion — a 1–10 scale of effort. RPE 7 means 3 reps left in the tank. RPE 9 means 1 rep left. Use it to match the right intensity for each set.' },
-  { q: 'How do I unlock Form Coach?', a: 'Form Coach requires a Premium subscription. Tap the Membership tab above to upgrade. Once subscribed, tap the camera icon during any exercise set for live AI form feedback.' },
+  { q: 'How do I unlock Form Coach?', a: 'Form Coach requires a Premium subscription. For supported exercises, tap "Review my form" in the Exercise Library or during a workout. Record or choose a clip, then submit it for feedback.' },
   { q: 'How do I log my body weight?', a: 'Go to the Progress tab, scroll to the Body Weight section, and tap the "+" button to log today\'s weight.' },
   { q: 'How do I regenerate my workout plan?', a: 'On the Today tab, tap "Regenerate today\'s workout" (Premium required). A new AI-generated plan based on your current profile is ready in about 10 seconds.' },
   { q: 'How do I substitute an exercise?', a: 'During a workout session, tap the swap icon next to any exercise name to choose an alternative from the library or the ExerciseDB database.' },

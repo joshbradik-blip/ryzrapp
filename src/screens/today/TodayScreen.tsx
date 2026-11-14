@@ -422,7 +422,7 @@ export function TodayScreen() {
               </Text>
               <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 2 }}>
                 {formCoachEnabled
-                  ? 'Real-time camera analysis — upgrade to Premium'
+                  ? 'Get a form cue from a recorded set'
                   : 'AI plans, coach chat and advanced charts'}
               </Text>
             </View>

@@ -11,6 +11,7 @@ import { GradientButton } from '../../components/ui/GradientButton';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { getExerciseById } from '../../constants/exercises';
 import { Colors } from '../../constants/theme';
+import { useFormCoachEnabled } from '../../lib/featureFlags';
 import {
   isReviewVideoDuration,
   MAX_REVIEW_VIDEO_BYTES,
@@ -19,7 +20,6 @@ import {
   recordedReviewVideo,
   reviewVideoForm,
   supportsVideoFormReview,
-  VIDEO_FORM_REVIEW_ENABLED,
   type ReviewVideo,
   type VideoFormReviewExerciseId,
   type VideoFormReviewResult,
@@ -33,10 +33,11 @@ type Operation = 'opening-camera' | 'picking' | 'recording' | 'submitting';
 const CAPTURE_SECONDS = MAX_REVIEW_VIDEO_SECONDS - 1;
 
 export function VideoFormReviewScreen({ route }: Props) {
+  const formCoachEnabled = useFormCoachEnabled();
   const isPremium = useSubscriptionStore((state) => state.isPremium);
   const { exerciseId } = route.params;
 
-  if (!VIDEO_FORM_REVIEW_ENABLED || !isPremium || !supportsVideoFormReview(exerciseId)) {
+  if (!formCoachEnabled || !isPremium || !supportsVideoFormReview(exerciseId)) {
     return (
       <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: Colors.background, padding: 24 }}>
         <Text style={{ color: Colors.text }}>Video Form Review is unavailable for this exercise or account.</Text>

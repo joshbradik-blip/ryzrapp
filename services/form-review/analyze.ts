@@ -7,6 +7,7 @@ export const REVIEW_EXERCISES = {
   goblet_squat: 'Goblet Squat',
   rdl: 'Romanian Deadlift',
   push_up: 'Push-Up',
+  kb_swing: 'Kettlebell Swing',
 } as const;
 
 const MIN_TRACKING_QUALITY = 0.6;

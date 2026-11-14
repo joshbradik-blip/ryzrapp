@@ -22,10 +22,11 @@ function load(file, dependencies = {}, globals = {}) {
   return exports;
 }
 
-function session(exerciseId = 'plank', targetReps = '30s') {
+function session(exerciseId = 'plank', targetReps = '30s', { formCoachEnabled = false, isPremium = false } = {}) {
   let now = 1000;
   let tick;
   const sets = [];
+  const routes = [];
   const native = {
     View: 'View', Text: 'Text', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity', TextInput: 'TextInput',
     Keyboard: { dismiss() {} }, Alert: { alert() {} },
@@ -52,6 +53,12 @@ function session(exerciseId = 'plank', targetReps = '30s') {
     startSession() {}, logSet: (set) => sets.push(set), nextExercise() {}, completeSession() {}, loadChallenges() {},
   };
   const useWorkoutStore = Object.assign(() => workoutState, { getState: () => workoutState });
+  const useProfileStore = Object.assign(
+    () => ({ profile: { weight_unit: 'kg' }, setProfile() {} }),
+    { getState: () => ({ profile: { weight_unit: 'kg' } }) },
+  );
+  const history = { lastSets: {}, bestWeights: {}, lastSessionPerf: {} };
+  const useHistoryStore = Object.assign(() => history, { getState: () => history });
   const { WorkoutSessionScreen } = load('src/screens/today/WorkoutSessionScreen.tsx', {
     ...common,
     '../../lib/funnel': { trackEvent() {} },
@@ -59,11 +66,11 @@ function session(exerciseId = 'plank', targetReps = '30s') {
     '@expo/vector-icons': { Ionicons: 'Ionicons' },
     '@react-navigation/native': { useIsFocused: () => true },
     '../../store/workoutStore': { useWorkoutStore },
-    '../../store/subscriptionStore': { useSubscriptionStore: () => ({ isPremium: false }) },
-    '../../store/profileStore': { useProfileStore: () => ({ profile: { weight_unit: 'kg' }, setProfile() {} }) },
-    '../../store/historyStore': { useHistoryStore: () => ({ lastSets: {}, bestWeights: {}, lastSessionPerf: {} }) },
+    '../../store/subscriptionStore': { useSubscriptionStore: () => ({ isPremium }) },
+    '../../store/profileStore': { useProfileStore },
+    '../../store/historyStore': { useHistoryStore },
     '../../store/authStore': { useAuthStore: (selector) => selector({}) },
-    '../../store/wearablesStore': {},
+    '../../store/wearablesStore': { useWearablesStore: { getState: () => ({}) } },
     '../../lib/units': load('src/lib/units.ts'),
     '../../lib/exerciseMedia': { exerciseHeroMedia: () => ({}) },
     '../../components/ui/Button': { Button: 'Button' },
@@ -71,14 +78,16 @@ function session(exerciseId = 'plank', targetReps = '30s') {
     '../../components/workout/ExerciseHero': { ExerciseHero: 'ExerciseHero' },
     '../../components/workout/HoldTimer': { HoldTimer },
     '../../components/workout/WorkoutQuickTip': { WorkoutQuickTip: 'WorkoutQuickTip', useWorkoutQuickTip: () => ({ show: false, dismiss() {} }) },
-    '../../lib/pose/coverage': { supportsFormCoach: () => false },
-    '../../lib/featureFlags': { useFormCoachEnabled: () => false },
+    '../../lib/featureFlags': { useFormCoachEnabled: () => formCoachEnabled },
+    '../../lib/openMembership': { useOpenMembership: () => () => {} },
+    '../../lib/videoFormReview': load('src/lib/videoFormReview.ts', { './supabase': {} }, { process: { env: {} } }),
     './WorkoutRestScreen': { WorkoutRestScreen: 'WorkoutRestScreen' },
   });
   let tree;
-  act(() => { tree = create(React.createElement(WorkoutSessionScreen, { navigation: {}, route: { params: { workoutId: workout.id } } })); });
+  const navigation = { navigate: (...args) => routes.push(args) };
+  act(() => { tree = create(React.createElement(WorkoutSessionScreen, { navigation, route: { params: { workoutId: workout.id } } })); });
   return {
-    tree, sets, HoldTimer,
+    tree, sets, routes, HoldTimer,
     button: (title) => tree.root.findAll((node) => ['Button', 'GradientButton'].includes(node.type) && node.props.title === title)[0],
     advance: (milliseconds) => act(() => { now += milliseconds; tick?.(); }),
     press(title) { const button = this.button(title); assert.ok(button, title); assert.notEqual(button.props.disabled, true); act(() => button.props.onPress()); },
@@ -113,6 +122,16 @@ test('plank logs elapsed duration and returns from separate rest to a fresh time
     assert.equal(s.sets[1].durationSeconds, 2);
     assert.equal(s.tree.root.findAllByType(s.HoldTimer).length, 0);
     assert.ok(s.button('Finish Workout'));
+  } finally { s.stop(); }
+});
+
+test('checking a kettlebell swing opens recorded review without logging a set', () => {
+  const s = session('kb_swing', '8', { formCoachEnabled: true, isPremium: true });
+  try {
+    const review = s.tree.root.findByProps({ children: 'Review my form' });
+    act(() => review.parent.props.onPress());
+    assert.deepEqual(s.routes.map(([route, params]) => [route, params.exerciseId]), [['VideoFormReview', 'kb_swing']]);
+    assert.equal(s.sets.length, 0);
   } finally { s.stop(); }
 });
 
