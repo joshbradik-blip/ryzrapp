@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TodayStackParamList } from '../../types';
 import { getExerciseById } from '../../constants/exercises';
@@ -39,6 +40,7 @@ const MUSCLE_COLORS: Record<string, string> = {
 };
 
 export function ExerciseDetailScreen({ navigation, route }: Props) {
+  const isFocused = useIsFocused();
   const formCoachEnabled = useFormCoachEnabled();
   const { exerciseId, workoutId, workoutExerciseId } = route.params;
   // getExerciseById only knows the curated 30. Swapped-in ExerciseDB exercises
@@ -96,6 +98,7 @@ export function ExerciseDetailScreen({ navigation, route }: Props) {
           {...exerciseHeroMedia(exercise)}
           muscles={exercise.muscles_primary}
           cues={[...exercise.setup_cues, ...exercise.execution_cues]}
+          active={isFocused}
         />
 
         <View style={{ padding: 24 }}>
