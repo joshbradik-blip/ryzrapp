@@ -124,7 +124,8 @@
     "video": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260901_043808_195888d8-aa47-48ac-98de-242525b90c47.mp4"
   },
   "shoulder_dislocates": {
-    "video": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260901_043808_34399e15-40da-4922-abb5-647f26709e82.mp4"
+    "video": "https://fuyzcssdryngvxmmjkvn.supabase.co/storage/v1/object/public/exercise-media/shoulder_dislocates_band_v1.mp4",
+    "image": "https://fuyzcssdryngvxmmjkvn.supabase.co/storage/v1/object/public/exercise-media/shoulder_dislocates_band_v1.png"
   },
   "burpee": {
     "video": "https://d8j0ntlcm91z4.cloudfront.net/user_39G95DVRYt6jZoHFsS7AEPgV01l/hf_20260901_043808_d98b02af-64f6-4212-8336-87e52e2ec035.mp4"
