@@ -1,13 +1,19 @@
 name: Publish OTA update
 
-# Manual only: run with `eas workflow:run publish-update.yml` or from the EAS
-# dashboard. Publishes the checked-out JS to the production update branch.
+# Run this workflow manually and choose where to publish the checked-out JS.
 # The runtime is app.json `version` (appVersion policy), so never bump
 # `version` for a JS-only change: that cuts off already-installed apps.
 
 on:
   workflow_dispatch:
     inputs:
+      release_target:
+        type: choice
+        required: true
+        description: 'Would you like to test the changes in a simulator before publishing the OTA? Choose preview to test or production to release.'
+        options:
+          - preview
+          - production
       message:
         type: string
         required: false
@@ -16,9 +22,24 @@ on:
 
 jobs:
   publish_update:
-    name: Publish update to production
+    name: Publish update
+    if: ${{ inputs.release_target == 'preview' || inputs.release_target == 'production' }}
     type: update
+    environment: production
     params:
-      branch: production
+      branch: ${{ inputs.release_target }}
       platform: all
       message: ${{ inputs.message }}
+
+  simulator_preview:
+    name: Open the simulator preview
+    needs: [publish_update]
+    if: ${{ inputs.release_target == 'preview' }}
+    type: doc
+    params:
+      md: |
+        Open [RYZR Simulator sessions](https://expo.dev/accounts/jujitsujosh/projects/ryzrapp/simulator-sessions)
+        and create a session for each platform using an `ota-preview` build that matches the update runtime.
+
+        After testing both devices, promote the
+        [tested update group](https://expo.dev/accounts/jujitsujosh/projects/ryzrapp/updates/${{ needs.publish_update.outputs.first_update_group_id }}).
