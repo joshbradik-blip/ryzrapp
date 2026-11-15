@@ -1,0 +1,20 @@
+name: Publish OTA preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        type: string
+        required: false
+        description: 'Update message'
+        default: 'OTA preview'
+
+jobs:
+  publish_preview:
+    name: Publish update to preview
+    type: update
+    environment: production
+    params:
+      channel: preview
+      platform: all
+      message: ${{ inputs.message }}

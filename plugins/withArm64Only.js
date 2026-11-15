@@ -1,5 +1,5 @@
-// Restricts the Android build to armeabi-v7a + arm64-v8a, dropping x86 and
-// x86_64.
+// Restricts Android builds to armeabi-v7a + arm64-v8a by default. The OTA
+// preview APK targets x86_64 for Expo's cloud emulator.
 //
 // Why: Play blocks promotion with "Your app does not support 16 KB memory page
 // sizes" because react-native-fast-tflite 1.6.1 extracts two prebuilt
@@ -11,11 +11,7 @@
 // device has 16 KB pages. The only ways out are to stop shipping the ABI or to
 // migrate to fast-tflite 3.x, which changes the Form Coach inference path.
 //
-// Cost: a release AAB no longer installs on x86_64 emulators, which is where
-// the pre-launch report's virtual devices and local release testing run. No
-// user impact — Play serves no x86_64 build to consumer phones. Development
-// builds are unaffected on Apple silicon (arm64) but need a real device or an
-// arm64 emulator image on an Intel host.
+// The Play release AAB remains ARM-only for the 16 KB page-size check.
 //
 // Two mechanisms, because they cover different sources of .so files:
 //
@@ -34,7 +30,9 @@
 
 const { withGradleProperties, withAppBuildGradle } = require('@expo/config-plugins');
 
-const ARCHITECTURES = ['armeabi-v7a', 'arm64-v8a'];
+const ARCHITECTURES = process.env.RYZR_ANDROID_EMULATOR === '1'
+  ? ['x86_64']
+  : ['armeabi-v7a', 'arm64-v8a'];
 const PROPERTY = 'reactNativeArchitectures';
 const MARKER = 'RYZR abiFilters';
 
@@ -68,9 +66,7 @@ function withAbiFilters(config) {
     const filters = ARCHITECTURES.map((abi) => `"${abi}"`).join(', ');
     mod.modResults.contents +=
       `\n// ${MARKER} — see plugins/withArm64Only.js.\n` +
-      `// Drops x86/x86_64 so the 4 KB-aligned prebuilt LiteRT libraries never\n` +
-      `// reach the bundle. abiFilters is the only mechanism that strips .so\n` +
-      `// files out of AAR dependencies; reactNativeArchitectures alone does not.\n` +
+      `// Match packaged native libraries to reactNativeArchitectures.\n` +
       `android {\n` +
       `    defaultConfig {\n` +
       `        ndk {\n` +
