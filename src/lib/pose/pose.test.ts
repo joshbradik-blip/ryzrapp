@@ -22,7 +22,13 @@ import { profileFor, depthFromAngle, measureAngle } from './profiles';
 import { RepDetector } from './repDetector';
 import { analyzeFraming } from './framing';
 import { FormCoachSession } from './session';
-import { normalizeLandmarks, nativePoseToFrame, rotationDegrees } from './nativePose';
+import {
+  normalizeLandmarks,
+  nativePoseToFrame,
+  packLandmarks,
+  rotationDegrees,
+  unpackLandmarks,
+} from './nativePose';
 import { supportsFormCoach } from './coverage';
 import { SkeletonSmoother, buildSkeleton, focusJoints, toView } from './skeleton';
 
@@ -1008,4 +1014,82 @@ test('a stray landmark or two is not enough to lock a rotation', () => {
   const tried = probeRotation(state, '0deg');
   recordProbeResult(state, tried, MIN_LOCK_LANDMARKS - 1);
   assert.equal(state.locked, null, 'locked on too few points');
+});
+
+test('nativePoseToFrame reads landmarks the runtime will not enumerate', () => {
+  // The plugin's result crosses JSI as a host object on some runtimes: every
+  // property reads back correctly, but Object.keys on it returns nothing.
+  // That turned a detector reporting 21 landmarks into an empty skeleton on
+  // device while every unit test here passed, because a plain object literal
+  // enumerates fine.
+  const landmarks = {};
+  const point = (x: number, y: number) => ({ x, y, score: 0 });
+  for (const [name, p] of [
+    ['left_shoulder', point(100, 200)],
+    ['right_shoulder', point(200, 200)],
+    ['left_hip', point(120, 400)],
+  ] as const) {
+    Object.defineProperty(landmarks, name, { value: p, enumerable: false });
+  }
+  assert.deepEqual(Object.keys(landmarks), [], 'test subject must not enumerate');
+
+  const f = nativePoseToFrame({ width: 720, height: 1280, landmarks });
+  assert.ok(f, 'returned null for a readable result');
+  assert.equal(Object.keys(f.landmarks).length, 3);
+  assert.ok(f.landmarks.left_shoulder);
+  assert.equal(f.landmarks.left_shoulder.y, 200 / 1280);
+});
+
+test('landmarks survive the worklet boundary as flat numbers', () => {
+  const landmarks = {
+    left_shoulder: { x: 0.4, y: 0.3, score: 0.9 },
+    right_knee: { x: 0.6, y: 0.8, score: 0 },
+  };
+  const packed = packLandmarks(landmarks);
+  assert.equal(typeof packed, 'string', 'only a string is known to cross intact');
+  assert.equal(packed.split(',').length, 8, 'two landmarks pack to two quads');
+
+  const back = unpackLandmarks(packed);
+  assert.deepEqual(back, landmarks);
+});
+
+test('packLandmarks does not enumerate the object it is given', () => {
+  // Same hazard as the parse step: the value handed to the worklet reads back
+  // fine property by property but lists no keys. Packing has to index the
+  // known names rather than ask the object what it holds.
+  const landmarks = {};
+  Object.defineProperty(landmarks, 'left_hip', {
+    value: { x: 0.5, y: 0.5, score: 0.7 },
+    enumerable: false,
+  });
+  assert.deepEqual(Object.keys(landmarks), [], 'test subject must not enumerate');
+
+  const back = unpackLandmarks(packLandmarks(landmarks));
+  assert.ok(back.left_hip, 'landmark lost crossing the boundary');
+  assert.equal(back.left_hip.x, 0.5);
+});
+
+test('unpackLandmarks drops a malformed quad rather than throwing', () => {
+  const back = unpackLandmarks('0,NaN,0.5,1,999,0.1,0.1,1,5,0.2,0.3,0.8');
+  assert.equal(Object.keys(back).length, 1, 'kept only the usable quad');
+  assert.ok(back.left_shoulder);
+});
+
+test('unpackLandmarks still reads an array-like that is not an Array', () => {
+  // A copy crossing the worklet boundary can arrive indexable and sized but
+  // failing Array.isArray, and an older frame processor may still be sending
+  // the array form after a JS-only update.
+  const arrayLike = { 0: 5, 1: 0.2, 2: 0.3, 3: 0.8, length: 4 };
+  assert.equal(Array.isArray(arrayLike), false, 'test subject must not be an Array');
+
+  const back = unpackLandmarks(arrayLike);
+  assert.ok(back.left_shoulder, 'dropped a readable array-like');
+  assert.equal(back.left_shoulder.x, 0.2);
+});
+
+test('unpackLandmarks returns empty for nothing usable', () => {
+  assert.deepEqual(unpackLandmarks(''), {});
+  assert.deepEqual(unpackLandmarks(null), {});
+  assert.deepEqual(unpackLandmarks(undefined), {});
+  assert.deepEqual(unpackLandmarks(42), {});
 });
